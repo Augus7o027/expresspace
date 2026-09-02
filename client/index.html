@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Sede</title>
+    <title>ExpresSpace</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Pinyon+Script&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
@@ -15,13 +15,13 @@
     <!-- Entrada -->
     <section id="login" class="screen">
       <div class="login-card glass">
-        <div class="meta-row"><span class="mono">©®™</span><span class="mono">v0.1 · beta</span></div>
+        <div class="meta-row"><span class="mono">©®™</span><span class="mono">v0.2 · beta</span></div>
         <h1 class="display">
           <span class="kicker">você é o arquiteto do seu</span>
           <span class="script">Próprio</span>
           <span class="serif">Espaço</span>
         </h1>
-        <p class="sub mono">Um lugar só nosso. Entre, caminhe, converse.</p>
+        <p class="sub mono">ExpresSpace. Um lugar só nosso. Entre, caminhe, converse.</p>
         <form id="login-form">
           <label class="mono" for="name">como quer ser chamado</label>
           <input id="name" name="name" autocomplete="off" maxlength="24" placeholder="seu nome" required />
@@ -35,7 +35,7 @@
     <main id="app" class="screen hidden">
       <aside id="sidebar" class="glass">
         <header class="brand">
-          <div class="brand-title"><span class="script">Sede</span></div>
+          <div class="brand-title"><span class="script">ExpresSpace</span></div>
           <div class="mono dim" id="online-count">0 online</div>
         </header>
 
@@ -54,27 +54,41 @@
         </div>
 
         <footer class="me">
-          <div class="avatar-dot" id="me-dot"></div>
-          <div class="me-info">
-            <div class="me-name" id="me-name">—</div>
-            <div class="mono dim" id="me-where">Lobby</div>
+          <div class="me-row">
+            <div class="avatar-dot" id="me-dot"></div>
+            <div class="me-info">
+              <div class="me-name" id="me-name">—</div>
+              <div class="mono dim" id="me-where">Recepção</div>
+            </div>
+            <select id="presence" class="presence" title="Status">
+              <option value="available">● Disponível</option>
+              <option value="busy">● Ocupado</option>
+              <option value="focus">● Foco (sem voz)</option>
+            </select>
           </div>
-          <button id="btn-mic" class="icon-btn" title="Microfone (M)">🎙</button>
+          <div class="me-actions">
+            <button id="btn-mic" class="icon-btn" title="Microfone (M)">🎙</button>
+            <button id="btn-screen" class="icon-btn" title="Compartilhar tela (só em salas e canais de voz)">🖥</button>
+            <button id="btn-sound" class="icon-btn" title="Sons de notificação">🔔</button>
+            <input id="status-text" class="status-text" maxlength="40" placeholder="frase de status" />
+          </div>
         </footer>
       </aside>
 
       <section id="stage">
         <div id="game"></div>
+        <div id="screens" class="hidden"></div>
         <div id="hud" class="glass">
           <div class="hud-left">
             <span class="mono dim">Você está em</span>
-            <span id="hud-zone" class="serif">Lobby</span>
+            <span id="hud-zone" class="serif">Recepção</span>
           </div>
           <div class="hud-right">
             <span id="hud-voice" class="mono dim">sem voz</span>
-            <span id="hud-hint" class="mono dim">WASD / setas para andar · Enter para falar</span>
+            <span id="hud-hint" class="mono dim">WASD ou clique · Enter chat · M mic · E interagir</span>
           </div>
         </div>
+        <div id="hud-prompt" class="glass hidden"><kbd>E</kbd> <span></span></div>
         <div id="toast" class="glass hidden"></div>
       </section>
 
@@ -90,12 +104,26 @@
           </div>
         </header>
         <div id="messages"></div>
+        <div id="mention-list" class="popover hidden"></div>
+        <div id="emoji-picker" class="popover hidden"></div>
         <form id="chat-form">
-          <input id="chat-input" autocomplete="off" maxlength="1000" placeholder="Escreva algo…" />
+          <button type="button" id="btn-emoji" class="icon-btn" title="Emoji">☺</button>
+          <input id="chat-input" autocomplete="off" maxlength="1000" placeholder="Escreva algo… (@ para mencionar)" />
           <button type="submit" class="icon-btn">↑</button>
         </form>
       </aside>
     </main>
+
+    <!-- Modal de objetos (quadro, link, vídeo, mural) -->
+    <div id="modal" class="hidden">
+      <div class="modal-card glass">
+        <header>
+          <div><div class="mono dim" id="modal-kind"></div><div class="serif" id="modal-title"></div></div>
+          <button id="modal-close" class="icon-btn" title="Fechar (Esc)">✕</button>
+        </header>
+        <div id="modal-body"></div>
+      </div>
+    </div>
 
     <div id="audio-sink"></div>
     <script type="module" src="/src/main.js"></script>

@@ -16,6 +16,7 @@ class MemoryStore {
   constructor() {
     this.users = new Map();
     this.messages = new Map(); // channelId -> []
+    this.boards = new Map();
     this.seq = 0;
   }
   async init() {}
@@ -33,6 +34,8 @@ class MemoryStore {
     const arr = this.messages.get(channelId) || [];
     return arr.slice(-limit);
   }
+  async getBoard(id) { return this.boards.get(id) || ""; }
+  async setBoard(id, content) { this.boards.set(id, content); }
 }
 
 class PgStore {
@@ -68,6 +71,15 @@ class PgStore {
       [channelId, limit]
     );
     return r.rows.reverse();
+  }
+  async getBoard(id) {
+    const r = await this.pool.query("SELECT content FROM boards WHERE id = $1", [id]);
+    return r.rows[0]?.content || "";
+  }
+  async setBoard(id, content) {
+    await this.pool.query(
+      `INSERT INTO boards (id, content) VALUES ($1,$2)
+       ON CONFLICT (id) DO UPDATE SET content = EXCLUDED.content, updated_at = now()`, [id, content]);
   }
 }
 

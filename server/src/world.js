@@ -22,6 +22,8 @@ export class World {
       voiceChannel: null, // canal de voz estilo Discord (sobrepõe o mapa)
       muted: false,
       status: "", // frase curta ao lado do nome
+      presence: "available", // available | busy | focus
+      speaking: false,
     };
     this.players.set(user.id, p);
     this.updateZone(p);
@@ -56,7 +58,7 @@ export class World {
     for (const p of this.players.values()) {
       out.push({ id: p.id, name: p.name, color: p.color, x: p.x, y: p.y, dir: p.dir,
         moving: p.moving, zone: p.zone, onStage: p.onStage, voiceChannel: p.voiceChannel,
-        muted: p.muted, status: p.status });
+        muted: p.muted, status: p.status, presence: p.presence, speaking: p.speaking });
     }
     return out;
   }
@@ -74,6 +76,7 @@ export class World {
 
     for (const p of this.players.values()) {
       if (p.voiceChannel) { push("ch:" + p.voiceChannel, p, true, "canal"); continue; }
+      if (p.presence === "focus") { result.set(p.id, { id: null, canSpeak: false, label: "modo foco" }); continue; }
       const z = p.zone ? this.zoneById(p.zone) : null;
       if (!z || z.kind === "open") { free.push(p); continue; }
       if (z.kind === "silent") { result.set(p.id, { id: null, canSpeak: false, label: z.name }); continue; }

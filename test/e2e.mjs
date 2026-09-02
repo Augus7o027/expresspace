@@ -13,7 +13,7 @@ const ctxA = await browser.newContext({ viewport: { width: 1440, height: 900 }, 
 const ctxB = await browser.newContext({ viewport: { width: 1440, height: 900 }, permissions: ["microphone"] });
 const A = await ctxA.newPage(), B = await ctxB.newPage();
 const errors = [];
-for (const p of [A, B]) p.on("pageerror", (e) => errors.push(e.message));
+for (const p of [A, B]) { p.on("pageerror", (e) => errors.push(e.message)); p.on("console", (m) => { if (/rtc|offer|mic/i.test(m.text())) console.log("console:", m.text().slice(0, 200)); }); }
 
 await A.goto(base + "/?name=Ana&auto=1&canvas=1", { waitUntil: "domcontentloaded" });
 await B.goto(base + "/?name=Bruno&auto=1&canvas=1", { waitUntil: "domcontentloaded" });
@@ -30,7 +30,7 @@ console.log("online:", online);
 const near1 = await A.textContent("#hud-voice");
 console.log("A voz (spawn juntos):", near1);
 
-// Bruno anda pra longe (direita, 8 tiles) e cruza a porta
+// Bruno anda pra longe: sobe e cruza a porta da direita (entra no Foco)
 await B.keyboard.down("ArrowUp"); await B.waitForTimeout(350); await B.keyboard.up("ArrowUp");
 await B.keyboard.down("ArrowRight"); await B.waitForTimeout(2600); await B.keyboard.up("ArrowRight");
 await B.waitForTimeout(500);
@@ -43,7 +43,7 @@ await B.waitForTimeout(400);
 console.log("B viu msg:", (await B.textContent("#messages")).includes("olá, alguém aí?"));
 
 // Teleport dos dois pra Sala A pelo sidebar -> mesma call
-for (const p of [A, B]) { await p.click("#zones li:nth-child(3)"); }
+for (const p of [A, B]) { await p.click("#zones li:nth-child(6)"); }
 await A.waitForTimeout(600);
 console.log("A zona:", await A.textContent("#hud-zone"), "| voz:", await A.textContent("#hud-voice"));
 
@@ -60,9 +60,32 @@ console.log("A viu chat da sala:", (await A.textContent("#messages")).includes("
 await A.screenshot({ path: "test/shots/02-sala-a.png" });
 
 // Sala silenciosa
-await A.click("#zones li:nth-child(7)"); await A.waitForTimeout(500);
+await A.click("#zones li:nth-child(5)"); await A.waitForTimeout(500);
 console.log("A no foco:", await A.textContent("#hud-zone"), "|", await A.textContent("#hud-voice"));
 await A.screenshot({ path: "test/shots/03-foco.png" });
+
+// Objeto interativo: perto do mural, aperta E, abre modal
+await A.evaluate(() => { const s = window.__sede.scene; s.pos = { x: 9.5, y: 3.6 }; s.player.setPosition(s.pos.x * 32, s.pos.y * 32); s.checkObjects(); });
+await A.waitForTimeout(200);
+console.log("prompt E:", await A.textContent("#hud-prompt"));
+await A.keyboard.press("e"); await A.waitForTimeout(300);
+console.log("modal:", await A.textContent("#modal-title"), "| aberto:", !(await A.getAttribute("#modal", "class")).includes("hidden"));
+await A.screenshot({ path: "test/shots/05-mural.png" });
+await A.keyboard.press("Escape");
+
+// Quadro compartilhado: B escreve, A lê
+await B.evaluate(() => window.__sede.net.emit("board:set", { id: "quadro-open", content: "pauta: lançamento" }));
+await B.waitForTimeout(300);
+const board = await A.evaluate(() => new Promise((r) => window.__sede.net.emit("board:get", { id: "quadro-open" }, r)));
+console.log("quadro:", board);
+
+// Menção + status
+await A.click(".tab[data-mode='channel']"); await B.click(".tab[data-mode='channel']"); await B.fill("#chat-input", "@Ana bora?"); await B.press("#chat-input", "Enter"); await A.waitForTimeout(400);
+console.log("A viu menção:", !!(await A.$(".msg.mentions-me")));
+await B.selectOption("#presence", "focus"); await B.waitForTimeout(400);
+console.log("B foco na lista:", (await A.textContent("#members")).includes("foco"));
+await B.selectOption("#presence", "available");
+await A.click(".tab[data-mode='channel']");
 
 // Canal de voz Discord
 await B.click("#voice-channels li:nth-child(1)"); await A.click("#voice-channels li:nth-child(1)");

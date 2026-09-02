@@ -26,6 +26,12 @@ CREATE TABLE IF NOT EXISTS messages (
 );
 CREATE INDEX IF NOT EXISTS messages_channel_idx ON messages (channel_id, id DESC);
 
+CREATE TABLE IF NOT EXISTS boards (
+  id          TEXT PRIMARY KEY,
+  content     TEXT NOT NULL DEFAULT '',
+  updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
 INSERT INTO channels (id, name, kind, position) VALUES
   ('geral', 'geral', 'text', 0),
   ('anuncios', 'anúncios', 'text', 1),

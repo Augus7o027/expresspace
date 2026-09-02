@@ -131,3 +131,66 @@ h1 .serif { display: block; font-size: 112px; letter-spacing: -0.02em; }
   #app { grid-template-columns: 220px 1fr; grid-template-rows: 1fr 260px; }
   #chat { grid-column: 1 / -1; }
 }
+
+/* ---------- v0.2 ---------- */
+.me { flex-direction: column; align-items: stretch; gap: 8px; }
+.me-row { display: flex; align-items: center; gap: 10px; }
+.me-actions { display: flex; gap: 6px; align-items: center; }
+.presence {
+  background: rgba(0,0,0,0.35); border: 1px solid var(--line); border-radius: 8px; color: var(--ink); font-size: 11px; padding: 6px 6px; max-width: 128px;
+}
+.presence option { background: #111; }
+.status-text { flex: 1; min-width: 0; background: rgba(0,0,0,0.35); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; font-size: 12px; outline: none; }
+.status-text:focus { border-color: rgba(255,255,255,0.3); }
+.icon-btn.off { opacity: 0.4; }
+.members li .pdot { width: 6px; height: 6px; border-radius: 50%; flex: 0 0 auto; }
+.members li.speaking .avatar-dot { box-shadow: 0 0 0 3px rgba(110,240,163,0.35); }
+.members li .speak { font-size: 10px; color: #6ef0a3; }
+.pdot.available { background: #6ef0a3; } .pdot.busy { background: #f06e6e; } .pdot.focus { background: #f0c76e; }
+
+#hud-prompt {
+  position: absolute; bottom: 84px; left: 50%; transform: translateX(-50%); padding: 8px 14px; border-radius: 10px;
+  display: flex; align-items: center; gap: 10px; font-size: 13px; pointer-events: none;
+}
+#hud-prompt kbd { font-family: var(--mono); font-size: 11px; background: var(--ink); color: #000; border-radius: 5px; padding: 2px 7px; }
+
+/* telas compartilhadas sobre o mapa */
+#screens {
+  position: absolute; top: 14px; left: 14px; right: 14px; display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); max-height: 55%; z-index: 3;
+}
+#screens .screen-tile { position: relative; background: #000; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; aspect-ratio: 16/9; box-shadow: 0 20px 60px rgba(0,0,0,0.6); }
+#screens video { width: 100%; height: 100%; object-fit: contain; display: block; }
+#screens .who { position: absolute; left: 8px; bottom: 6px; font-family: var(--mono); font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; background: rgba(0,0,0,0.6); padding: 3px 7px; border-radius: 5px; }
+#screens .screen-tile.big { grid-column: 1 / -1; aspect-ratio: auto; max-height: 100%; }
+#screens .screen-tile:hover { cursor: zoom-in; }
+
+/* chat: menções e emojis */
+.popover { position: absolute; left: 14px; right: 14px; bottom: 64px; padding: 6px; border-radius: 10px; background: #111; border: 1px solid var(--line); box-shadow: 0 20px 60px rgba(0,0,0,0.6); z-index: 5; }
+#chat { position: relative; }
+#mention-list div { padding: 7px 10px; border-radius: 6px; cursor: pointer; display: flex; gap: 8px; align-items: center; }
+#mention-list div.active, #mention-list div:hover { background: rgba(255,255,255,0.1); }
+#emoji-picker { display: grid; grid-template-columns: repeat(8, 1fr); gap: 2px; }
+#emoji-picker button { background: transparent; border: 0; font-size: 20px; padding: 6px 0; border-radius: 6px; cursor: pointer; }
+#emoji-picker button:hover { background: rgba(255,255,255,0.1); }
+.mention { background: rgba(255,255,255,0.14); border-radius: 4px; padding: 0 4px; font-weight: 500; }
+.msg.mentions-me .body { border-left: 2px solid var(--ink); padding-left: 8px; }
+
+/* modal */
+#modal { position: fixed; inset: 0; background: rgba(0,0,0,0.55); display: grid; place-items: center; z-index: 60; }
+.modal-card { width: min(920px, 94vw); height: min(640px, 88vh); display: flex; flex-direction: column; overflow: hidden; }
+.modal-card header { display: flex; justify-content: space-between; align-items: center; padding: 16px 20px; border-bottom: 1px solid var(--line); }
+.modal-card header .serif { font-size: 28px; line-height: 1; }
+#modal-body { flex: 1; min-height: 0; display: flex; }
+#modal-body iframe { flex: 1; border: 0; background: #000; }
+#modal-body textarea {
+  flex: 1; background: transparent; border: 0; outline: none; resize: none; padding: 20px 24px; color: var(--ink);
+  font-family: var(--serif); font-size: 20px; line-height: 1.5;
+}
+#modal-body .info { padding: 24px 28px; font-family: var(--serif); font-size: 22px; line-height: 1.5; white-space: pre-wrap; overflow: auto; }
+.modal-foot { font-family: var(--mono); font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-faint); padding: 8px 20px; border-top: 1px solid var(--line); }
+
+/* layout: sidebar com duas listas roláveis e HUD que não se sobrepõe */
+.channels { flex: 1 1 auto; min-height: 0; overflow: auto; }
+.members { flex: 0 1 38%; min-height: 120px; overflow: auto; }
+#hud { gap: 16px; flex-wrap: wrap; }
+.hud-right { flex-wrap: wrap; row-gap: 4px; justify-content: flex-end; text-align: right; }

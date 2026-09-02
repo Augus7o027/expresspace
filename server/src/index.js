@@ -43,7 +43,7 @@ function sanitizeName(n) {
 io.on("connection", (socket) => {
   let user = null;
 
-  socket.on("join", async ({ name, userId, color } = {}, ack) => {
+  socket.on("join", async ({ name, userId, color, pos } = {}, ack) => {
     if (user) return;
     const id = (typeof userId === "string" && /^[a-z0-9-]{8,40}$/.test(userId)) ? userId : crypto.randomUUID();
     // uma sessão por usuário
@@ -52,8 +52,11 @@ io.on("connection", (socket) => {
     user = { id, name: sanitizeName(name), color: COLORS.includes(color) ? color : COLORS[0] };
     await store.upsertUser(user);
     socketsByUser.set(id, socket);
-    world.add(user, socket.id);
+    const p = world.add(user, socket.id);
     socket.join("world");
+    // reconexão: volta pra onde estava
+    const { x, y } = pos || {};
+    if (Number.isFinite(x) && Number.isFinite(y) && !isBlocked(world.map, Math.floor(x), Math.floor(y))) { p.x = x; p.y = y; world.updateZone(p); }
     const channels = await store.channels();
     ack?.({ user, map: world.map, channels, players: world.snapshot() });
     io.to("world").emit("system", { text: `${user.name} entrou.` });
@@ -76,12 +79,32 @@ io.on("connection", (socket) => {
     pushVoice();
   });
 
-  socket.on("profile", ({ status, muted } = {}) => {
+  socket.on("profile", ({ status, muted, presence } = {}) => {
     if (!user) return;
     const p = world.players.get(user.id);
     if (!p) return;
     if (typeof status === "string") p.status = status.slice(0, 40);
     if (typeof muted === "boolean") p.muted = muted;
+    if (["available", "busy", "focus"].includes(presence)) { p.presence = presence; pushVoice(); }
+  });
+
+  socket.on("speaking", (on) => {
+    if (!user) return;
+    const p = world.players.get(user.id);
+    if (p) p.speaking = !!on;
+  });
+
+  // Quadro compartilhado (objeto "board" do mapa)
+  socket.on("board:get", async ({ id } = {}, ack) => {
+    if (!user || typeof id !== "string") return;
+    ack?.(await store.getBoard(id));
+  });
+  socket.on("board:set", async ({ id, content } = {}) => {
+    if (!user || typeof id !== "string" || typeof content !== "string") return;
+    if (!world.map.objects.some((o) => o.id === id && o.kind === "board")) return;
+    content = content.slice(0, 20000);
+    await store.setBoard(id, content);
+    socket.to("world").emit("board:update", { id, content, by: user.name });
   });
 
   // Canal de voz estilo Discord: entra/sai independente da posição no mapa
