@@ -1,0 +1,28 @@
+# Coolify: crie o recurso como "Docker Compose" apontando pra este arquivo,
+# ou como "Dockerfile" e ligue um Postgres do próprio Coolify (mais simples).
+services:
+  app:
+    build: .
+    environment:
+      PORT: 3000
+      DATABASE_URL: postgres://sede:${POSTGRES_PASSWORD:-sede}@db:5432/sede
+      CLIENT_ORIGIN: ${CLIENT_ORIGIN:-https://sede.seudominio.com}
+    ports:
+      - "3000:3000"
+    depends_on:
+      db:
+        condition: service_healthy
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: sede
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-sede}
+      POSTGRES_DB: sede
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sede"]
+      interval: 5s
+      retries: 10
+volumes:
+  pgdata:

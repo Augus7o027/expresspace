@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Sede</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Pinyon+Script&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body>
+    <div id="grain"></div>
+
+    <!-- Entrada -->
+    <section id="login" class="screen">
+      <div class="login-card glass">
+        <div class="meta-row"><span class="mono">©®™</span><span class="mono">v0.1 · beta</span></div>
+        <h1 class="display">
+          <span class="kicker">você é o arquiteto do seu</span>
+          <span class="script">Próprio</span>
+          <span class="serif">Espaço</span>
+        </h1>
+        <p class="sub mono">Um lugar só nosso. Entre, caminhe, converse.</p>
+        <form id="login-form">
+          <label class="mono" for="name">como quer ser chamado</label>
+          <input id="name" name="name" autocomplete="off" maxlength="24" placeholder="seu nome" required />
+          <div class="swatches" id="swatches"></div>
+          <button type="submit" class="btn-primary">Entrar no ambiente</button>
+        </form>
+      </div>
+    </section>
+
+    <!-- App -->
+    <main id="app" class="screen hidden">
+      <aside id="sidebar" class="glass">
+        <header class="brand">
+          <div class="brand-title"><span class="script">Sede</span></div>
+          <div class="mono dim" id="online-count">0 online</div>
+        </header>
+
+        <nav class="channels">
+          <div class="group-label mono">Texto</div>
+          <ul id="text-channels"></ul>
+          <div class="group-label mono">Voz</div>
+          <ul id="voice-channels"></ul>
+          <div class="group-label mono">Salas do mapa</div>
+          <ul id="zones"></ul>
+        </nav>
+
+        <div class="members">
+          <div class="group-label mono">Quem está aqui</div>
+          <ul id="members"></ul>
+        </div>
+
+        <footer class="me">
+          <div class="avatar-dot" id="me-dot"></div>
+          <div class="me-info">
+            <div class="me-name" id="me-name">—</div>
+            <div class="mono dim" id="me-where">Lobby</div>
+          </div>
+          <button id="btn-mic" class="icon-btn" title="Microfone (M)">🎙</button>
+        </footer>
+      </aside>
+
+      <section id="stage">
+        <div id="game"></div>
+        <div id="hud" class="glass">
+          <div class="hud-left">
+            <span class="mono dim">Você está em</span>
+            <span id="hud-zone" class="serif">Lobby</span>
+          </div>
+          <div class="hud-right">
+            <span id="hud-voice" class="mono dim">sem voz</span>
+            <span id="hud-hint" class="mono dim">WASD / setas para andar · Enter para falar</span>
+          </div>
+        </div>
+        <div id="toast" class="glass hidden"></div>
+      </section>
+
+      <aside id="chat" class="glass">
+        <header>
+          <div>
+            <div class="mono dim" id="chat-kind">canal</div>
+            <div class="serif" id="chat-title">#geral</div>
+          </div>
+          <div class="chat-tabs">
+            <button class="tab active" data-mode="channel">Canal</button>
+            <button class="tab" data-mode="zone">Sala</button>
+          </div>
+        </header>
+        <div id="messages"></div>
+        <form id="chat-form">
+          <input id="chat-input" autocomplete="off" maxlength="1000" placeholder="Escreva algo…" />
+          <button type="submit" class="icon-btn">↑</button>
+        </form>
+      </aside>
+    </main>
+
+    <div id="audio-sink"></div>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
