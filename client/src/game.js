@@ -22,6 +22,16 @@ export class WorldScene extends Phaser.Scene {
     this.frozen = false; // true enquanto um modal está aberto
   }
 
+  preload() {
+    const kinds = [...new Set((this.map.npcs || []).map((n) => n.kind))];
+    for (const k of kinds) {
+      this.load.spritesheet(`npc:${k}:idle`, `/assets/animals/${k}_idle.png`, { frameWidth: 32, frameHeight: 32 });
+      this.load.spritesheet(`npc:${k}:walk`, `/assets/animals/${k}_walk.png`, { frameWidth: 32, frameHeight: 32 });
+    }
+    for (const d of this.map.decor || []) this.load.image(`tree:${d.sprite}`, `/assets/trees/${d.sprite}.png`);
+    for (const g of this.map.graffiti || []) this.load.image(`graf:${g.sprite}`, `/assets/graffiti/${g.sprite}.png`);
+  }
+
   create() {
     const { map } = this;
     this.cameras.main.setBackgroundColor("#070707");
@@ -30,6 +40,10 @@ export class WorldScene extends Phaser.Scene {
     this.drawWalls();
     this.drawProps();
     this.drawObjects();
+    this.drawGraffiti();
+    this.drawDecor();
+    this.setupNpcAnims();
+    this.npcs = new Map();
 
     this.player = this.makeAvatar(this.me.name, this.me.avatar, true);
     this.player.setPosition((map.spawn.x + 0.5) * TILE, (map.spawn.y + 0.5) * TILE);
@@ -94,7 +108,7 @@ export class WorldScene extends Phaser.Scene {
       g.fillStyle(0xffffff, 0.03);
       for (let ty = 0; ty < z.h; ty++) for (let tx = ty % 2; tx < z.w; tx += 2) g.fillRect(x0 + tx * TILE + 1, y0 + ty * TILE + 1, TILE - 2, TILE - 2);
     } else if (kind === "deck") {
-      g.fillStyle(0x14110d, 1).fillRect(x0, y0, w, h);
+      g.fillStyle(0x1e1912, 1).fillRect(x0, y0, w, h);
       for (let px = 0; px < w; px += 12) { g.lineStyle(1, 0x000000, 0.4); g.lineBetween(x0 + px, y0, x0 + px, y0 + h); g.fillStyle(0xffffff, 0.012).fillRect(x0 + px + 1, y0, 4, h); }
     } else if (kind === "marble") {
       g.fillStyle(0x161616, 1).fillRect(x0, y0, w, h);
@@ -294,6 +308,59 @@ export class WorldScene extends Phaser.Scene {
     }
   }
 
+  drawGraffiti() {
+    for (const g of this.map.graffiti || []) {
+      if (!this.textures.exists(`graf:${g.sprite}`)) continue;
+      const img = this.add.image((g.x + 0.5) * TILE, (g.y + 0.5) * TILE, `graf:${g.sprite}`).setOrigin(0.5).setAlpha(0.92);
+      img.setScale(g.scale || 1); img.texture.setFilter(1);
+      img.setDepth(1);
+    }
+  }
+
+  drawDecor() {
+    for (const d of this.map.decor || []) {
+      if (!this.textures.exists(`tree:${d.sprite}`)) continue;
+      const cx = (d.x + d.w / 2) * TILE, by = (d.y + d.h) * TILE;
+      const img = this.add.image(cx, by - 6, `tree:${d.sprite}`).setOrigin(0.5, 0.9);
+      img.texture.setFilter(1);
+      img.setDepth(10 + by / 10000); // ordena com os avatares pela base do tronco
+    }
+  }
+
+  // --------- bichos (NPCs simulados no servidor) ---------
+  setupNpcAnims() {
+    // linhas do sheet: 0 frente, 1 costas, 2 esquerda, 3 direita
+    const ROWS = { down: 0, up: 1, left: 2, right: 3 };
+    for (const k of new Set((this.map.npcs || []).map((n) => n.kind))) {
+      for (const st of ["idle", "walk"]) {
+        const key = `npc:${k}:${st}`;
+        if (!this.textures.exists(key)) continue;
+        this.textures.get(key).setFilter(1);
+        const perRow = Math.floor(this.textures.get(key).getSourceImage().width / 32);
+        for (const [dir, row] of Object.entries(ROWS)) {
+          this.anims.create({ key: `${key}:${dir}`, frames: this.anims.generateFrameNumbers(key, { start: row * perRow, end: row * perRow + perRow - 1 }), frameRate: st === "walk" ? 8 : 4, repeat: -1 });
+        }
+      }
+    }
+  }
+
+  applyNpcs(list) {
+    if (!this.npcs) return;
+    const seen = new Set();
+    for (const n of list) {
+      seen.add(n.id);
+      let r = this.npcs.get(n.id);
+      if (!r) {
+        if (!this.textures.exists(`npc:${n.kind}:idle`)) continue;
+        const sp = this.add.sprite(n.x * TILE, n.y * TILE, `npc:${n.kind}:idle`, 0).setScale(1.3).setOrigin(0.5, 0.8);
+        r = { sprite: sp, target: { x: n.x, y: n.y }, kind: n.kind };
+        this.npcs.set(n.id, r);
+      }
+      r.target = { x: n.x, y: n.y }; r.dir = n.dir; r.moving = n.moving;
+    }
+    for (const [id, r] of this.npcs) if (!seen.has(id)) { r.sprite.destroy(); this.npcs.delete(id); }
+  }
+
   // --------- avatares ---------
   makeAvatar(name, avatar, isMe) {
     const c = this.add.container(0, 0);
@@ -305,25 +372,25 @@ export class WorldScene extends Phaser.Scene {
       c.add(ring);
     }
     const speak = this.add.graphics();
-    speak.lineStyle(2, 0x6ef0a3, 0.9).strokeEllipse(0, 20, 30, 12);
+    speak.lineStyle(2, 0x6ef0a3, 0.9).strokeEllipse(0, 2, 30, 12);
     speak.setVisible(false);
     c.add(speak); c.speak = speak;
 
-    const sprite = this.add.sprite(0, 0, key, 0).setScale(2).setOrigin(0.5, 0.75);
+    const sprite = this.add.sprite(0, 0, key + ":walk", 0).setScale(1.7).setOrigin(0.5, 44 / 64);
     c.add(sprite); c.sprite = sprite; c.texKey = key; c.dirNow = "down";
     c.setAvatar = (a) => {
       const k = ensureAvatarTexture(this, a);
       if (k === c.texKey) return;
-      c.texKey = k; c.sprite.setTexture(k, 0);
+      c.texKey = k; c.sprite.setTexture(k + ":walk", 0);
     };
 
-    const label = this.add.text(0, 22, name, {
+    const label = this.add.text(0, 6, name, {
       fontFamily: "Inter", fontSize: "11px", color: "#f2efe9",
       backgroundColor: "rgba(0,0,0,0.55)", padding: { x: 5, y: 2 },
     }).setOrigin(0.5, 0);
     c.add(label); c.label = label;
     const dot = this.add.graphics(); c.add(dot); c.dot = dot;
-    c.mic = this.add.text(13, -30, "", { fontFamily: "Inter", fontSize: "12px", color: "#f06e6e", fontStyle: "bold" }).setOrigin(0.5);
+    c.mic = this.add.text(13, -36, "", { fontFamily: "Inter", fontSize: "12px", color: "#f06e6e", fontStyle: "bold" }).setOrigin(0.5);
     c.add(c.mic);
     c.setDepth(10);
     this.setStatus(c, "available");
@@ -334,7 +401,7 @@ export class WorldScene extends Phaser.Scene {
     if (c.statusNow === status) return;
     c.statusNow = status;
     c.dot.clear();
-    c.dot.fillStyle(STATUS_COLOR[status] || STATUS_COLOR.available, 1).fillCircle(-c.label.width / 2 - 1, 28, 3);
+    c.dot.fillStyle(STATUS_COLOR[status] || STATUS_COLOR.available, 1).fillCircle(-c.label.width / 2 - 1, 12, 3);
   }
 
   animate(c, dir, moving) {
@@ -435,7 +502,15 @@ export class WorldScene extends Phaser.Scene {
       this.animate(r.container, r.dir, r.moving);
     }
     this.player.setDepth(10 + this.player.y / 10000);
-    for (const b of this.bubbles.values()) b.setPosition(b.follow.x, b.follow.y - 34);
+    for (const r of this.npcs?.values() || []) {
+      const tx = r.target.x * TILE, ty = r.target.y * TILE;
+      r.sprite.x += (tx - r.sprite.x) * Math.min(1, dt * 10);
+      r.sprite.y += (ty - r.sprite.y) * Math.min(1, dt * 10);
+      r.sprite.setDepth(10 + r.sprite.y / 10000);
+      const anim = `npc:${r.kind}:${r.moving ? "walk" : "idle"}:${r.dir || "down"}`;
+      if (r.sprite.anims.currentAnim?.key !== anim && this.anims.exists(anim)) r.sprite.play(anim, true);
+    }
+    for (const b of this.bubbles.values()) b.setPosition(b.follow.x, b.follow.y - 40);
   }
 
   hits(x, y, r) {

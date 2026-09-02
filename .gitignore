@@ -2,3 +2,5 @@ node_modules
 dist
 .env
 *.log
+tools/src/*
+!tools/src/README.md

@@ -4,7 +4,7 @@ import { Voice } from "./voice.js";
 import { sounds } from "./sounds.js";
 import { EMOJI, EMOJI_ORDER, renderEmoji, ICON, icon } from "./icons.js";
 import { mountAvatarEditor } from "./avatar-editor.js";
-import { SHIRTS, DEFAULT_AVATAR, normalizeAvatar } from "./sprites.js";
+import { SHIRTS, DEFAULT_AVATAR, normalizeAvatar, loadBase } from "./sprites.js";
 
 const $ = (s) => document.querySelector(s);
 const COLORS = ["#ffffff", "#c9c9c9", "#9a9a9a", "#e8e0d0", "#d6d6d6", "#b5b5b5"];
@@ -22,6 +22,7 @@ function uuid() {
 // ---------- login ----------
 const saved = safe(() => JSON.parse(localStorage.getItem("sede:me") || "{}"), {});
 let avatar = normalizeAvatar(saved.avatar || DEFAULT_AVATAR);
+await loadBase(); // sheets do personagem base
 const loginEditor = mountAvatarEditor($("#avatar-editor-login"), avatar, (a) => { avatar = a; });
 if (saved.name) $("#name").value = saved.name;
 const params = new URLSearchParams(location.search);
@@ -84,6 +85,7 @@ function boot(net, { user, map, channels, players }, creds) {
     if (key !== membersKey) { membersKey = key; renderMembers(); }
   });
   net.on("bubble", ({ userId, text }) => scene.player && scene.showBubble(userId, text));
+  net.on("npcs", (list) => scene.player && scene.applyNpcs(list));
 
   // --- voz e tela ---
   const voice = new Voice(net, user.id, {

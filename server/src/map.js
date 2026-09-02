@@ -78,10 +78,30 @@ export const WORLD = {
     { kind: "plant", x: 25, y: 22, w: 1, h: 1 }, { kind: "plant", x: 55, y: 22, w: 1, h: 1 },
     { kind: "bench", x: 27, y: 16, w: 10, h: 1 }, { kind: "bench", x: 42, y: 16, w: 10, h: 1 },
     { kind: "bench", x: 27, y: 19, w: 10, h: 1 }, { kind: "bench", x: 42, y: 19, w: 10, h: 1 },
-    // terraço
-    { kind: "plant", x: 36, y: 26, w: 1, h: 1 }, { kind: "plant", x: 55, y: 26, w: 1, h: 1 }, { kind: "plant", x: 36, y: 35, w: 1, h: 1 }, { kind: "plant", x: 55, y: 35, w: 1, h: 1 },
-    { kind: "table", x: 39, y: 29, w: 2, h: 2 }, { kind: "table", x: 45, y: 29, w: 2, h: 2 }, { kind: "table", x: 51, y: 29, w: 2, h: 2 },
-    { kind: "sofa", x: 42, y: 34, w: 3, h: 1 }, { kind: "sofa", x: 48, y: 34, w: 3, h: 1 },
+    // terraço (árvores ficam em "decor")
+    { kind: "table", x: 42, y: 29, w: 2, h: 2 }, { kind: "table", x: 48, y: 29, w: 2, h: 2 },
+    { kind: "sofa", x: 42, y: 33, w: 3, h: 1 }, { kind: "sofa", x: 47, y: 33, w: 3, h: 1 },
+  ],
+  // Decoração com sprite (árvores do pack). x,y = tile do tronco; block = tiles bloqueados a partir de x,y
+  decor: [
+    { kind: "tree", sprite: "flower1", x: 36, y: 28, w: 2, h: 1 },
+    { kind: "tree", sprite: "fruit1", x: 53, y: 28, w: 2, h: 1 },
+    { kind: "tree", sprite: "palm1", x: 37, y: 34, w: 2, h: 1 },
+    { kind: "tree", sprite: "palm2", x: 52, y: 34, w: 2, h: 1 },
+    { kind: "tree", sprite: "tree2", x: 45, y: 26, w: 1, h: 1 },
+    { kind: "tree", sprite: "tree3", x: 46, y: 36, w: 1, h: 1 },
+    { kind: "tree", sprite: "moss1", x: 40, y: 36, w: 2, h: 1 },
+  ],
+  // Grafites nas paredes (x,y = tile da parede onde o centro do grafite fica)
+  graffiti: [
+    { sprite: "expresspace", x: 40, y: 24 }, { sprite: "slogan", x: 30, y: 24 }, { sprite: "shortway", x: 50, y: 24 },
+    { sprite: "n7", x: 3, y: 10 }, { sprite: "cafe", x: 4, y: 25 }, { sprite: "foco", x: 18, y: 0 },
+    { sprite: "benice", x: 6, y: 0 }, { sprite: "greenteam", x: 29, y: 0 }, { sprite: "loot", x: 51, y: 0 },
+  ],
+  // Bichos que passeiam (simulados no servidor)
+  npcs: [
+    { kind: "fox", zone: "terraco" }, { kind: "hare", zone: "terraco" }, { kind: "hare", zone: "terraco" },
+    { kind: "deer", zone: "terraco" }, { kind: "grouse", zone: "terraco" }, { kind: "grouse", zone: "terraco" },
   ],
   // Objetos interativos: chega perto e aperta E
   objects: [
@@ -121,7 +141,7 @@ export function isBlocked(world, tx, ty) {
   for (const wl of world.walls) {
     if (!wl.door && tx >= wl.x && tx < wl.x + wl.w && ty >= wl.y && ty < wl.y + wl.h) return true;
   }
-  for (const p of [...world.props, ...world.objects]) {
+  for (const p of [...world.props, ...world.objects, ...(world.decor || [])]) {
     if (tx >= p.x && tx < p.x + p.w && ty >= p.y && ty < p.y + p.h) return true;
   }
   return false;

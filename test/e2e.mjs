@@ -108,6 +108,14 @@ console.log("B foco na lista:", (await A.textContent("#members")).includes("foco
 await B.selectOption("#presence", "available");
 await A.click(".tab[data-mode='channel']");
 
+// Terraço: bichos e árvores
+await A.click("#zones li:nth-child(11)"); await A.waitForTimeout(2500);
+console.log("npcs vistos por A:", await A.evaluate(() => window.__sede.scene.npcs.size), "| árvores:", await A.evaluate(() => Object.keys(window.__sede.scene.textures.list).filter((k) => k.startsWith("tree:")).length));
+await A.screenshot({ path: "test/shots/07-terraco.png" });
+await A.evaluate(() => { const s = window.__sede.scene; s.cameras.main.setZoom(2.6); }); await A.waitForTimeout(400);
+await A.screenshot({ path: "test/shots/08-terraco-zoom.png" });
+await A.evaluate(() => window.__sede.scene.cameras.main.setZoom(1.4));
+
 // Canal de voz Discord
 await B.click("#voice-channels li:nth-child(1)"); await A.click("#voice-channels li:nth-child(1)");
 await A.waitForTimeout(5000);

@@ -36,7 +36,7 @@ export function mountAvatarEditor(root, initial, onChange) {
   row("acessório", ACCESSORIES.length, "accessory", null);
 
   root.append(preview, controls);
-  function paint() { drawPreview(canvas, a, DIRS[dir], 7); }
+  function paint() { drawPreview(canvas, a, DIRS[dir], 5); }
   paint();
   return { get: () => ({ ...a }) };
 }

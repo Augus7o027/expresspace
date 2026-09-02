@@ -210,7 +210,7 @@ h1 .script { font-size: 64px; }
 h1 .serif { font-size: 92px; }
 .avatar-editor { display: grid; grid-template-columns: 140px 1fr; gap: 18px; align-items: start; }
 .avatar-preview { background: rgba(0,0,0,0.35); border: 1px solid var(--line); border-radius: 12px; padding: 12px; display: grid; place-items: center; gap: 8px; }
-.avatar-preview canvas { image-rendering: pixelated; width: 112px; height: 168px; }
+.avatar-preview canvas { image-rendering: pixelated; width: 120px; height: 140px; }
 .avatar-turn { display: flex; gap: 6px; }
 .avatar-turn button { background: rgba(255,255,255,0.06); border: 1px solid var(--line); border-radius: 6px; width: 28px; height: 26px; cursor: pointer; }
 .avatar-controls { display: grid; gap: 10px; }

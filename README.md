@@ -2,7 +2,13 @@
 
 Ambiente 2D próprio da comunidade. Híbrido entre Gather e Discord: um mapa onde o avatar anda, entra em salas e cai em calls, mais canais de texto e voz que funcionam sem depender da posição no mapa.
 
-## O que já funciona (v0.3)
+## O que já funciona (v0.4)
+
+- Pixel art de verdade: personagem base da CraftPix (64x64, 4 direções, 6 quadros de andar + 12 de respiração) pintado em tempo real com a config do avatar (pele, cabelo, roupa, acessório)
+- Bichos passeando no Terraço (raposa, lebre, cervo, tetraz), simulados no servidor e iguais pra todo mundo
+- Árvores do pack no Terraço (palmeiras, florida, frutífera, musgo) com colisão no tronco e ordenação de profundidade
+- Grafites nas paredes compostos com a fonte do pack (EXPRESSPACE, N7, CAFE, FOCO, slogan) mais peças prontas
+- `tools/build-assets.py` converte os packs originais pra `client/public/assets/`; créditos em `client/public/assets/ASSETS.md`
 
 - Avatar personalizável: pele, 5 cabelos, cor do cabelo, roupa e acessório (óculos, boné, fone), com preview no login e botão de editar dentro do app; todo mundo vê a mudança na hora
 - Câmera nas salas de reunião e canais de voz (botão ou tecla C), aparece em tiles sobre o mapa junto com as telas compartilhadas
@@ -77,7 +83,8 @@ server/src/db/          schema.sql, migrate.js e store.js (Postgres ou memória)
 client/src/main.js      login, sidebar, chat, integração socket
 client/src/game.js      cena Phaser: mapa, avatares, movimento, balões
 client/src/voice.js     WebRTC mesh (voz + tela) com "perfect negotiation" e detecção de fala
-client/src/sprites.js   gera os sprites de avatar em pixel art a partir da config (pele, cabelo, roupa, acessório)
+client/src/sprites.js   pinta o personagem base da CraftPix conforme a config (pele, cabelo, roupa, acessório)
+client/public/assets/   sprites (personagem, bichos, árvores, grafites) gerados por tools/build-assets.py
 client/src/avatar-editor.js  editor de avatar com preview (login e modal)
 client/src/icons.js     biblioteca de emojis e ícones em SVG monocromático
 client/src/sounds.js    sons de notificação sintetizados (sem arquivos)
@@ -106,6 +113,8 @@ Estão em `client/src/icons.js`, no objeto `EMOJI`: cada chave vira `:chave:` no
 ## Editar o mapa
 
 Tudo em `server/src/map.js`. Coordenadas em tiles de 32px. Zonas têm `kind` (`open`, `meeting`, `silent`, `stage`). Paredes com `door: true` viram passagem. A mesma definição desenha o mapa no cliente, então não precisa mexer em dois lugares.
+
+Árvores ficam em `decor` (x,y = tile do tronco, w/h = tiles bloqueados), grafites em `graffiti` (tile da parede onde o centro fica) e bichos em `npcs` (tipo + zona onde passeiam). Sprites disponíveis: árvores `tree1..3, palm1, palm2, flower1, flower2, fruit1, autumn1, moss1`; bichos `fox, hare, deer, boar, grouse`.
 
 Objetos interativos ficam em `objects`: `board` (quadro de texto compartilhado, salvo no banco), `link` e `video` (abrem a `url` num iframe; use links de embed, ex. `youtube.com/embed/ID`), `info` (mostra `text`). Pra trocar o vídeo do Telão ou o link de Documentos é só editar a `url`.
 

@@ -15,7 +15,7 @@ export function isBlocked(world, tx, ty) {
   for (const wl of world.walls) {
     if (!wl.door && tx >= wl.x && tx < wl.x + wl.w && ty >= wl.y && ty < wl.y + wl.h) return true;
   }
-  for (const p of [...world.props, ...(world.objects || [])]) {
+  for (const p of [...world.props, ...(world.objects || []), ...(world.decor || [])]) {
     if (tx >= p.x && tx < p.x + p.w && ty >= p.y && ty < p.y + p.h) return true;
   }
   return false;

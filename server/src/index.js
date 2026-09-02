@@ -181,9 +181,10 @@ io.on("connection", (socket) => {
   });
 });
 
-// Broadcast de posições a 12Hz
+// Broadcast de posições a 12Hz; bichos simulados no mesmo tick
 setInterval(() => {
-  if (world.players.size) io.to("world").emit("state", world.snapshot());
+  world.tickNpcs(1 / 12);
+  if (world.players.size) { io.to("world").emit("state", world.snapshot()); io.to("world").emit("npcs", world.npcSnapshot()); }
 }, 1000 / 12);
 
 // Recalcula grupos de voz e envia só pra quem mudou
