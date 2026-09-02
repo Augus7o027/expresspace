@@ -12,6 +12,7 @@ import json, os, random
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.join(HERE, "..")
 TS = json.load(open(os.path.join(ROOT, "client", "public", "assets", "tiles", "office.json")))
+PROPIDX = json.load(open(os.path.join(ROOT, "client", "public", "assets", "props", "index.json")))
 TILE = TS["tilewidth"]; COLS = TS["columns"]
 def gid(name): return TS["tiles"][name]["id"] + 1   # Tiled: gid = id + firstgid(1)
 
@@ -47,19 +48,18 @@ WALLS = [  # (x, y, w, h, door)
     (0, 37, 58, 1, False), (6, 37, 2, 1, True), (18, 37, 2, 1, True), (45, 37, 2, 1, True),   # parede de fundo do prédio
     (0, 0, 58, 1, False), (0, 0, 1, 38, False), (57, 0, 1, 38, False),                           # paredes externas
 ]
-PROPS = [  # (kind, x, y, w, h)
-    ("counter", 3, 3, 5, 1), ("plant", 1, 2, 1, 1), ("plant", 12, 2, 1, 1), ("sofa", 8, 7, 3, 1), ("cooler", 1, 8, 1, 1),
-    ("desk", 15, 2, 2, 1), ("desk", 19, 2, 2, 1), ("desk", 15, 5, 2, 1), ("desk", 19, 5, 2, 1), ("plant", 21, 8, 1, 1), ("bookshelf", 14, 2, 1, 1),
+PROPS = [  # (kind, x, y, w, h) — móveis feitos de tiles (mesas de trabalho, mesas de reunião, sofás, bancos)
+    ("sofa", 8, 7, 3, 1), ("cooler", 1, 8, 1, 1),
+    ("desk", 15, 3, 2, 1), ("desk", 19, 3, 2, 1), ("desk", 15, 6, 2, 1), ("desk", 19, 6, 2, 1), ("bookshelf", 14, 2, 1, 1),
     ("desk", 3, 13, 3, 1), ("desk", 3, 15, 3, 1), ("desk", 9, 13, 3, 1), ("desk", 9, 15, 3, 1), ("desk", 15, 13, 3, 1), ("desk", 15, 15, 3, 1),
     ("desk", 3, 19, 3, 1), ("desk", 3, 21, 3, 1), ("desk", 9, 19, 3, 1), ("desk", 9, 21, 3, 1), ("desk", 15, 19, 3, 1), ("desk", 15, 21, 3, 1),
-    ("plant", 21, 12, 1, 1), ("plant", 1, 23, 1, 1), ("cooler", 21, 23, 1, 1),
-    ("counter", 2, 27, 5, 1), ("coffee", 8, 27, 1, 1), ("table", 3, 31, 2, 2), ("table", 8, 31, 2, 2), ("table", 3, 35, 2, 1), ("table", 8, 35, 2, 1),
-    ("sofa", 15, 28, 3, 1), ("sofa", 19, 28, 3, 1), ("sofa", 15, 33, 3, 1), ("sofa", 19, 33, 3, 1), ("plant", 21, 35, 1, 1), ("bookshelf", 14, 35, 1, 1),
-    ("table", 26, 3, 6, 2), ("table", 37, 3, 6, 2), ("table", 48, 3, 7, 2), ("bookshelf", 56, 2, 1, 1), ("plant", 33, 2, 1, 1), ("plant", 44, 2, 1, 1),
-    ("table", 27, 29, 4, 3), ("plant", 33, 35, 1, 1),
-    ("plant", 25, 22, 1, 1), ("plant", 55, 22, 1, 1),
+    ("cooler", 21, 23, 1, 1),
+    ("coffee", 8, 27, 1, 1),
+    ("sofa", 15, 28, 3, 1), ("sofa", 19, 28, 3, 1), ("sofa", 15, 33, 3, 1), ("sofa", 19, 33, 3, 1),
+    ("table", 26, 3, 6, 2), ("table", 37, 3, 6, 2), ("table", 48, 3, 7, 2), ("bookshelf", 56, 2, 1, 1),
+    ("table", 27, 29, 4, 3),
     ("bench", 27, 16, 10, 1), ("bench", 42, 16, 10, 1), ("bench", 27, 19, 10, 1), ("bench", 42, 19, 10, 1),
-    ("table", 42, 29, 2, 2), ("table", 48, 29, 2, 2), ("sofa", 42, 33, 3, 1), ("sofa", 47, 33, 3, 1), ("crate", 55, 35, 1, 1), ("crate", 56, 35, 1, 1),
+    ("table", 42, 29, 2, 2), ("table", 48, 29, 2, 2), ("sofa", 42, 33, 3, 1), ("sofa", 47, 33, 3, 1),
     # jardim
     ("bench_park", 10, 42, 2, 1), ("bench_park", 30, 42, 2, 1), ("bench_park", 46, 42, 2, 1), ("bench_park", 20, 46, 2, 1),
     ("lamp_post", 5, 40, 1, 1), ("lamp_post", 52, 40, 1, 1), ("lamp_post", 28, 47, 1, 1),
@@ -72,18 +72,43 @@ OBJECTS = [
     dict(id="quadro-dir", kind="board", x=46, y=2, w=1, h=2, label="Quadro"),
     dict(id="quadro-r3", kind="board", x=24, y=27, w=1, h=2, label="Quadro"),
     dict(id="telao", kind="video", x=36, y=10, w=9, h=1, label="Telão", url="https://www.youtube.com/embed/jfKfPfyJRdk"),
-    dict(id="docs", kind="link", x=3, y=12, w=1, h=1, label="Biblioteca", url="/membros"),
+    dict(id="docs", kind="link", x=8, y=12, w=2, h=1, label="Biblioteca", url="/membros"),
     dict(id="jukebox", kind="link", x=11, y=27, w=1, h=1, label="Rádio", url="https://www.youtube.com/embed/videoseries?list=PLOzDu-MXXLliO9fBNZOQTBDddoA3FzZUo"),
 ]
-DECOR = [  # árvores: x,y = tile do tronco; w,h = tiles bloqueados
-    dict(sprite="flower1", x=36, y=28, w=2, h=1), dict(sprite="fruit1", x=53, y=28, w=2, h=1),
-    dict(sprite="palm1", x=37, y=34, w=2, h=1), dict(sprite="palm2", x=52, y=34, w=2, h=1),
-    dict(sprite="tree2", x=45, y=26, w=1, h=1), dict(sprite="tree3", x=46, y=35, w=1, h=1), dict(sprite="moss1", x=40, y=35, w=2, h=1),
+# Props dos packs CraftPix (client/public/assets/props): x,y = canto superior esquerdo da imagem em tiles.
+# A base (últimas bh linhas) bloqueia; tapetes (bh=0) ficam no chão.
+PACK_PROPS = [
+    # recepção
+    ("counter_plain", 3, 2), ("planter", 1, 2), ("rug_blue", 5, 5), ("lantern", 11, 4), ("plant_pot2", 12, 2),
+    # open space
+    ("bookshelf", 8, 10), ("planter2", 20, 12), ("rug_red", 7, 16), ("shelf_items", 18, 12), ("plant_pot", 1, 22), ("herbs", 1, 11),
+    # foco
+    ("plant_pot", 21, 7), ("shelf_empty", 14, 6),
+    # reuniões e diretoria
+    ("plant_pot2", 33, 1), ("plant_pot", 44, 1), ("table_wood", 46, 6), ("shelf_glass2", 55, 5),
+    # auditório
+    ("plant_pot", 25, 21), ("plant_pot", 55, 21),
+    # café
+    ("counter_vases", 2, 26), ("shelf_glass", 9, 26), ("table_round_set", 2, 29), ("table_round_set", 7, 29), ("table_small", 3, 34), ("table_small", 8, 34), ("barrel", 12, 34),
+    # lounge
+    ("rug_red_round", 17, 29), ("table_small", 17, 30), ("bookshelf", 21, 30), ("art_dragon", 16, 25), ("herbs", 14, 26), ("plant_pot2", 14, 34),
+    # reunião 3
+    ("art_tulip", 31, 25), ("plant_pot", 33, 34),
+    # terraço
+    ("crate_big", 55, 34), ("bush_round", 37, 33), ("rocks", 50, 35), ("stump", 40, 35), ("barrel2", 36, 26),
     # jardim
-    dict(sprite="tree1", x=3, y=44, w=2, h=1), dict(sprite="autumn1", x=14, y=41, w=2, h=1), dict(sprite="tree1", x=24, y=44, w=2, h=1),
-    dict(sprite="flower2", x=38, y=41, w=2, h=1), dict(sprite="fruit1", x=54, y=45, w=2, h=1), dict(sprite="tree2", x=41, y=47, w=1, h=1),
-    dict(sprite="tree3", x=8, y=47, w=1, h=1), dict(sprite="moss1", x=49, y=47, w=2, h=1),
+    ("bush_big", 17, 44), ("bush_round", 40, 40), ("rocks", 10, 47), ("rocks", 33, 41), ("stump", 20, 41), ("bush_round", 53, 45),
 ]
+# árvores animadas (client/public/assets/trees2, 13 quadros): x,y = canto superior esquerdo (imagem de 4x5 tiles); base = 2 tiles no meio da última linha
+TREES2 = [
+    ("apple_m", 35, 26), ("oak_s", 52, 31), ("green_m", 50, 25),
+    ("green_l", 2, 38), ("apple_l", 12, 39), ("oak_l", 24, 38), ("green_l", 36, 39), ("apple_m", 50, 38), ("oak_m", 8, 44), ("green_s", 30, 44), ("oak_s", 44, 44),
+]
+FIRES = [(44, 26)]  # fogueira animada (3x3 tiles, base 2x1)
+STATIC_NPCS = [  # gente do lugar (idle animado), parada num ponto
+    dict(kind="seller", x=5.5, y=2.7, zone="recepcao"), dict(kind="customer", x=4.5, y=26.7, zone="cafe"),
+]
+DECOR = []  # árvores estáticas antigas (substituídas pelas animadas)
 GRAFFITI = [
     dict(sprite="expresspace", x=40, y=24), dict(sprite="slogan", x=30, y=24), dict(sprite="shortway", x=50, y=24),
     dict(sprite="n7", x=3, y=10), dict(sprite="cafe", x=4, y=25), dict(sprite="foco", x=18, y=1),
@@ -112,6 +137,9 @@ for z in ZONES:
             if name == "grass" and rnd.random() < 0.04: name = "flowers"
             if name == "floor_wood" and rnd.random() < 0.15: name = "floor_wood2"
             if name == "floor_wood" and rnd.random() < 0.1: name = "floor_wood3"
+            if name == "floor_wood" and rnd.random() < 0.1: name = "floor_wood4"
+            if name == "grass" and rnd.random() < 0.12: name = "grass3"
+            if name == "grass" and rnd.random() < 0.05: name = "grass_dirt"
             if name == "floor_concrete" and rnd.random() < 0.12: name = "floor_concrete2"
             put(ground, x, y, name)
     if "stage" in z:
@@ -120,7 +148,7 @@ for z in ZONES:
             for x in range(s["x"], s["x"] + s["w"]): put(ground, x, y, "floor_stage_edge" if y == s["y"] + s["h"] - 1 else "floor_stage")
         for x in range(s["x"] + 3, s["x"] + s["w"] - 2, 7): put(furn, x, s["y"] - 1, "stage_light")
 # tapetes
-for (x, y, w, h) in [(4, 5, 6, 3), (16, 30, 5, 3)]:
+for (x, y, w, h) in []:  # tapetes agora são props dos packs
     for yy in range(y, y + h):
         for xx in range(x, x + w): put(ground, xx, yy, "rug_edge" if yy == y else "rug")
 # caminhos do jardim
@@ -206,7 +234,6 @@ for o in OBJECTS:
         for xx in range(o["w"]): put(furn, o["x"] + xx, o["y"], "noticeboard")
     elif o["kind"] == "video":
         for xx in range(o["w"]): put(furn, o["x"] + xx, o["y"], "screen_l" if xx == 0 else "screen_r" if xx == o["w"] - 1 else "screen_m")
-    elif o["id"] == "docs": put(furn, o["x"], o["y"], "bookshelf")
     elif o["id"] == "jukebox": put(furn, o["x"], o["y"], "radio")
 
 # ---------- objetos do Tiled ----------
@@ -231,8 +258,16 @@ for z in ZONES:
         s = z["stage"]; zone_objs.append(obj(z["name"] + " palco", "stage", s["x"], s["y"], s["w"], s["h"], {"zone": z["id"]}))
 inter_objs = [obj(o["label"], "interactive", o["x"], o["y"], o["w"], o["h"], {k: v for k, v in o.items() if k not in ("x", "y", "w", "h")}) for o in OBJECTS]
 decor_objs = [obj(d["sprite"], "tree", d["x"], d["y"], d["w"], d["h"], {"sprite": d["sprite"]}) for d in DECOR]
+for (name, x, y) in PACK_PROPS:
+    pi = PROPIDX[name]
+    decor_objs.append(obj(name, "prop", x, y, pi["w"], pi["h"], {"sprite": name, "bw": pi["bw"], "bh": pi["bh"]}))
+for (name, x, y) in TREES2:
+    decor_objs.append(obj(name, "tree2", x, y, 4, 5, {"sprite": name, "bw": 2, "bh": 1}))
+for (x, y) in FIRES:
+    decor_objs.append(obj("campfire", "fire", x, y, 3, 3, {"sprite": "campfire", "bw": 2, "bh": 1}))
 graf_objs = [obj(g["sprite"], "graffiti", g["x"] + 0.5, g["y"] + 0.5, 0, 0, {"sprite": g["sprite"]}, point=True) for g in GRAFFITI]
 npc_objs = [obj(n["kind"], "npc", 0, 0, 0, 0, {"kind": n["kind"], "zone": n["zone"]}, point=True) for n in NPCS]
+npc_objs += [obj(n["kind"], "npc", n["x"], n["y"], 0, 0, {"kind": n["kind"], "zone": n["zone"], "static": True}, point=True) for n in STATIC_NPCS]
 meta_objs = [obj("spawn", "spawn", SPAWN[0] + 0.5, SPAWN[1] + 0.5, 0, 0, point=True)]
 
 def tilelayer(lid, name, data): return {"id": lid, "name": name, "type": "tilelayer", "width": W, "height": H, "x": 0, "y": 0, "opacity": 1, "visible": True, "data": data}

@@ -19,12 +19,16 @@ export class World {
     if (overrides.npcs) map.npcs = overrides.npcs;
     // colisão = tiles do Tiled (paredes/móveis) + objetos e árvores nas posições atuais
     const grid = map.tiledGrid.map((row) => row.split(""));
-    for (const o of [...map.objects, ...map.decor]) for (let y = o.y; y < o.y + o.h; y++) for (let x = o.x; x < o.x + o.w; x++) if (grid[y]?.[x] !== undefined) grid[y][x] = "1";
+    for (const o of [...map.objects, ...map.decor]) {
+      const bx = o.bx ?? o.x, by = o.by ?? o.y, bw = o.bw ?? o.w, bh = o.bh ?? o.h;
+      for (let y = by; y < by + bh; y++) for (let x = bx; x < bx + bw; x++) if (grid[y]?.[x] !== undefined) grid[y][x] = "1";
+    }
     map.grid = grid.map((r) => r.join(""));
     this.map = map;
     this.locked = new Set(overrides.locked || []);
     this.npcs = (map.npcs || []).map((n, i) => {
       const z = this.zoneById(n.zone) || map.zones[0];
+      if (n.static) return { id: "npc" + i, kind: n.kind, zone: z.id, x: n.x, y: n.y, dir: "down", moving: false, static: true, target: null, wait: Infinity };
       const spot = this.freeTile(z) || { x: z.x, y: z.y };
       return { id: "npc" + i, kind: n.kind, zone: z.id, x: spot.x + 0.5, y: spot.y + 0.5, dir: "down", moving: false, target: null, wait: 1 + Math.random() * 3 };
     });
@@ -71,7 +75,7 @@ export class World {
   // Bichos passeando: escolhe um ponto livre na zona, anda até lá, para um pouco, repete
   tickNpcs(dt) {
     for (const n of [...this.npcs, ...this.agents.filter((a) => a.wander)]) {
-      if (n.kind === "agent" && !n.zone) continue;
+      if (n.static || (n.kind === "agent" && !n.zone)) continue;
       if (n.wait > 0) { n.wait -= dt; n.moving = false; continue; }
       if (!n.target) { const t = this.freeTile(this.zoneById(n.zone)); if (!t) { n.wait = 2; continue; } n.target = { x: t.x + 0.5, y: t.y + 0.5 }; }
       const vx = n.target.x - n.x, vy = n.target.y - n.y, d = Math.hypot(vx, vy);
@@ -119,7 +123,7 @@ export class World {
 
   remove(userId) { this.players.delete(userId); }
 
-  move(userId, x, y, dir, moving) {
+  move(userId, x, y, dir, moving, running) {
     const p = this.players.get(userId);
     if (!p) return false;
     if (!Number.isFinite(x) || !Number.isFinite(y)) return false;
@@ -127,7 +131,7 @@ export class World {
     if (!this.canEnter(p, tx, ty)) return false;
     // anti-teleporte: no máximo ~2 tiles por mensagem
     if (Math.hypot(x - p.x, y - p.y) > 2.5) return false;
-    p.x = x; p.y = y; p.dir = dir || p.dir; p.moving = !!moving;
+    p.x = x; p.y = y; p.dir = dir || p.dir; p.moving = !!moving; p.running = !!moving && !!running;
     this.updateZone(p);
     return true;
   }
@@ -144,7 +148,7 @@ export class World {
     const out = [];
     for (const p of this.players.values()) {
       out.push({ id: p.id, name: p.name, color: p.color, avatar: p.avatar, role: p.role, x: p.x, y: p.y, dir: p.dir,
-        moving: p.moving, zone: p.zone, onStage: p.onStage, voiceChannel: p.voiceChannel,
+        moving: p.moving, running: p.running, zone: p.zone, onStage: p.onStage, voiceChannel: p.voiceChannel,
         muted: p.muted, status: p.status, presence: p.presence, speaking: p.speaking });
     }
     return out;

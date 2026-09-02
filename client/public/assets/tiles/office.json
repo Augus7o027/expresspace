@@ -1,7 +1,7 @@
 {
  "tilewidth": 32,
  "columns": 8,
- "count": 69,
+ "count": 81,
  "tiles": {
   "floor_wood": {
    "id": 0,
@@ -115,168 +115,216 @@
    "id": 27,
    "collides": false
   },
-  "table_tl": {
+  "chair_back": {
    "id": 28,
-   "collides": true
+   "collides": false
   },
-  "table_tr": {
+  "table_tl": {
    "id": 29,
    "collides": true
   },
-  "table_bl": {
+  "table_tr": {
    "id": 30,
    "collides": true
   },
-  "table_br": {
+  "table_bl": {
    "id": 31,
    "collides": true
   },
-  "table_t": {
+  "table_br": {
    "id": 32,
    "collides": true
   },
-  "table_b": {
+  "table_t": {
    "id": 33,
    "collides": true
   },
-  "table_ml": {
+  "table_b": {
    "id": 34,
    "collides": true
   },
-  "table_mr": {
+  "table_ml": {
    "id": 35,
    "collides": true
   },
-  "table_c": {
+  "table_mr": {
    "id": 36,
    "collides": true
   },
-  "table_l": {
+  "table_c": {
    "id": 37,
    "collides": true
   },
-  "table_m": {
+  "table_l": {
    "id": 38,
    "collides": true
   },
-  "table_r": {
+  "table_m": {
    "id": 39,
    "collides": true
   },
-  "sofa_l": {
+  "table_r": {
    "id": 40,
    "collides": true
   },
-  "sofa_m": {
+  "sofa_l": {
    "id": 41,
    "collides": true
   },
-  "sofa_r": {
+  "sofa_m": {
    "id": 42,
    "collides": true
   },
-  "bench": {
+  "sofa_r": {
    "id": 43,
    "collides": true
   },
-  "bench_park": {
+  "bench": {
    "id": 44,
    "collides": true
   },
-  "counter_l": {
+  "bench_park": {
    "id": 45,
    "collides": true
   },
-  "counter_m": {
+  "counter_l": {
    "id": 46,
    "collides": true
   },
-  "counter_r": {
+  "counter_m": {
    "id": 47,
    "collides": true
   },
-  "plant": {
+  "counter_r": {
    "id": 48,
    "collides": true
   },
-  "plant_small": {
+  "plant": {
    "id": 49,
+   "collides": true
+  },
+  "plant_small": {
+   "id": 50,
    "collides": false
   },
   "whiteboard": {
-   "id": 50,
-   "collides": true
-  },
-  "tv": {
    "id": 51,
    "collides": true
   },
-  "bookshelf": {
+  "tv": {
    "id": 52,
    "collides": true
   },
-  "cooler": {
+  "bookshelf": {
    "id": 53,
    "collides": true
   },
-  "coffee": {
+  "cooler": {
    "id": 54,
    "collides": true
   },
-  "stage_light": {
+  "coffee": {
    "id": 55,
+   "collides": true
+  },
+  "stage_light": {
+   "id": 56,
    "collides": false
   },
   "screen_l": {
-   "id": 56,
-   "collides": true
-  },
-  "screen_m": {
    "id": 57,
    "collides": true
   },
-  "screen_r": {
+  "screen_m": {
    "id": 58,
    "collides": true
   },
-  "noticeboard": {
+  "screen_r": {
    "id": 59,
    "collides": true
   },
-  "radio": {
+  "noticeboard": {
    "id": 60,
    "collides": true
   },
-  "crate": {
+  "radio": {
    "id": 61,
    "collides": true
   },
-  "flowers": {
+  "crate": {
    "id": 62,
+   "collides": true
+  },
+  "flowers": {
+   "id": 63,
    "collides": false
   },
   "fence": {
-   "id": 63,
-   "collides": true
-  },
-  "lamp_post": {
    "id": 64,
    "collides": true
   },
-  "floor_wood3": {
+  "lamp_post": {
    "id": 65,
-   "collides": false
+   "collides": true
   },
-  "floor_concrete2": {
+  "floor_wood3": {
    "id": 66,
    "collides": false
   },
-  "wall_top_end": {
+  "floor_concrete2": {
    "id": 67,
+   "collides": false
+  },
+  "wall_top_end": {
+   "id": 68,
    "collides": true
   },
-  "chair_back": {
-   "id": 68,
+  "floor_wood4": {
+   "id": 69,
+   "collides": false
+  },
+  "grass3": {
+   "id": 70,
+   "collides": false
+  },
+  "grass_dirt": {
+   "id": 71,
+   "collides": false
+  },
+  "fence_v": {
+   "id": 72,
+   "collides": true
+  },
+  "floor_sand": {
+   "id": 73,
+   "collides": false
+  },
+  "path_l": {
+   "id": 74,
+   "collides": false
+  },
+  "path_r": {
+   "id": 75,
+   "collides": false
+  },
+  "path_tl": {
+   "id": 76,
+   "collides": false
+  },
+  "path_tr": {
+   "id": 77,
+   "collides": false
+  },
+  "path_bl": {
+   "id": 78,
+   "collides": false
+  },
+  "path_b": {
+   "id": 79,
+   "collides": false
+  },
+  "path_br": {
+   "id": 80,
    "collides": false
   }
  }

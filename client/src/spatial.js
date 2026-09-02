@@ -41,7 +41,7 @@ export class Spatial {
   addEmitter(kind, x, y) {
     const g = this.ctx.createGain(); g.gain.value = 0;
     const p = this.ctx.createStereoPanner(); g.connect(p).connect(this.ambientGain);
-    const nodes = kind === "coffee" ? this.makeCoffee(g) : kind === "radio" ? this.makeRadio(g) : kind === "cooler" ? this.makeCooler(g) : kind === "garden" ? this.makeGarden(g) : null;
+    const nodes = kind === "coffee" ? this.makeCoffee(g) : kind === "radio" ? this.makeRadio(g) : kind === "cooler" ? this.makeCooler(g) : kind === "garden" ? this.makeGarden(g) : kind === "fire" ? this.makeFire(g) : null;
     if (!nodes) return;
     this.emitters.push({ kind, x, y, gain: g, pan: p, nodes, reach: kind === "radio" ? 9 : kind === "garden" ? 12 : 6, vol: kind === "radio" ? 0.5 : kind === "garden" ? 0.35 : 0.4 });
   }
@@ -66,6 +66,19 @@ export class Spatial {
     };
     this.timers ??= []; this.timers.push(setTimeout(bubble, 1200));
     return { hum };
+  }
+  makeFire(out) {
+    // fogueira: ruído grave abafado + estalos
+    const n = this.noise("brown"); const lp = this.ctx.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 400;
+    const g = this.ctx.createGain(); g.gain.value = 0.5; n.connect(lp).connect(g).connect(out);
+    const pop = () => {
+      const t = this.ctx.currentTime, o = this.ctx.createOscillator(), pg = this.ctx.createGain(); o.type = "square"; o.frequency.value = 900 + Math.random() * 1500;
+      pg.gain.setValueAtTime(0.0001, t); pg.gain.exponentialRampToValueAtTime(0.08, t + 0.005); pg.gain.exponentialRampToValueAtTime(0.0001, t + 0.03);
+      o.connect(pg).connect(out); o.start(t); o.stop(t + 0.04);
+      this.timers.push(setTimeout(pop, 150 + Math.random() * 900));
+    };
+    this.timers ??= []; this.timers.push(setTimeout(pop, 500));
+    return { n };
   }
   makeCooler(out) {
     const hum = this.noise("brown"); const lp = this.ctx.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 140;

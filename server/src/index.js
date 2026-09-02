@@ -124,7 +124,7 @@ app.put("/api/admin/world", admin, wrap(async (req, res) => {
     locked: Array.isArray(b.locked) ? b.locked.filter((id) => world.map.zones.some((z) => z.id === id)) : cur.locked,
     objects: b.objects && typeof b.objects === "object" ? b.objects : cur.objects,
     decor: b.decor && typeof b.decor === "object" ? b.decor : cur.decor,
-    npcs: Array.isArray(b.npcs) ? b.npcs.filter((n) => ["fox", "hare", "deer", "boar", "grouse"].includes(n.kind) && world.map.zones.some((z) => z.id === n.zone)).slice(0, 30) : cur.npcs,
+    npcs: Array.isArray(b.npcs) ? b.npcs.filter((n) => ["fox", "hare", "deer", "boar", "grouse", "seller", "customer"].includes(n.kind) && world.map.zones.some((z) => z.id === n.zone)).slice(0, 30) : cur.npcs,
   };
   await store.putDoc("world", "overrides", next);
   world.setMap(loadTiled(), next);
@@ -190,7 +190,7 @@ const socketsByUser = new Map(); // userId -> socket
 const lastVoice = new Map();     // userId -> JSON do último grupo enviado
 const COLORS = ["#ffffff", "#c9c9c9", "#9a9a9a", "#e8e0d0", "#d6d6d6", "#b5b5b5"];
 
-const AVATAR_MAX = { skin: 5, hair: 5, hairColor: 6, shirt: 8, accessory: 4 };
+const AVATAR_MAX = { skin: 5, hair: 9, hairColor: 6, shirt: 8, accessory: 4, body: 2 };
 function sanitizeAvatar(a) {
   const out = {};
   for (const k of Object.keys(AVATAR_MAX)) out[k] = a && Number.isInteger(a[k]) && a[k] >= 0 && a[k] < AVATAR_MAX[k] ? a[k] : 0;
@@ -220,10 +220,12 @@ io.on("connection", (socket) => {
     const id = acc ? acc.id : (typeof userId === "string" && /^[a-z0-9-]{8,40}$/.test(userId)) ? userId : crypto.randomUUID();
     const prev = socketsByUser.get(id);
     if (prev && prev.id !== socket.id) { prev.emit("kicked", "Você entrou em outra aba."); prev.disconnect(true); }
+    const premium = !!acc && (acc.premium || acc.role !== "member");
     user = {
       id, name: acc ? acc.name : sanitizeName(name), color: /^#[0-9a-f]{6}$/i.test(color || "") ? color : COLORS[0],
-      avatar: sanitizeAvatar(avatar || acc?.avatar), role: acc ? acc.role : "guest", accountId: acc?.id || null,
+      avatar: sanitizeAvatar(avatar || acc?.avatar), role: acc ? acc.role : "guest", accountId: acc?.id || null, premium,
     };
+    if (user.avatar.body === 1 && !premium) user.avatar.body = 0; // corpo orc é skin premium
     if (acc && avatar) accounts.update(acc.id, { avatar: user.avatar }).catch(() => {});
     await store.upsertUser(user);
     socketsByUser.set(id, socket);
@@ -237,9 +239,9 @@ io.on("connection", (socket) => {
     pushVoice();
   });
 
-  socket.on("move", ({ x, y, dir, moving } = {}) => {
+  socket.on("move", ({ x, y, dir, moving, running } = {}) => {
     if (!user) return;
-    if (world.move(user.id, x, y, dir, moving)) pushVoice();
+    if (world.move(user.id, x, y, dir, moving, running)) pushVoice();
   });
 
   socket.on("teleport", ({ x, y } = {}) => {
@@ -256,7 +258,7 @@ io.on("connection", (socket) => {
     if (!user) return;
     const p = world.players.get(user.id);
     if (!p) return;
-    if (avatar) { p.avatar = user.avatar = sanitizeAvatar(avatar); if (user.accountId) accounts.update(user.accountId, { avatar: p.avatar }).catch(() => {}); }
+    if (avatar) { const a = sanitizeAvatar(avatar); if (a.body === 1 && !user.premium) a.body = 0; p.avatar = user.avatar = a; if (user.accountId) accounts.update(user.accountId, { avatar: p.avatar }).catch(() => {}); }
     if (typeof status === "string") p.status = status.slice(0, 40);
     if (typeof muted === "boolean") p.muted = muted;
     if (["available", "busy", "focus"].includes(presence)) { p.presence = presence; pushVoice(); }

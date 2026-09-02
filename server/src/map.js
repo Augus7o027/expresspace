@@ -59,8 +59,14 @@ export function parseTiled(t, fileName = "sede.json") {
         case "stage": stages.push({ zone: p.zone, ...r }); break;
         case "interactive": world.objects.push({ ...r, id: p.id, kind: p.kind, label: p.label || o.name, url: p.url, text: p.text }); break;
         case "tree": world.decor.push({ kind: "tree", sprite: p.sprite || o.name, ...r }); break;
+        // props dos packs, árvores animadas e fogueira: a imagem ocupa r, mas só a base (bw x bh, centrada embaixo) bloqueia
+        case "prop": case "tree2": case "fire": {
+          const bw = p.bw ?? r.w, bh = p.bh ?? 1;
+          world.decor.push({ kind: o.type, sprite: p.sprite || o.name, ...r, bw, bh, bx: r.x + Math.floor((r.w - bw) / 2), by: r.y + r.h - bh });
+          break;
+        }
         case "graffiti": world.graffiti.push({ sprite: p.sprite || o.name, x: Math.floor(o.x / TILE), y: Math.floor(o.y / TILE), scale: p.scale || 1 }); break;
-        case "npc": world.npcs.push({ kind: p.kind || o.name, zone: p.zone }); break;
+        case "npc": world.npcs.push({ kind: p.kind || o.name, zone: p.zone, ...(p.static ? { static: true, x: o.x / TILE, y: o.y / TILE } : {}) }); break;
         case "spawn": world.spawn = { x: Math.floor(o.x / TILE), y: Math.floor(o.y / TILE) }; break;
       }
     }
@@ -69,7 +75,10 @@ export function parseTiled(t, fileName = "sede.json") {
   // objetos interativos e árvores bloqueiam
   world.tiledGrid = [];
   for (let y = 0; y < H; y++) world.tiledGrid.push(Array.from(grid.subarray(y * W, (y + 1) * W)).join(""));
-  for (const o of [...world.objects, ...world.decor]) for (let y = o.y; y < o.y + o.h; y++) for (let x = o.x; x < o.x + o.w; x++) if (x >= 0 && y >= 0 && x < W && y < H) grid[y * W + x] = 1;
+  for (const o of [...world.objects, ...world.decor]) {
+    const bx = o.bx ?? o.x, by = o.by ?? o.y, bw = o.bw ?? o.w, bh = o.bh ?? o.h;
+    for (let y = by; y < by + bh; y++) for (let x = bx; x < bx + bw; x++) if (x >= 0 && y >= 0 && x < W && y < H) grid[y * W + x] = 1;
+  }
   for (let y = 0; y < H; y++) world.grid.push(Array.from(grid.subarray(y * W, (y + 1) * W)).join(""));
   world.tiledFile = fileName;
   return world;

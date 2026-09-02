@@ -227,14 +227,15 @@ async function renderUsers(root) {
   const rows = users.map((u) => {
     const role = el("select", { onchange: async (e) => { try { await api("PUT", `/api/admin/users/${u.id}`, { role: e.target.value }); toast("cargo atualizado"); } catch (err) { toast(err.message, false); } } }, ...["admin", "professor", "member"].map((r) => el("option", { value: r, selected: r === u.role ? "" : undefined }, r)));
     const pw = input({ type: "password", placeholder: "nova senha" });
-    return el("tr", {}, el("td", {}, el("b", {}, u.name), el("div", { class: "sub" }, u.email)), el("td", {}, role), el("td", {}, u.last_login ? new Date(u.last_login).toLocaleString("pt-BR") : "nunca"),
+    const prem = el("input", { type: "checkbox", checked: u.premium ? "" : undefined, title: "libera skins premium (ex.: Orc)", onchange: async (e) => { try { await api("PUT", `/api/admin/users/${u.id}`, { premium: e.target.checked }); toast("premium atualizado"); } catch (err) { toast(err.message, false); } } });
+    return el("tr", {}, el("td", {}, el("b", {}, u.name), el("div", { class: "sub" }, u.email)), el("td", {}, role), el("td", {}, el("label", { class: "checks" }, prem, "premium")), el("td", {}, u.last_login ? new Date(u.last_login).toLocaleString("pt-BR") : "nunca"),
       el("td", {}, el("div", { class: "row" }, pw, el("button", { class: "btn small", onclick: async () => { try { await api("PUT", `/api/admin/users/${u.id}`, { password: pw.value }); pw.value = ""; toast("senha trocada"); } catch (e) { toast(e.message, false); } } }, "trocar"))),
       el("td", {}, u.id !== me.id ? el("button", { class: "btn small danger", onclick: async () => { if (!confirm(`apagar ${u.email}?`)) return; await api("DELETE", `/api/admin/users/${u.id}`); showTab("users"); } }, "apagar") : ""));
   });
   const email = input({ type: "email", placeholder: "e-mail" }), name = input({ placeholder: "nome" }), pass = input({ type: "password", placeholder: "senha (6+)" });
   const role = el("select", {}, ...["member", "professor", "admin"].map((r) => el("option", { value: r }, r)));
   root.append(el("div", { class: "card glass" }, el("h2", {}, "Contas"), el("p", { class: "lead" }, "admin: tudo. professor: entra em salas trancadas e posta em #anúncios. member: acesso comum."),
-    el("table", {}, el("tr", {}, el("th", {}, "conta"), el("th", {}, "cargo"), el("th", {}, "último login"), el("th", {}, "senha"), el("th", {}, "")), ...rows)));
+    el("table", {}, el("tr", {}, el("th", {}, "conta"), el("th", {}, "cargo"), el("th", {}, "premium"), el("th", {}, "último login"), el("th", {}, "senha"), el("th", {}, "")), ...rows)));
   root.append(el("div", { class: "card glass" }, el("h3", {}, "Criar conta"), el("div", { class: "row" }, email, name, pass, role,
     el("button", { class: "btn primary", onclick: async () => { try { await api("POST", "/api/admin/users", { email: email.value, name: name.value, password: pass.value, role: role.value }); toast("conta criada"); showTab("users"); } catch (e) { toast(e.message, false); } } }, "Criar"))));
 }

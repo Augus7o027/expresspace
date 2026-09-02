@@ -156,7 +156,7 @@ await A.click(".tab[data-mode='channel']");
 
 // Terraço: bichos e árvores
 await A.click("#zones li:nth-child(11)"); await A.waitForTimeout(2500);
-console.log("npcs vistos por A:", await A.evaluate(() => window.__sede.scene.npcs.size), "| árvores:", await A.evaluate(() => Object.keys(window.__sede.scene.textures.list).filter((k) => k.startsWith("tree:")).length));
+console.log("npcs vistos por A:", await A.evaluate(() => window.__sede.scene.npcs.size), "| árvores:", await A.evaluate(() => Object.keys(window.__sede.scene.textures.list).filter((k) => k.startsWith("tree2:") || k.startsWith("prop:")).length));
 await A.screenshot({ path: "test/shots/07-terraco.png" });
 await A.evaluate(() => { const s = window.__sede.scene; s.cameras.main.setZoom(2.6); }); await A.waitForTimeout(400);
 await A.screenshot({ path: "test/shots/08-terraco-zoom.png" });

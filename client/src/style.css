@@ -278,3 +278,5 @@ h1 .serif { font-size: 92px; }
 #tiles-dock .pill:hover { border-color: rgba(255,255,255,0.4); }
 #btn-noise.off { opacity: 0.45; }
 #btn-noise.alta { border-color: rgba(154,208,255,0.6); }
+
+.avatar-opt.locked { opacity: 0.45; cursor: not-allowed; }

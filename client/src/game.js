@@ -1,9 +1,11 @@
 import Phaser from "phaser";
 import { TILE, isBlocked, zoneAt, objectNear } from "./mapdata.js";
-import { ensureAvatarTexture, avatarKey } from "./sprites.js";
+import { ensureAvatarTexture, avatarKey, ASSET_V } from "./sprites.js";
 import { shadowTexture, glowTexture, waveTexture, steamTexture, screenGlowTexture, drawPixelRing, drawPixelBubble } from "./pixelfx.js";
 
-const SPEED = 4.4; // tiles por segundo
+const SPEED = 4.4; // tiles por segundo (andando); Shift corre
+const RUN_MULT = 1.75;
+const V = `?v=${ASSET_V}`; // cache-busting dos assets estáticos
 const SEND_HZ = 15;
 const STATUS_COLOR = { available: 0x6ef0a3, busy: 0xf06e6e, focus: 0xf0c76e };
 const ZOOMS = [1, 2, 3];          // só zoom inteiro: cada pixel da arte vira 1, 2 ou 3 pixels na tela
@@ -34,16 +36,23 @@ export class WorldScene extends Phaser.Scene {
   }
 
   preload() {
-    this.load.tilemapTiledJSON("sede", `/maps/${this.map.tiledFile || "sede.json"}`);
-    this.load.image("tiles", "/assets/tiles/office.png");
-    this.load.spritesheet("tilesheet", "/assets/tiles/office.png", { frameWidth: TILE, frameHeight: TILE });
-    const kinds = [...new Set((this.map.npcs || []).map((n) => n.kind))];
-    for (const k of kinds) {
-      this.load.spritesheet(`npc:${k}:idle`, `/assets/animals/${k}_idle.png`, { frameWidth: 32, frameHeight: 32 });
-      this.load.spritesheet(`npc:${k}:walk`, `/assets/animals/${k}_walk.png`, { frameWidth: 32, frameHeight: 32 });
+    this.load.tilemapTiledJSON("sede", `/maps/${this.map.tiledFile || "sede.json"}${V}`);
+    this.load.image("tiles", "/assets/tiles/office.png" + V);
+    this.load.spritesheet("tilesheet", "/assets/tiles/office.png" + V, { frameWidth: TILE, frameHeight: TILE });
+    const HUMANS = new Set(["seller", "customer"]);
+    for (const k of new Set((this.map.npcs || []).map((n) => n.kind))) {
+      if (HUMANS.has(k)) { this.load.spritesheet(`npc:${k}:idle`, `/assets/npc/${k}.png${V}`, { frameWidth: 64, frameHeight: 64 }); continue; }
+      this.load.spritesheet(`npc:${k}:idle`, `/assets/animals/${k}_idle.png${V}`, { frameWidth: 32, frameHeight: 32 });
+      this.load.spritesheet(`npc:${k}:walk`, `/assets/animals/${k}_walk.png${V}`, { frameWidth: 32, frameHeight: 32 });
     }
-    for (const d of this.map.decor || []) this.load.image(`tree:${d.sprite}`, `/assets/trees/${d.sprite}.png`);
-    for (const g of this.map.graffiti || []) this.load.image(`graf:${g.sprite}`, `/assets/graffiti/${g.sprite}.png`);
+    for (const d of this.map.decor || []) {
+      if (d.kind === "prop") this.load.image(`prop:${d.sprite}`, `/assets/props/${d.sprite}.png${V}`);
+      else if (d.kind === "tree2") this.load.spritesheet(`tree2:${d.sprite}`, `/assets/trees2/${d.sprite}.png${V}`, { frameWidth: 128, frameHeight: 160 });
+      else if (d.kind === "fire") this.load.spritesheet("fx:campfire", `/assets/fx/campfire.png${V}`, { frameWidth: 88, frameHeight: 96 });
+      else this.load.image(`tree:${d.sprite}`, `/assets/trees/${d.sprite}.png${V}`);
+    }
+    for (const st of ["idle", "walk", "run"]) this.load.spritesheet("orc:" + st, `/assets/char/orc_${st}.png${V}`, { frameWidth: 64, frameHeight: 64 });
+    for (const g of this.map.graffiti || []) this.load.image(`graf:${g.sprite}`, `/assets/graffiti/${g.sprite}.png${V}`);
   }
 
   create() {
@@ -55,10 +64,10 @@ export class WorldScene extends Phaser.Scene {
     this.anims.create({ key: "fx:screen", frames: this.anims.generateFrameNumbers("fx:screen", { start: 0, end: 1 }), frameRate: 2, repeat: -1 });
     this.drawTilemap();
     for (const z of map.zones) if (z.id === "jardim" || z.id === "terraco") this.emitters.push({ kind: "garden", x: z.x + z.w / 2, y: z.y + z.h / 2 });
+    this.drawDecor();   // antes das zonas: os títulos procuram lugar livre e os props contam como ocupado
     this.drawZones();
     this.drawObjects();
     this.drawGraffiti();
-    this.drawDecor();
     this.setupNpcAnims();
     this.npcs = new Map();
     this.setLocked([...this.locked]);
@@ -81,7 +90,7 @@ export class WorldScene extends Phaser.Scene {
 
     this.keys = this.input.keyboard.addKeys({
       up: "W", down: "S", left: "A", right: "D",
-      up2: "UP", down2: "DOWN", left2: "LEFT", right2: "RIGHT",
+      up2: "UP", down2: "DOWN", left2: "LEFT", right2: "RIGHT", shift: "SHIFT",
     });
     this.input.keyboard.disableGlobalCapture();
 
@@ -114,7 +123,7 @@ export class WorldScene extends Phaser.Scene {
   // Tiles empilhados na mesma coluna (mesa de 2 linhas, mesa + cadeira) compartilham a base do de baixo.
   sortFurniture(layer, ts) {
     const nameOf = (idx) => ts.getTileData(idx)?.type || "";
-    const solid = (t) => t && t.index > 0 && !FLAT_TILES.test(nameOf(t.index)) && nameOf(t.index) !== "chair_back";
+    const solid = (t) => t && t.index > 0 && !FLAT_TILES.test(nameOf(t.index)) && !/^chair/.test(nameOf(t.index));
     const w = layer.layer.width, h = layer.layer.height;
     this.emitters = [];        // fontes de som do ambiente: { kind, x, y } (áudio espacial)
     this.chairs = new Map();   // "x,y" -> direção que a cadeira encara (pra "sentar")
@@ -141,7 +150,9 @@ export class WorldScene extends Phaser.Scene {
         this.chairs.set(`${t.x},${t.y}`, name === "chair_back" ? "down" : solid(above) ? "up" : solid(below) ? "down" : "down");
         this.chairBase.set(`${t.x},${t.y}`, baseOf.get(`${t.x},${t.y}`) || (t.y + 1) * TILE);
       }
+      // cadeira de costas fica atrás de quem senta; cadeira normal fica na frente (cobre as pernas), mesa atrás
       if (name === "chair_back") { this.add.image(t.pixelX, t.pixelY, "tilesheet", frame).setOrigin(0).setDepth(10 + (t.pixelY + TILE - 14) / 10000); return; }
+      if (name === "chair") { this.add.image(t.pixelX, t.pixelY, "tilesheet", frame).setOrigin(0).setDepth(10 + (t.pixelY + TILE - 2) / 10000); return; }
       const img = this.add.image(t.pixelX, t.pixelY, "tilesheet", frame).setOrigin(0);
       if (FLAT_TILES.test(name)) { img.setDepth(2); return; }
       img.setDepth(10 + (baseOf.get(`${t.x},${t.y}`) - 4) / 10000);
@@ -233,6 +244,7 @@ export class WorldScene extends Phaser.Scene {
 
   drawDecor() {
     for (const d of this.map.decor || []) {
+      if (d.kind === "prop" || d.kind === "tree2" || d.kind === "fire") { this.drawProp(d); continue; }
       if (!this.textures.exists(`tree:${d.sprite}`)) continue;
       const cx = (d.x + d.w / 2) * TILE, by = (d.y + d.h) * TILE;
       const img = this.add.image(cx, by - 6, `tree:${d.sprite}`).setOrigin(0.5, 0.9);
@@ -244,11 +256,43 @@ export class WorldScene extends Phaser.Scene {
     }
   }
 
+  // Prop dos packs: imagem ocupa d.w x d.h tiles a partir de (d.x, d.y); a base (bw x bh) bloqueia e define a profundidade.
+  // Tapetes (bh = 0) ficam rentes ao chão.
+  drawProp(d) {
+    const px = d.x * TILE, py = d.y * TILE, baseY = (d.y + d.h) * TILE;
+    const bx = (d.bx ?? d.x) * TILE, bw = (d.bw ?? d.w) * TILE;
+    for (let x = d.bx ?? d.x; x < (d.bx ?? d.x) + (d.bw ?? d.w); x++) for (let y = d.by ?? d.y; y < (d.by ?? d.y) + (d.bh ?? d.h); y++) this.occupied?.add(`${x},${y}`);
+    let img;
+    if (d.kind === "prop") { if (!this.textures.exists(`prop:${d.sprite}`)) return; img = this.add.image(px, py, `prop:${d.sprite}`).setOrigin(0); }
+    else if (d.kind === "tree2") {
+      if (!this.textures.exists(`tree2:${d.sprite}`)) return;
+      const key = `tree2:${d.sprite}`;
+      if (!this.anims.exists(key)) this.anims.create({ key, frames: this.anims.generateFrameNumbers(key, { start: 0, end: 12 }), frameRate: 7, repeat: -1 });
+      img = this.add.sprite(px, py, key, 0).setOrigin(0); img.play({ key, startFrame: (d.x * 7 + d.y * 3) % 13 });
+      this.add.image(bx + bw / 2, baseY - 4, "fx:shadow").setScale(3, 1.4).setAlpha(0.45).setDepth(2);
+    } else if (d.kind === "fire") {
+      if (!this.textures.exists("fx:campfire")) return;
+      if (!this.anims.exists("fx:campfire")) this.anims.create({ key: "fx:campfire", frames: this.anims.generateFrameNumbers("fx:campfire", { start: 0, end: 5 }), frameRate: 8, repeat: -1 });
+      img = this.add.sprite(px, py, "fx:campfire", 0).setOrigin(0); img.play("fx:campfire");
+      this.add.image(px + 44, py + 60, glowTexture(this, 160, 90, "255,190,110", 4)).setAlpha(0.22).setDepth(1);
+      this.emitters?.push({ kind: "fire", x: d.x + 1.4, y: d.y + 2.5 });
+    }
+    if (!img) return;
+    img.texture.setFilter(1);
+    img.setDepth((d.bh ?? 1) === 0 ? 2 : 10 + (baseY - 4) / 10000);
+  }
+
   // --------- bichos (NPCs simulados no servidor) ---------
   setupNpcAnims() {
     // linhas do sheet: 0 frente, 1 costas, 2 esquerda, 3 direita
     const ROWS = { down: 0, up: 1, left: 2, right: 3 };
     for (const k of new Set((this.map.npcs || []).map((n) => n.kind))) {
+      if (["seller", "customer"].includes(k)) {
+        const key = `npc:${k}:idle`; if (!this.textures.exists(key)) continue;
+        this.textures.get(key).setFilter(1);
+        this.anims.create({ key: `${key}:down`, frames: this.anims.generateFrameNumbers(key, { start: 0, end: 11 }), frameRate: 6, repeat: -1 });
+        continue;
+      }
       for (const st of ["idle", "walk"]) {
         const key = `npc:${k}:${st}`;
         if (!this.textures.exists(key)) continue;
@@ -278,8 +322,9 @@ export class WorldScene extends Phaser.Scene {
         this.npcs.set(n.id, r);
       } else if (!r) {
         if (!this.textures.exists(`npc:${n.kind}:idle`)) continue;
-        const sp = this.add.sprite(n.x * TILE, n.y * TILE, `npc:${n.kind}:idle`, 0).setOrigin(0.5, 0.8);
-        const sh = this.add.image(sp.x, sp.y + 4, "fx:shadow").setScale(0.8, 0.8).setAlpha(0.45).setDepth(2);
+        const human = ["seller", "customer"].includes(n.kind);
+        const sp = this.add.sprite(n.x * TILE, n.y * TILE, `npc:${n.kind}:idle`, 0).setOrigin(0.5, human ? 0.9 : 0.8);
+        const sh = this.add.image(sp.x, sp.y + 4, "fx:shadow").setScale(human ? 1 : 0.8, 0.8).setAlpha(0.45).setDepth(2);
         r = { sprite: sp, shadow: sh, target: { x: n.x, y: n.y }, kind: n.kind };
         this.npcs.set(n.id, r);
       }
@@ -303,12 +348,13 @@ export class WorldScene extends Phaser.Scene {
     speak.play("fx:wave"); speak.setVisible(false);
     c.add(speak); c.speak = speak;
 
-    const sprite = this.add.sprite(0, 0, key + ":walk", 0).setScale(AVATAR_SCALE).setOrigin(0.5, 44 / 64);
+    const texOf = (k) => (k === "av:orc" ? "orc:walk" : k + ":walk");
+    const sprite = this.add.sprite(0, 0, texOf(key), 0).setScale(AVATAR_SCALE).setOrigin(0.5, 44 / 64);
     c.add(sprite); c.sprite = sprite; c.texKey = key; c.dirNow = "down";
     c.setAvatar = (a) => {
       const k = ensureAvatarTexture(this, a);
       if (k === c.texKey) return;
-      c.texKey = k; c.sprite.setTexture(k + ":walk", 0);
+      c.texKey = k; c.sprite.setTexture(texOf(k), 0);
     };
 
     // nome + bolinha de status ficam numa camada acima dos móveis (senão mesa/balcão cobrem o nome)
@@ -332,10 +378,10 @@ export class WorldScene extends Phaser.Scene {
     const up = dir === "up" && !!key;
     if (c.seatedUp === up) return up;
     c.seatedUp = up; c.seatKey = key;
-    c.sprite.y = up ? -18 : 0; c.shadow.setVisible(!up);
+    c.sprite.y = up ? -4 : 0; // sentado: leve subida, tronco na frente da mesa, cadeira cobrindo as pernas
     return up;
   }
-  depthFor(c, y) { return c.seatedUp && this.chairBase?.has(c.seatKey) ? 10 + (this.chairBase.get(c.seatKey) - 6) / 10000 : 10 + y / 10000; }
+  depthFor(c, y) { return 10 + y / 10000; }
 
   setStatus(c, status) {
     if (c.statusNow === status) return;
@@ -344,8 +390,8 @@ export class WorldScene extends Phaser.Scene {
     c.dot.fillStyle(STATUS_COLOR[status] || STATUS_COLOR.available, 1).fillCircle(-c.label.width / 2 - 1, 12, 3);
   }
 
-  animate(c, dir, moving) {
-    const anim = `${c.texKey}:${moving ? "walk" : "idle"}:${dir}`;
+  animate(c, dir, moving, running = false) {
+    const anim = `${c.texKey}:${moving ? (running ? "run" : "walk") : "idle"}:${dir}`;
     if (c.sprite.anims.currentAnim?.key !== anim) c.sprite.play(anim, true);
   }
 
@@ -362,7 +408,7 @@ export class WorldScene extends Phaser.Scene {
       }
       r.target = { x: p.x, y: p.y };
       r.dir = p.dir || r.dir;
-      r.moving = !!p.moving;
+      r.moving = !!p.moving; r.running = !!p.running;
       const seatKey = `${Math.floor(p.x)},${Math.floor(p.y)}`, ch = !r.moving && this.chairs?.get(seatKey);
       if (ch) { r.target = { x: Math.floor(p.x) + 0.5, y: Math.floor(p.y) + 0.6 }; r.dir = ch; }
       this.setSeated(r.container, ch || null, ch ? seatKey : null);
@@ -417,10 +463,12 @@ export class WorldScene extends Phaser.Scene {
       }
     }
     const moving = dx !== 0 || dy !== 0;
+    const running = moving && (k.shift.isDown || this.runToggle); // Shift corre
     if (moving) {
       if (dx && dy && !this.clickTarget) { dx *= Math.SQRT1_2; dy *= Math.SQRT1_2; }
-      const nx = this.pos.x + dx * SPEED * dt;
-      const ny = this.pos.y + dy * SPEED * dt;
+      const speed = SPEED * (running ? RUN_MULT : 1);
+      const nx = this.pos.x + dx * speed * dt;
+      const ny = this.pos.y + dy * speed * dt;
       const r = 0.26;
       let movedX = false, movedY = false;
       if (!this.hits(nx, this.pos.y, r)) { this.pos.x = nx; movedX = true; }
@@ -447,11 +495,12 @@ export class WorldScene extends Phaser.Scene {
       } else this.setSeated(this.player, null, null);
     } else if (moving) this.setSeated(this.player, null, null);
     if (this.sitSync && !moving && performance.now() - this.lastSent > 120) { this.net.emit("move", { x: this.pos.x, y: this.pos.y, dir: this.dir, moving: false }); this.lastSent = performance.now(); this.sitSync = false; }
-    this.animate(this.player, this.dir, moving);
+    this.animate(this.player, this.dir, moving, running);
+    this.running = running;
     const now = performance.now();
     if (now - (this.lastNearCheck || 0) > 300) { this.lastNearCheck = now; this.checkObjects(); }
     if ((moving || this.wasMoving) && now - this.lastSent > 1000 / SEND_HZ) {
-      this.net.emit("move", { x: this.pos.x, y: this.pos.y, dir: this.dir, moving });
+      this.net.emit("move", { x: this.pos.x, y: this.pos.y, dir: this.dir, moving, running });
       this.lastSent = now;
     }
     if (moving !== !!this.wasMoving) this.onWalking?.(moving);
@@ -463,7 +512,7 @@ export class WorldScene extends Phaser.Scene {
       r.container.y += (ty - r.container.y) * Math.min(1, dt * 12);
       r.container.setDepth(this.depthFor(r.container, r.container.y));
       r.container.tag.setPosition(Math.round(r.container.x), Math.round(r.container.y));
-      this.animate(r.container, r.dir, r.moving);
+      this.animate(r.container, r.dir, r.moving, r.running);
     }
     this.player.setDepth(this.depthFor(this.player, this.player.y));
     this.player.tag.setPosition(Math.round(this.player.x), Math.round(this.player.y));

@@ -40,7 +40,8 @@ document.querySelectorAll(".login-tabs .tab").forEach((b) => b.onclick = () => s
 if (!config.allowGuests) $("#tab-guest").classList.add("hidden");
 
 // conta
-const accountEditor = mountAvatarEditor($("#avatar-editor-login"), session?.avatar || avatar, (a) => { avatar = a; });
+const isPremium = (u) => !!u && (u.premium || u.role === "admin" || u.role === "professor");
+const accountEditor = mountAvatarEditor($("#avatar-editor-login"), session?.avatar || avatar, (a) => { avatar = a; }, { premium: isPremium(session) });
 const paintSession = () => {
   $("#session-box").classList.toggle("hidden", !session);
   $("#account-fields").classList.toggle("hidden", !!session);
@@ -56,6 +57,7 @@ $("#account-form").addEventListener("submit", async (e) => {
       const email = $("#email").value.trim(), password = $("#password").value;
       if (!email || !password) throw new Error("preencha e-mail e senha");
       session = (await apiJson("POST", "/api/auth/login", { email, password })).user;
+      if (isPremium(session)) mountAvatarEditor($("#avatar-editor-login"), avatar, (a) => { avatar = a; }, { premium: true });
     }
     avatar = accountEditor.get();
     safe(() => localStorage.setItem("sede:me", JSON.stringify({ name: session.name, avatar })));
@@ -216,7 +218,7 @@ function boot(net, { user, map, channels, players, locked = [], npcs = [], commu
       $("#me-dot").style.background = SHIRTS[a.shirt];
       net.emit("profile", { avatar: a });
       safe(() => localStorage.setItem("sede:me", JSON.stringify({ name: user.name, avatar: a })));
-    });
+    }, { premium: isPremium(user) });
     modalBody.append(wrap);
     modal.classList.remove("hidden"); scene.frozen = true;
   };

@@ -70,7 +70,7 @@ export async function bootstrapAdmin(accounts) {
 // Repositório de contas em cima do store de documentos
 export function accountsRepo(store) {
   const C = "accounts";
-  const pub = (u) => u && { id: u.id, email: u.email, name: u.name, role: u.role, avatar: u.avatar || null, created_at: u.created_at, last_login: u.last_login };
+  const pub = (u) => u && { id: u.id, email: u.email, name: u.name, role: u.role, avatar: u.avatar || null, premium: !!u.premium, created_at: u.created_at, last_login: u.last_login };
   return {
     pub,
     list: async () => (await store.listDocs(C)).map(pub),
@@ -92,6 +92,7 @@ export function accountsRepo(store) {
       if (patch.name !== undefined) u.name = String(patch.name).slice(0, 24);
       if (patch.role !== undefined) { if (!ROLES.includes(patch.role)) throw new Error("cargo inválido"); u.role = patch.role; }
       if (patch.avatar !== undefined) u.avatar = patch.avatar;
+      if (patch.premium !== undefined) u.premium = !!patch.premium;
       if (patch.password) { if (String(patch.password).length < 6) throw new Error("senha precisa de 6+ caracteres"); u.pass = hashPassword(patch.password); }
       if (patch.last_login) u.last_login = patch.last_login;
       await store.putDoc(C, id, u);

@@ -2,7 +2,15 @@
 
 Ambiente 2D próprio da comunidade. Híbrido entre Gather e Discord: um mapa onde o avatar anda, entra em salas e cai em calls, mais canais de texto e voz que funcionam sem depender da posição no mapa.
 
-## O que já funciona (v0.10)
+## O que já funciona (v0.11)
+
+- **Traço coeso**: o mapa inteiro passou a 16px ampliados 2x, a mesma densidade de pixel do personagem. Pisos, paredes (reboco + pedra com rodapé, janelas), grama, calçada e cerca vêm dos packs CraftPix (Main Characters Home, Glassblower's Workshop, Dungeon); mesas de trabalho com monitor, cadeiras, sofás, telão etc. redesenhados em 16px
+- **Ambientes trabalhados com props dos packs**: balcão da recepção com recepcionista (NPC animado), plantas e jardineiras, tapetes, estantes com livros, vitrais, lanternas, balcão do café com vasos, mesas redondas com cadeiras, estante de vidro, barris, caixotes; Terraço com fogueira animada (com luz e som de estalos), arbustos, tocos; Jardim com árvores animadas (13 quadros), arbustos, pedras
+- **Correr**: Shift + direção corre (1,75x); os outros veem a corrida
+- **Cabelos novos**: moicano, franja, afro, rabo de cavalo (9 no total)
+- **Skin premium Orc**: corpo do pack Orc (idle/walk/run próprios). Liberado pra admin, professores e contas com "premium" marcado na aba Usuários; pros demais aparece travado
+- Sentar corrigido: mesa atrás, cadeira na frente cobrindo as pernas, sem cabeça flutuando
+- Assets com cache-busting (`?v=`), pra ninguém ficar com tileset velho no navegador
 
 - **Voz por proximidade ligada por padrão**: o microfone já liga ao entrar (quem desligou fica desligado na próxima visita); chegou perto de alguém, a conexão fecha sozinha, sem precisar de canal de voz
 - **Áudio espacial**: a voz de quem está perto fica mais baixa e "mais pro lado" conforme a distância (dentro do raio de proximidade); em sala de reunião e canal de voz todo mundo no mesmo volume. Sons do ambiente pela distância: cafeteira, bebedouro, o rádio do Café tocando um lo-fi sintetizado, vento e passarinhos no Jardim e no Terraço (o botão do sino desliga)
@@ -131,6 +139,7 @@ Se alguém da comunidade estiver em rede muito fechada (empresa, 4G com CGNAT) e
 ```
 server/src/index.js     Express + Socket.io: entrada, movimento, chat, canais, sinalização WebRTC
 server/src/library.js   Biblioteca: conteúdos, progresso, uploads (DATA_DIR/uploads)
+tools/build-assets2.py  Recorta props/árvores/fogueira/NPCs/orc dos packs de 16px (2x)
 client/src/spatial.js   Áudio espacial (Web Audio): voz por distância + sons do ambiente sintetizados
 client/src/tiles.js     Janelas de câmera/tela arrastáveis
 client/src/pixelfx.js   Texturas em pixel art geradas em canvas: sombra, luz com dithering, onda de voz, vapor, balão
