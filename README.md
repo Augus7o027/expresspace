@@ -2,7 +2,12 @@
 
 Ambiente 2D próprio da comunidade. Híbrido entre Gather e Discord: um mapa onde o avatar anda, entra em salas e cai em calls, mais canais de texto e voz que funcionam sem depender da posição no mapa.
 
-## O que já funciona (v0.4)
+## O que já funciona (v0.5)
+
+- Mapa inteiro em pixel art no formato **Tiled** (`client/public/maps/sede.json`): abre no Tiled (mapeditor.org) e edita à vontade, o app lê direto
+- Tileset próprio de escritório em 32px (`client/public/assets/tiles/office.png`, 65 tiles): pisos, paredes com janela e luminária, mesas com monitor, cadeiras, sofás, balcão, bebedouro, cafeteira, estante, quadro branco, telão, rádio, mural, e exterior (grama, calçada, cerca, poste, banco de praça)
+- Jardim externo atrás do prédio, com caminhos de pedra, bancos, postes, árvores e bichos (cervos, javali, lebre, tetraz)
+- Colisão vem dos tiles (propriedade `collides`) e dos objetos; zonas, palco, objetos interativos, árvores, grafites, bichos e spawn vêm das camadas de objetos do Tiled
 
 - Pixel art de verdade: personagem base da CraftPix (64x64, 4 direções, 6 quadros de andar + 12 de respiração) pintado em tempo real com a config do avatar (pele, cabelo, roupa, acessório)
 - Bichos passeando no Terraço (raposa, lebre, cervo, tetraz), simulados no servidor e iguais pra todo mundo
@@ -78,7 +83,9 @@ Se alguém da comunidade estiver em rede muito fechada (empresa, 4G com CGNAT) e
 ```
 server/src/index.js     Express + Socket.io: entrada, movimento, chat, canais, sinalização WebRTC
 server/src/world.js     estado do mundo e cálculo dos grupos de voz (proximidade, sala, palco, canal)
-server/src/map.js       definição do mapa (zonas, paredes, móveis, objetos interativos). Servido em GET /api/map
+server/src/map.js       carrega o Tiled (sede.json), monta grid de colisão, zonas e objetos. Servido em GET /api/map
+client/public/maps/     sede.json (mapa Tiled)
+tools/build-tileset.py  desenha o tileset de escritório; tools/build-map.py gera o sede.json
 server/src/db/          schema.sql, migrate.js e store.js (Postgres ou memória)
 client/src/main.js      login, sidebar, chat, integração socket
 client/src/game.js      cena Phaser: mapa, avatares, movimento, balões
@@ -110,11 +117,21 @@ O cliente recebe `voice:group` com a lista de peers e abre/fecha conexões WebRT
 
 Estão em `client/src/icons.js`, no objeto `EMOJI`: cada chave vira `:chave:` no chat. Pra adicionar um novo, desenha um SVG 24x24 em traço (stroke) seguindo os existentes e coloca lá; o picker e a renderização pegam sozinhos.
 
-## Editar o mapa
+## Editar o mapa (Tiled)
 
-Tudo em `server/src/map.js`. Coordenadas em tiles de 32px. Zonas têm `kind` (`open`, `meeting`, `silent`, `stage`). Paredes com `door: true` viram passagem. A mesma definição desenha o mapa no cliente, então não precisa mexer em dois lugares.
+O mapa é `client/public/maps/sede.json`, formato Tiled 1.10 (mapeditor.org, grátis). Abre lá e edita; ao salvar, o servidor lê no próximo restart e o cliente no próximo build. O tileset é `client/public/assets/tiles/office.png` (referenciado pelo JSON).
 
-Árvores ficam em `decor` (x,y = tile do tronco, w/h = tiles bloqueados), grafites em `graffiti` (tile da parede onde o centro fica) e bichos em `npcs` (tipo + zona onde passeiam). Sprites disponíveis: árvores `tree1..3, palm1, palm2, flower1, flower2, fruit1, autumn1, moss1`; bichos `fox, hare, deer, boar, grouse`.
+Camadas de tiles: `ground`, `walls`, `furniture`. Tiles marcados com a propriedade `collides` bloqueiam o avatar (paredes, mesas, plantas...). Portas são só tiles sem colisão no lugar da parede.
+
+Camadas de objetos (tipo do objeto = campo Class/Type no Tiled):
+- `zones`: retângulos `zone` com propriedades `id` e `kind` (`open`, `meeting`, `silent`, `stage`); retângulo `stage` com propriedade `zone` marca o palco
+- `objects`: retângulos `interactive` com `id`, `kind` (`board`, `info`, `video`, `link`), `label`, `url` ou `text`
+- `decor`: retângulos `tree` com `sprite` (`tree1..3, palm1, palm2, flower1, flower2, fruit1, autumn1, moss1`); o retângulo é a área bloqueada do tronco
+- `graffiti`: pontos `graffiti` com `sprite`
+- `npcs`: pontos `npc` com `kind` (`fox, hare, deer, boar, grouse`) e `zone`
+- `meta`: ponto `spawn`
+
+Se preferir gerar por código, `tools/build-map.py` monta o JSON a partir de listas em Python (foi assim que a primeira versão saiu) e `tools/build-tileset.py` desenha o tileset. Rode os dois e o mapa é regenerado.
 
 Objetos interativos ficam em `objects`: `board` (quadro de texto compartilhado, salvo no banco), `link` e `video` (abrem a `url` num iframe; use links de embed, ex. `youtube.com/embed/ID`), `info` (mostra `text`). Pra trocar o vídeo do Telão ou o link de Documentos é só editar a `url`.
 
@@ -122,7 +139,6 @@ Objetos interativos ficam em `objects`: `board` (quadro de texto compartilhado, 
 
 - Login de verdade (magic link ou OAuth) e perfis persistentes
 - SFU (LiveKit ou mediasoup) quando as salas passarem de ~6 pessoas: mesh não escala além disso
-- Mapas em Tiled com tilesets desenhados (o WorkAdventure usa esse formato)
 - Moderação: cargos, silenciar, expulsar
 - Editor de mapa dentro do app
 - TURN server próprio (coturn) para redes restritas

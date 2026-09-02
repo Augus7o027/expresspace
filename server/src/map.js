@@ -1,125 +1,71 @@
-// Definição do mundo. Mesmo formato é servido ao cliente via GET /api/map.
-// Grid em tiles de 32px. Zonas são retângulos em tiles.
-//   kind: "meeting"  -> quem está dentro entra numa call da sala (voz em grupo)
-//         "silent"   -> sem voz por proximidade (foco)
-//         "stage"    -> palco: só quem está no "stage" fala, plateia ouve
-//         "open"     -> área livre: voz por proximidade
-// Objetos interativos (tecla E perto deles):
-//   kind: "board" (quadro de texto compartilhado), "link" (abre iframe), "video" (embed), "info" (texto)
-export const TILE = 32;
+// Carrega o mapa no formato do Tiled (client/public/maps/sede.json) e normaliza pro app.
+// Camadas de tiles: ground, walls, furniture (tiles com propriedade "collides" bloqueiam).
+// Camadas de objetos: zones (zone/stage), objects (interactive), decor (tree), graffiti, npcs, meta (spawn).
+import { readFileSync } from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 
-export const WORLD = {
-  name: "ExpresSpace",
-  width: 58,
-  height: 38,
-  spawn: { x: 5, y: 6 },
-  proximityRadius: 3.2, // em tiles
-  zones: [
-    { id: "recepcao",  name: "Recepção",   kind: "open",    x: 1,  y: 1,  w: 12, h: 9 },
-    { id: "openspace", name: "Open Space", kind: "open",    x: 1,  y: 11, w: 22, h: 14 },
-    { id: "cafe",      name: "Café",       kind: "open",    x: 1,  y: 26, w: 12, h: 11 },
-    { id: "lounge",    name: "Lounge",     kind: "open",    x: 14, y: 26, w: 9,  h: 11 },
-    { id: "foco",      name: "Foco",       kind: "silent",  x: 14, y: 1,  w: 9,  h: 9 },
-    { id: "reuniao-1", name: "Reunião 1",  kind: "meeting", x: 24, y: 1,  w: 10, h: 8 },
-    { id: "reuniao-2", name: "Reunião 2",  kind: "meeting", x: 35, y: 1,  w: 10, h: 8 },
-    { id: "diretoria", name: "Diretoria",  kind: "meeting", x: 46, y: 1,  w: 11, h: 8 },
-    { id: "auditorio", name: "Auditório",  kind: "stage",   x: 24, y: 10, w: 33, h: 14,
-      stage: { x: 26, y: 11, w: 29, h: 2 } },
-    { id: "reuniao-3", name: "Reunião 3",  kind: "meeting", x: 24, y: 25, w: 10, h: 12 },
-    { id: "terraco",   name: "Terraço",    kind: "open",    x: 35, y: 25, w: 22, h: 12 },
-  ],
-  // Paredes (retângulos em tiles). door: true abre passagem naquele trecho
-  walls: [
-    // recepção | foco | corredor
-    { x: 13, y: 0, w: 1, h: 11 }, { x: 13, y: 4, w: 1, h: 2, door: true },
-    { x: 0, y: 10, w: 24, h: 1 }, { x: 5, y: 10, w: 2, h: 1, door: true }, { x: 17, y: 10, w: 2, h: 1, door: true },
-    // coluna central separando lado esquerdo do direito
-    { x: 23, y: 0, w: 1, h: 38 },
-    { x: 23, y: 5, w: 1, h: 2, door: true }, { x: 23, y: 16, w: 1, h: 3, door: true }, { x: 23, y: 30, w: 1, h: 2, door: true },
-    // salas do topo
-    { x: 34, y: 0, w: 1, h: 10 }, { x: 45, y: 0, w: 1, h: 10 },
-    { x: 24, y: 9, w: 34, h: 1 },
-    { x: 28, y: 9, w: 2, h: 1, door: true }, { x: 39, y: 9, w: 2, h: 1, door: true }, { x: 50, y: 9, w: 2, h: 1, door: true },
-    // auditório / embaixo
-    { x: 24, y: 24, w: 34, h: 1 },
-    { x: 28, y: 24, w: 2, h: 1, door: true }, { x: 44, y: 24, w: 3, h: 1, door: true },
-    { x: 34, y: 25, w: 1, h: 13 }, { x: 34, y: 30, w: 1, h: 2, door: true },
-    // open space / café / lounge
-    { x: 0, y: 25, w: 24, h: 1 }, { x: 5, y: 25, w: 2, h: 1, door: true }, { x: 17, y: 25, w: 2, h: 1, door: true },
-    { x: 13, y: 26, w: 1, h: 12 }, { x: 13, y: 31, w: 1, h: 2, door: true },
-  ],
-  // Mobília (visual + colisão)
-  props: [
-    // recepção
-    { kind: "counter", x: 3, y: 3, w: 5, h: 1 }, { kind: "plant", x: 1, y: 1, w: 1, h: 1 }, { kind: "plant", x: 11, y: 1, w: 1, h: 1 },
-    { kind: "sofa", x: 8, y: 7, w: 3, h: 1 },
-    // foco
-    { kind: "desk", x: 15, y: 2, w: 2, h: 1 }, { kind: "desk", x: 19, y: 2, w: 2, h: 1 },
-    { kind: "desk", x: 15, y: 5, w: 2, h: 1 }, { kind: "desk", x: 19, y: 5, w: 2, h: 1 },
-    { kind: "plant", x: 21, y: 8, w: 1, h: 1 },
-    // open space: 4 ilhas de mesas
-    { kind: "desk", x: 3, y: 13, w: 3, h: 1 }, { kind: "desk", x: 3, y: 15, w: 3, h: 1 },
-    { kind: "desk", x: 9, y: 13, w: 3, h: 1 }, { kind: "desk", x: 9, y: 15, w: 3, h: 1 },
-    { kind: "desk", x: 15, y: 13, w: 3, h: 1 }, { kind: "desk", x: 15, y: 15, w: 3, h: 1 },
-    { kind: "desk", x: 3, y: 19, w: 3, h: 1 }, { kind: "desk", x: 3, y: 21, w: 3, h: 1 },
-    { kind: "desk", x: 9, y: 19, w: 3, h: 1 }, { kind: "desk", x: 9, y: 21, w: 3, h: 1 },
-    { kind: "desk", x: 15, y: 19, w: 3, h: 1 }, { kind: "desk", x: 15, y: 21, w: 3, h: 1 },
-    { kind: "plant", x: 21, y: 12, w: 1, h: 1 }, { kind: "plant", x: 1, y: 23, w: 1, h: 1 },
-    // café
-    { kind: "counter", x: 2, y: 27, w: 5, h: 1 }, { kind: "table", x: 3, y: 31, w: 2, h: 2 }, { kind: "table", x: 8, y: 31, w: 2, h: 2 },
-    { kind: "table", x: 3, y: 35, w: 2, h: 1 }, { kind: "table", x: 8, y: 35, w: 2, h: 1 },
-    // lounge
-    { kind: "sofa", x: 15, y: 28, w: 3, h: 1 }, { kind: "sofa", x: 19, y: 28, w: 3, h: 1 },
-    { kind: "sofa", x: 15, y: 33, w: 3, h: 1 }, { kind: "sofa", x: 19, y: 33, w: 3, h: 1 }, { kind: "plant", x: 21, y: 36, w: 1, h: 1 },
-    // salas de reunião
-    { kind: "table", x: 26, y: 3, w: 6, h: 2 }, { kind: "table", x: 37, y: 3, w: 6, h: 2 }, { kind: "table", x: 48, y: 3, w: 7, h: 2 },
-    { kind: "table", x: 27, y: 29, w: 4, h: 3 },
-    // auditório
-    { kind: "plant", x: 25, y: 22, w: 1, h: 1 }, { kind: "plant", x: 55, y: 22, w: 1, h: 1 },
-    { kind: "bench", x: 27, y: 16, w: 10, h: 1 }, { kind: "bench", x: 42, y: 16, w: 10, h: 1 },
-    { kind: "bench", x: 27, y: 19, w: 10, h: 1 }, { kind: "bench", x: 42, y: 19, w: 10, h: 1 },
-    // terraço (árvores ficam em "decor")
-    { kind: "table", x: 42, y: 29, w: 2, h: 2 }, { kind: "table", x: 48, y: 29, w: 2, h: 2 },
-    { kind: "sofa", x: 42, y: 33, w: 3, h: 1 }, { kind: "sofa", x: 47, y: 33, w: 3, h: 1 },
-  ],
-  // Decoração com sprite (árvores do pack). x,y = tile do tronco; block = tiles bloqueados a partir de x,y
-  decor: [
-    { kind: "tree", sprite: "flower1", x: 36, y: 28, w: 2, h: 1 },
-    { kind: "tree", sprite: "fruit1", x: 53, y: 28, w: 2, h: 1 },
-    { kind: "tree", sprite: "palm1", x: 37, y: 34, w: 2, h: 1 },
-    { kind: "tree", sprite: "palm2", x: 52, y: 34, w: 2, h: 1 },
-    { kind: "tree", sprite: "tree2", x: 45, y: 26, w: 1, h: 1 },
-    { kind: "tree", sprite: "tree3", x: 46, y: 36, w: 1, h: 1 },
-    { kind: "tree", sprite: "moss1", x: 40, y: 36, w: 2, h: 1 },
-  ],
-  // Grafites nas paredes (x,y = tile da parede onde o centro do grafite fica)
-  graffiti: [
-    { sprite: "expresspace", x: 40, y: 24 }, { sprite: "slogan", x: 30, y: 24 }, { sprite: "shortway", x: 50, y: 24 },
-    { sprite: "n7", x: 3, y: 10 }, { sprite: "cafe", x: 4, y: 25 }, { sprite: "foco", x: 18, y: 0 },
-    { sprite: "benice", x: 6, y: 0 }, { sprite: "greenteam", x: 29, y: 0 }, { sprite: "loot", x: 51, y: 0 },
-  ],
-  // Bichos que passeiam (simulados no servidor)
-  npcs: [
-    { kind: "fox", zone: "terraco" }, { kind: "hare", zone: "terraco" }, { kind: "hare", zone: "terraco" },
-    { kind: "deer", zone: "terraco" }, { kind: "grouse", zone: "terraco" }, { kind: "grouse", zone: "terraco" },
-  ],
-  // Objetos interativos: chega perto e aperta E
-  objects: [
-    { id: "mural", kind: "info", x: 9, y: 2, w: 3, h: 1, label: "Mural",
-      text: "Bem-vindo ao ExpresSpace.\n\nAnde com WASD ou setas. Chegue perto de alguém para conversar por voz. Entre numa sala de reunião para cair na call dela. Aperte E perto de objetos como este.\n\nCanais de texto e voz ficam na barra da esquerda. M liga e desliga o microfone." },
-    { id: "quadro-open", kind: "board", x: 20, y: 17, w: 1, h: 2, label: "Quadro do time" },
-    { id: "quadro-r1", kind: "board", x: 24, y: 2, w: 1, h: 2, label: "Quadro" },
-    { id: "quadro-r2", kind: "board", x: 35, y: 2, w: 1, h: 2, label: "Quadro" },
-    { id: "quadro-dir", kind: "board", x: 46, y: 2, w: 1, h: 2, label: "Quadro" },
-    { id: "quadro-r3", kind: "board", x: 24, y: 27, w: 1, h: 2, label: "Quadro" },
-    { id: "telao", kind: "video", x: 36, y: 10, w: 9, h: 1, label: "Telão",
-      url: "https://www.youtube.com/embed/jfKfPfyJRdk" },
-    { id: "docs", kind: "link", x: 3, y: 12, w: 1, h: 1, label: "Documentos",
-      url: "https://drive.google.com" },
-    { id: "jukebox", kind: "link", x: 11, y: 27, w: 1, h: 1, label: "Rádio",
-      url: "https://www.youtube.com/embed/videoseries?list=PLOzDu-MXXLliO9fBNZOQTBDddoA3FzZUo" },
-  ],
-};
+export const TILE = 32;
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const MAP_FILE = process.env.MAP_FILE || path.resolve(__dirname, "../../client/public/maps/sede.json");
+
+function props(o) {
+  const out = {};
+  for (const p of o.properties || []) out[p.name] = p.value;
+  return out;
+}
+
+export function loadTiled(file = MAP_FILE) {
+  const t = JSON.parse(readFileSync(file, "utf8"));
+  const W = t.width, H = t.height;
+  const mp = props(t);
+  const world = {
+    name: mp.name || "ExpresSpace", width: W, height: H, proximityRadius: Number(mp.proximityRadius) || 3.2,
+    spawn: { x: 2, y: 2 }, zones: [], objects: [], decor: [], graffiti: [], npcs: [], walls: [], props: [],
+    grid: [], // linhas de "0"/"1": 1 = bloqueado
+  };
+
+  // tiles que colidem (por gid)
+  const collides = new Set();
+  for (const ts of t.tilesets) for (const tile of ts.tiles || []) {
+    if ((tile.properties || []).some((p) => p.name === "collides" && p.value)) collides.add(ts.firstgid + tile.id);
+  }
+  const grid = new Uint8Array(W * H);
+  for (const L of t.layers) {
+    if (L.type !== "tilelayer") continue;
+    L.data.forEach((g, i) => { if (g && collides.has(g & 0x1fffffff)) grid[i] = 1; });
+  }
+  // borda do mapa sempre bloqueia
+  for (let x = 0; x < W; x++) { grid[x] = 1; grid[(H - 1) * W + x] = 1; }
+  for (let y = 0; y < H; y++) { grid[y * W] = 1; grid[y * W + W - 1] = 1; }
+
+  const tx = (v) => Math.round(v / TILE);
+  const stages = [];
+  for (const L of t.layers) {
+    if (L.type !== "objectgroup") continue;
+    for (const o of L.objects) {
+      const p = props(o);
+      const r = { x: Math.floor(o.x / TILE), y: Math.floor(o.y / TILE), w: Math.max(1, tx(o.width)), h: Math.max(1, tx(o.height)) };
+      switch (o.type) {
+        case "zone": world.zones.push({ id: p.id || o.name.toLowerCase(), name: o.name, kind: p.kind || "open", ...r }); break;
+        case "stage": stages.push({ zone: p.zone, ...r }); break;
+        case "interactive": world.objects.push({ ...r, id: p.id, kind: p.kind, label: p.label || o.name, url: p.url, text: p.text }); break;
+        case "tree": world.decor.push({ kind: "tree", sprite: p.sprite || o.name, ...r }); break;
+        case "graffiti": world.graffiti.push({ sprite: p.sprite || o.name, x: Math.floor(o.x / TILE), y: Math.floor(o.y / TILE), scale: p.scale || 1 }); break;
+        case "npc": world.npcs.push({ kind: p.kind || o.name, zone: p.zone }); break;
+        case "spawn": world.spawn = { x: Math.floor(o.x / TILE), y: Math.floor(o.y / TILE) }; break;
+      }
+    }
+  }
+  for (const s of stages) { const z = world.zones.find((z) => z.id === s.zone); if (z) z.stage = { x: s.x, y: s.y, w: s.w, h: s.h }; }
+  // objetos interativos e árvores bloqueiam
+  for (const o of [...world.objects, ...world.decor]) for (let y = o.y; y < o.y + o.h; y++) for (let x = o.x; x < o.x + o.w; x++) if (x >= 0 && y >= 0 && x < W && y < H) grid[y * W + x] = 1;
+  for (let y = 0; y < H; y++) world.grid.push(Array.from(grid.subarray(y * W, (y + 1) * W)).join(""));
+  world.tiledFile = path.basename(file);
+  return world;
+}
+
+export const WORLD = loadTiled();
 
 export function zoneAt(world, tx, ty) {
   for (const z of world.zones) {
@@ -136,13 +82,5 @@ export function onStage(zone, tx, ty) {
 
 export function isBlocked(world, tx, ty) {
   if (tx < 0 || ty < 0 || tx >= world.width || ty >= world.height) return true;
-  const door = world.walls.some((d) => d.door && tx >= d.x && tx < d.x + d.w && ty >= d.y && ty < d.y + d.h);
-  if (door) return false;
-  for (const wl of world.walls) {
-    if (!wl.door && tx >= wl.x && tx < wl.x + wl.w && ty >= wl.y && ty < wl.y + wl.h) return true;
-  }
-  for (const p of [...world.props, ...world.objects, ...(world.decor || [])]) {
-    if (tx >= p.x && tx < p.x + p.w && ty >= p.y && ty < p.y + p.h) return true;
-  }
-  return false;
+  return world.grid[ty][tx] === "1";
 }

@@ -10,15 +10,7 @@ export function zoneAt(world, tx, ty) {
 
 export function isBlocked(world, tx, ty) {
   if (tx < 0 || ty < 0 || tx >= world.width || ty >= world.height) return true;
-  const door = world.walls.some((d) => d.door && tx >= d.x && tx < d.x + d.w && ty >= d.y && ty < d.y + d.h);
-  if (door) return false;
-  for (const wl of world.walls) {
-    if (!wl.door && tx >= wl.x && tx < wl.x + wl.w && ty >= wl.y && ty < wl.y + wl.h) return true;
-  }
-  for (const p of [...world.props, ...(world.objects || []), ...(world.decor || [])]) {
-    if (tx >= p.x && tx < p.x + p.w && ty >= p.y && ty < p.y + p.h) return true;
-  }
-  return false;
+  return world.grid[ty][tx] === "1";
 }
 
 // Objeto interativo a até `reach` tiles do ponto (x,y)

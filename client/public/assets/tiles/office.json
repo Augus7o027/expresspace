@@ -1,0 +1,267 @@
+{
+ "tilewidth": 32,
+ "columns": 8,
+ "count": 65,
+ "tiles": {
+  "floor_wood": {
+   "id": 0,
+   "collides": false
+  },
+  "floor_wood2": {
+   "id": 1,
+   "collides": false
+  },
+  "floor_carpet": {
+   "id": 2,
+   "collides": false
+  },
+  "floor_carpet2": {
+   "id": 3,
+   "collides": false
+  },
+  "floor_tile": {
+   "id": 4,
+   "collides": false
+  },
+  "floor_deck": {
+   "id": 5,
+   "collides": false
+  },
+  "floor_marble": {
+   "id": 6,
+   "collides": false
+  },
+  "floor_concrete": {
+   "id": 7,
+   "collides": false
+  },
+  "floor_stage": {
+   "id": 8,
+   "collides": false
+  },
+  "floor_stage_edge": {
+   "id": 9,
+   "collides": false
+  },
+  "grass": {
+   "id": 10,
+   "collides": false
+  },
+  "grass2": {
+   "id": 11,
+   "collides": false
+  },
+  "path": {
+   "id": 12,
+   "collides": false
+  },
+  "path_edge": {
+   "id": 13,
+   "collides": false
+  },
+  "rug": {
+   "id": 14,
+   "collides": false
+  },
+  "rug_edge": {
+   "id": 15,
+   "collides": false
+  },
+  "wall_top": {
+   "id": 16,
+   "collides": true
+  },
+  "wall_front": {
+   "id": 17,
+   "collides": true
+  },
+  "wall_front_window": {
+   "id": 18,
+   "collides": true
+  },
+  "wall_side": {
+   "id": 19,
+   "collides": true
+  },
+  "wall_lamp": {
+   "id": 20,
+   "collides": true
+  },
+  "wall_graffiti_bg": {
+   "id": 21,
+   "collides": true
+  },
+  "door": {
+   "id": 22,
+   "collides": false
+  },
+  "door_outside": {
+   "id": 23,
+   "collides": false
+  },
+  "desk_l": {
+   "id": 24,
+   "collides": true
+  },
+  "desk_m": {
+   "id": 25,
+   "collides": true
+  },
+  "desk_r": {
+   "id": 26,
+   "collides": true
+  },
+  "chair": {
+   "id": 27,
+   "collides": false
+  },
+  "table_tl": {
+   "id": 28,
+   "collides": true
+  },
+  "table_tr": {
+   "id": 29,
+   "collides": true
+  },
+  "table_bl": {
+   "id": 30,
+   "collides": true
+  },
+  "table_br": {
+   "id": 31,
+   "collides": true
+  },
+  "table_t": {
+   "id": 32,
+   "collides": true
+  },
+  "table_b": {
+   "id": 33,
+   "collides": true
+  },
+  "table_ml": {
+   "id": 34,
+   "collides": true
+  },
+  "table_mr": {
+   "id": 35,
+   "collides": true
+  },
+  "table_c": {
+   "id": 36,
+   "collides": true
+  },
+  "table_l": {
+   "id": 37,
+   "collides": true
+  },
+  "table_m": {
+   "id": 38,
+   "collides": true
+  },
+  "table_r": {
+   "id": 39,
+   "collides": true
+  },
+  "sofa_l": {
+   "id": 40,
+   "collides": true
+  },
+  "sofa_m": {
+   "id": 41,
+   "collides": true
+  },
+  "sofa_r": {
+   "id": 42,
+   "collides": true
+  },
+  "bench": {
+   "id": 43,
+   "collides": true
+  },
+  "bench_park": {
+   "id": 44,
+   "collides": true
+  },
+  "counter_l": {
+   "id": 45,
+   "collides": true
+  },
+  "counter_m": {
+   "id": 46,
+   "collides": true
+  },
+  "counter_r": {
+   "id": 47,
+   "collides": true
+  },
+  "plant": {
+   "id": 48,
+   "collides": true
+  },
+  "plant_small": {
+   "id": 49,
+   "collides": false
+  },
+  "whiteboard": {
+   "id": 50,
+   "collides": true
+  },
+  "tv": {
+   "id": 51,
+   "collides": true
+  },
+  "bookshelf": {
+   "id": 52,
+   "collides": true
+  },
+  "cooler": {
+   "id": 53,
+   "collides": true
+  },
+  "coffee": {
+   "id": 54,
+   "collides": true
+  },
+  "stage_light": {
+   "id": 55,
+   "collides": false
+  },
+  "screen_l": {
+   "id": 56,
+   "collides": true
+  },
+  "screen_m": {
+   "id": 57,
+   "collides": true
+  },
+  "screen_r": {
+   "id": 58,
+   "collides": true
+  },
+  "noticeboard": {
+   "id": 59,
+   "collides": true
+  },
+  "radio": {
+   "id": 60,
+   "collides": true
+  },
+  "crate": {
+   "id": 61,
+   "collides": true
+  },
+  "flowers": {
+   "id": 62,
+   "collides": false
+  },
+  "fence": {
+   "id": 63,
+   "collides": true
+  },
+  "lamp_post": {
+   "id": 64,
+   "collides": true
+  }
+ }
+}

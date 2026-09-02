@@ -1,5 +1,7 @@
 # Assets
 
+`tiles/office.png` é tileset próprio do projeto, desenhado por código em `tools/build-tileset.py` (livre).
+
 Pixel art dos packs gratuitos da CraftPix (https://craftpix.net), licença: https://craftpix.net/file-licenses/
 - Free Base 4-Direction Male Character (personagem base; roupa, cabelo e pele são pintados em tempo real pelo app)
 - Free Top-Down Hunt Animals Pixel Sprite Pack (raposa, lebre, cervo, javali, tetraz)

@@ -115,6 +115,11 @@ await A.screenshot({ path: "test/shots/07-terraco.png" });
 await A.evaluate(() => { const s = window.__sede.scene; s.cameras.main.setZoom(2.6); }); await A.waitForTimeout(400);
 await A.screenshot({ path: "test/shots/08-terraco-zoom.png" });
 await A.evaluate(() => window.__sede.scene.cameras.main.setZoom(1.4));
+await A.click("#zones li:nth-child(12)"); await A.waitForTimeout(1500);
+console.log("A no jardim:", await A.textContent("#hud-zone"));
+await A.screenshot({ path: "test/shots/09-jardim.png" });
+await A.click("#zones li:nth-child(1)"); await A.waitForTimeout(800);
+await A.screenshot({ path: "test/shots/10-recepcao.png" });
 
 // Canal de voz Discord
 await B.click("#voice-channels li:nth-child(1)"); await A.click("#voice-channels li:nth-child(1)");
