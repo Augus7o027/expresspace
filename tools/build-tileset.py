@@ -44,25 +44,31 @@ GLASS = hexc("#243040")
 rnd = random.Random(7)
 
 # ---------- pisos ----------
+def plank_floor(d, im, base, seed, knots=True):
+    r = random.Random(seed)
+    rect(d, 0, 0, T, T, base)
+    for y in range(0, T, 8):
+        rect(d, 0, y, T, y + 1, shade(base, 0.55))          # fresta escura entre tábuas
+        rect(d, 0, y + 1, T, y + 2, shade(base, 1.18))      # brilho da borda
+        off = (y // 8 % 2) * 16 + r.randrange(0, 4)
+        rect(d, off % T, y + 1, off % T + 1, y + 8, shade(base, 0.6))   # emenda da tábua
+        for i in range(3):                                   # veios
+            vx = r.randrange(0, T); vl = r.randrange(4, 10)
+            rect(d, vx, y + 3 + i, min(T, vx + vl), y + 4 + i, shade(base, 0.86 if i % 2 else 1.08))
+        if knots and r.random() < 0.5:
+            kx = r.randrange(3, 28); rect(d, kx, y + 4, kx + 2, y + 6, shade(base, 0.65)); px(im, kx + 1, y + 5, shade(base, 0.5))
 @tile("floor_wood")
-def _(d, im):
-    rect(d, 0, 0, T, T, FLOOR_WOOD)
-    for y in range(0, T, 8):
-        rect(d, 0, y, T, y + 1, shade(FLOOR_WOOD, 0.6))
-        rect(d, 0, y + 1, T, y + 2, shade(FLOOR_WOOD, 1.15))
-        off = (y // 8 % 2) * 16
-        px(im, (off + 5) % T, y + 4, shade(FLOOR_WOOD, 0.7)); px(im, (off + 21) % T, y + 5, shade(FLOOR_WOOD, 0.7))
+def _(d, im): plank_floor(d, im, FLOOR_WOOD, 11)
 @tile("floor_wood2")
-def _(d, im):
-    rect(d, 0, 0, T, T, shade(FLOOR_WOOD, 1.08))
-    for y in range(0, T, 8):
-        rect(d, 0, y, T, y + 1, shade(FLOOR_WOOD, 0.6)); rect(d, 0, y + 1, T, y + 2, shade(FLOOR_WOOD, 1.2))
-        px(im, 12, y + 4, shade(FLOOR_WOOD, 0.75))
+def _(d, im): plank_floor(d, im, shade(FLOOR_WOOD, 1.08), 23)
 @tile("floor_carpet")
 def _(d, im):
     rect(d, 0, 0, T, T, CARPET)
     for y in range(0, T, 2):
         for x in range((y // 2) % 2, T, 2): px(im, x, y, shade(CARPET, 1.12))
+    r = random.Random(5)
+    for i in range(6): px(im, r.randrange(T), r.randrange(T), shade(CARPET, 0.8))   # fiapos escuros
+    for i in range(4): px(im, r.randrange(T), r.randrange(T), shade(CARPET, 1.3))
 @tile("floor_carpet2")
 def _(d, im):
     rect(d, 0, 0, T, T, shade(CARPET, 0.9))
@@ -73,6 +79,8 @@ def _(d, im):
     rect(d, 0, 0, T, T, TILEF)
     rect(d, 0, 0, 16, 16, shade(TILEF, 1.15)); rect(d, 16, 16, T, T, shade(TILEF, 1.15))
     for i in (0, 16): rect(d, i, 0, i + 1, T, shade(TILEF, 0.6)); rect(d, 0, i, T, i + 1, shade(TILEF, 0.6))
+    for (x, y) in ((1, 1), (17, 17), (1, 17), (17, 1)): rect(d, x, y, x + 14, y + 1, shade(TILEF, 1.3)); rect(d, x, y, x + 1, y + 14, shade(TILEF, 1.25))  # brilho da cerâmica
+    px(im, 12, 12, shade(TILEF, 1.4)); px(im, 28, 28, shade(TILEF, 1.4))
 @tile("floor_deck")
 def _(d, im):
     rect(d, 0, 0, T, T, DECK)
@@ -82,14 +90,17 @@ def _(d, im):
 @tile("floor_marble")
 def _(d, im):
     rect(d, 0, 0, T, T, MARBLE)
-    rect(d, 0, 0, T, 1, shade(MARBLE, 1.3)); rect(d, 0, 0, 1, T, shade(MARBLE, 1.3))
+    rect(d, 0, 0, T, 1, shade(MARBLE, 1.3)); rect(d, 0, 0, 1, T, shade(MARBLE, 1.3)); rect(d, 0, 31, T, T, shade(MARBLE, 0.8)); rect(d, 31, 0, T, T, shade(MARBLE, 0.8))
     for i in range(6): px(im, (i * 7 + 3) % T, (i * 11 + 5) % T, shade(MARBLE, 1.35))
-    d.line([(4, 28), (28, 4)], fill=shade(MARBLE, 1.18))
+    d.line([(4, 28), (28, 4)], fill=shade(MARBLE, 1.18)); d.line([(6, 30), (30, 6)], fill=shade(MARBLE, 0.9))   # veios
+    d.line([(20, 2), (29, 12)], fill=shade(MARBLE, 1.12))
 @tile("floor_concrete")
 def _(d, im):
     rect(d, 0, 0, T, T, CONCRETE)
     for i in range(10): px(im, rnd.randrange(T), rnd.randrange(T), shade(CONCRETE, 1.2))
-    rect(d, 0, 0, T, 1, shade(CONCRETE, 0.7))
+    for i in range(3):  # manchas
+        x, y = rnd.randrange(2, 26), rnd.randrange(2, 26); rect(d, x, y, x + 4, y + 2, shade(CONCRETE, 0.85)); rect(d, x + 1, y + 1, x + 5, y + 3, shade(CONCRETE, 0.9))
+    rect(d, 0, 0, T, 1, shade(CONCRETE, 0.7)); rect(d, 0, 0, 1, T, shade(CONCRETE, 0.75)); px(im, 9, 21, shade(CONCRETE, 0.6)); px(im, 10, 21, shade(CONCRETE, 0.6))
 @tile("floor_stage")
 def _(d, im):
     rect(d, 0, 0, T, T, STAGE)
@@ -128,35 +139,44 @@ def _(d, im):
         for x in range((y // 4 % 2) * 2, T, 4): px(im, x, y, shade(RUG, 1.25))
 @tile("rug_edge")
 def _(d, im):
-    rect(d, 0, 0, T, T, RUG); rect(d, 0, 0, T, 3, shade(RUG, 0.7)); rect(d, 0, 3, T, 4, hexc("#8a7a60"))
+    rect(d, 0, 0, T, T, RUG); rect(d, 0, 0, T, 2, shade(RUG, 0.7)); rect(d, 0, 2, T, 3, shade(RUG, 1.45))
     for y in range(6, T, 4):
         for x in range((y // 4 % 2) * 2, T, 4): px(im, x, y, shade(RUG, 1.25))
 
 # ---------- paredes ----------
+def plaster(d, im, seed):
+    r = random.Random(seed)
+    for i in range(12): px(im, r.randrange(T), r.randrange(4, 25), shade(WALL, 1.08 if i % 2 else 0.93))
 @tile("wall_top", True)
 def _(d, im):
-    rect(d, 0, 0, T, T, WALL_TOP); rect(d, 0, 0, T, 2, shade(WALL_TOP, 1.3)); rect(d, 0, T - 2, T, T, shade(WALL_TOP, 0.7))
-    rect(d, 0, 0, 1, T, shade(WALL_TOP, 1.15)); rect(d, T - 1, 0, T, T, shade(WALL_TOP, 0.75))
+    # topo da parede (visto de cima): superfície clara, aresta de luz em cima e sombra pesada na base que "cai" sobre a face
+    rect(d, 0, 0, T, T, WALL_TOP); rect(d, 0, 0, T, 2, shade(WALL_TOP, 1.35)); rect(d, 0, 2, T, 3, shade(WALL_TOP, 1.12))
+    for x in range(0, T, 8): rect(d, x, 3, x + 1, T - 4, shade(WALL_TOP, 0.9))     # blocos
+    rect(d, 0, 14, T, 15, shade(WALL_TOP, 0.9))
+    rect(d, 0, T - 4, T, T - 1, shade(WALL_TOP, 0.62)); rect(d, 0, T - 1, T, T, OUT)
+def wall_face(d, im, seed=1):
+    rect(d, 0, 0, T, T, WALL); rect(d, 0, 0, T, 2, shade(WALL, 0.7)); rect(d, 0, 2, T, 3, shade(WALL, 1.3))   # sombra do topo + friso claro
+    plaster(d, im, seed)
+    rect(d, 0, 24, T, 25, shade(WALL, 1.15)); rect(d, 0, 25, T, 30, shade(WALL, 0.7)); rect(d, 0, 30, T, T, shade(WALL, 0.45))   # rodapé com brilho
 @tile("wall_front", True)
-def _(d, im):
-    rect(d, 0, 0, T, T, WALL); rect(d, 0, 0, T, 3, shade(WALL, 1.35))
-    for y in range(6, 26, 6): rect(d, 0, y, T, y + 1, shade(WALL, 0.85))
-    rect(d, 0, 26, T, T, shade(WALL, 0.55)); rect(d, 0, 26, T, 27, shade(WALL, 1.1))
+def _(d, im): wall_face(d, im, 1)
 @tile("wall_front_window", True)
 def _(d, im):
-    rect(d, 0, 0, T, T, WALL); rect(d, 0, 0, T, 3, shade(WALL, 1.35)); rect(d, 0, 26, T, T, shade(WALL, 0.55))
+    wall_face(d, im, 2)
     box(d, 3, 5, 29, 23, GLASS, OUT); rect(d, 4, 6, 28, 8, shade(GLASS, 1.6)); rect(d, 15, 6, 17, 22, OUT); rect(d, 4, 13, 28, 14, OUT)
     px(im, 6, 10, hexc("#8fa8c8")); px(im, 7, 10, hexc("#8fa8c8")); px(im, 6, 11, hexc("#8fa8c8"))
 @tile("wall_side", True)
 def _(d, im):
-    rect(d, 0, 0, T, T, WALL_TOP); rect(d, 0, 0, 3, T, shade(WALL_TOP, 1.3)); rect(d, T - 3, 0, T, T, shade(WALL_TOP, 0.7))
+    rect(d, 0, 0, T, T, WALL_TOP); rect(d, 0, 0, 2, T, shade(WALL_TOP, 1.35)); rect(d, 2, 0, 3, T, shade(WALL_TOP, 1.12))
+    for y in range(0, T, 8): rect(d, 3, y, T - 4, y + 1, shade(WALL_TOP, 0.9))
+    rect(d, T - 4, 0, T - 1, T, shade(WALL_TOP, 0.62)); rect(d, T - 1, 0, T, T, OUT)
 @tile("wall_lamp", True)
 def _(d, im):
-    rect(d, 0, 0, T, T, WALL); rect(d, 0, 0, T, 3, shade(WALL, 1.35)); rect(d, 0, 26, T, T, shade(WALL, 0.55))
+    wall_face(d, im, 3)
     rect(d, 15, 6, 17, 12, OUT); d.polygon([(8, 20), (24, 20), (16, 11)], fill=shade(METAL, 0.8), outline=OUT); rect(d, 10, 19, 22, 21, hexc("#fff0c8"))
 @tile("wall_graffiti_bg", True)
 def _(d, im):
-    rect(d, 0, 0, T, T, WALL); rect(d, 0, 0, T, 3, shade(WALL, 1.35)); rect(d, 0, 26, T, T, shade(WALL, 0.55))
+    wall_face(d, im, 4)
     for y in range(5, 25, 5): rect(d, 0, y, T, y + 1, shade(WALL, 0.8)); rect(d, (y * 3) % 16, y + 1, (y * 3) % 16 + 1, y + 5, shade(WALL, 0.8))
 @tile("door")
 def _(d, im):
@@ -319,6 +339,26 @@ def _(d, im):
 @tile("lamp_post", True)
 def _(d, im):
     rect(d, 0, 0, T, T, GRASS); rect(d, 14, 6, 18, 30, OUT); rect(d, 15, 8, 17, 28, shade(METAL, 0.9)); box(d, 10, 1, 22, 8, hexc("#fff0c8"), OUT); rect(d, 8, 28, 24, 31, OUT)
+
+# ---------- v0.9: variações e cadeira de costas ----------
+@tile("floor_wood3")
+def _(d, im): plank_floor(d, im, shade(FLOOR_WOOD, 0.94), 37)
+@tile("floor_concrete2")
+def _(d, im):
+    rect(d, 0, 0, T, T, shade(CONCRETE, 1.04))
+    for i in range(14): px(im, rnd.randrange(T), rnd.randrange(T), shade(CONCRETE, 1.22))
+    rect(d, 0, 0, T, 1, shade(CONCRETE, 0.7)); rect(d, 0, 0, 1, T, shade(CONCRETE, 0.75)); rect(d, 5, 20, 20, 21, shade(CONCRETE, 0.7))   # rachadura
+    px(im, 20, 21, shade(CONCRETE, 0.7)); px(im, 21, 22, shade(CONCRETE, 0.7))
+@tile("wall_top_end", True)
+def _(d, im):
+    # topo de parede com ponta (canto): igual ao wall_top com aresta escura à direita
+    rect(d, 0, 0, T, T, WALL_TOP); rect(d, 0, 0, T, 2, shade(WALL_TOP, 1.35)); rect(d, 0, 2, T, 3, shade(WALL_TOP, 1.12))
+    for x in range(0, T, 8): rect(d, x, 3, x + 1, T - 4, shade(WALL_TOP, 0.9))
+    rect(d, 0, T - 4, T, T - 1, shade(WALL_TOP, 0.62)); rect(d, 0, T - 1, T, T, OUT); rect(d, T - 4, 0, T - 1, T, shade(WALL_TOP, 0.62)); rect(d, T - 1, 0, T, T, OUT)
+@tile("chair_back")
+def _(d, im):
+    # cadeira vista de costas (pra mesas com cadeira em cima): encosto embaixo, assento em cima
+    box(d, 8, 6, 24, 15, shade(FABRIC, 1.15), OUT); box(d, 7, 14, 25, 26, FABRIC, OUT, shade(FABRIC, 1.3)); rect(d, 9, 26, 24, 29, OUT); rect(d, 14, 28, 18, 30, OUT)
 
 # ---------- monta a imagem ----------
 COLS = 8

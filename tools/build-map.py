@@ -48,15 +48,15 @@ WALLS = [  # (x, y, w, h, door)
     (0, 0, 58, 1, False), (0, 0, 1, 38, False), (57, 0, 1, 38, False),                           # paredes externas
 ]
 PROPS = [  # (kind, x, y, w, h)
-    ("counter", 3, 3, 5, 1), ("plant", 1, 1, 1, 1), ("plant", 11, 1, 1, 1), ("sofa", 8, 7, 3, 1), ("cooler", 1, 8, 1, 1),
-    ("desk", 15, 2, 2, 1), ("desk", 19, 2, 2, 1), ("desk", 15, 5, 2, 1), ("desk", 19, 5, 2, 1), ("plant", 21, 8, 1, 1), ("bookshelf", 14, 1, 1, 1),
+    ("counter", 3, 3, 5, 1), ("plant", 1, 2, 1, 1), ("plant", 12, 2, 1, 1), ("sofa", 8, 7, 3, 1), ("cooler", 1, 8, 1, 1),
+    ("desk", 15, 2, 2, 1), ("desk", 19, 2, 2, 1), ("desk", 15, 5, 2, 1), ("desk", 19, 5, 2, 1), ("plant", 21, 8, 1, 1), ("bookshelf", 14, 2, 1, 1),
     ("desk", 3, 13, 3, 1), ("desk", 3, 15, 3, 1), ("desk", 9, 13, 3, 1), ("desk", 9, 15, 3, 1), ("desk", 15, 13, 3, 1), ("desk", 15, 15, 3, 1),
     ("desk", 3, 19, 3, 1), ("desk", 3, 21, 3, 1), ("desk", 9, 19, 3, 1), ("desk", 9, 21, 3, 1), ("desk", 15, 19, 3, 1), ("desk", 15, 21, 3, 1),
     ("plant", 21, 12, 1, 1), ("plant", 1, 23, 1, 1), ("cooler", 21, 23, 1, 1),
     ("counter", 2, 27, 5, 1), ("coffee", 8, 27, 1, 1), ("table", 3, 31, 2, 2), ("table", 8, 31, 2, 2), ("table", 3, 35, 2, 1), ("table", 8, 35, 2, 1),
-    ("sofa", 15, 28, 3, 1), ("sofa", 19, 28, 3, 1), ("sofa", 15, 33, 3, 1), ("sofa", 19, 33, 3, 1), ("plant", 21, 36, 1, 1), ("bookshelf", 14, 36, 1, 1),
-    ("table", 26, 3, 6, 2), ("table", 37, 3, 6, 2), ("table", 48, 3, 7, 2), ("bookshelf", 56, 1, 1, 1), ("plant", 33, 1, 1, 1), ("plant", 44, 1, 1, 1),
-    ("table", 27, 29, 4, 3), ("plant", 33, 36, 1, 1),
+    ("sofa", 15, 28, 3, 1), ("sofa", 19, 28, 3, 1), ("sofa", 15, 33, 3, 1), ("sofa", 19, 33, 3, 1), ("plant", 21, 35, 1, 1), ("bookshelf", 14, 35, 1, 1),
+    ("table", 26, 3, 6, 2), ("table", 37, 3, 6, 2), ("table", 48, 3, 7, 2), ("bookshelf", 56, 2, 1, 1), ("plant", 33, 2, 1, 1), ("plant", 44, 2, 1, 1),
+    ("table", 27, 29, 4, 3), ("plant", 33, 35, 1, 1),
     ("plant", 25, 22, 1, 1), ("plant", 55, 22, 1, 1),
     ("bench", 27, 16, 10, 1), ("bench", 42, 16, 10, 1), ("bench", 27, 19, 10, 1), ("bench", 42, 19, 10, 1),
     ("table", 42, 29, 2, 2), ("table", 48, 29, 2, 2), ("sofa", 42, 33, 3, 1), ("sofa", 47, 33, 3, 1), ("crate", 55, 35, 1, 1), ("crate", 56, 35, 1, 1),
@@ -78,7 +78,7 @@ OBJECTS = [
 DECOR = [  # árvores: x,y = tile do tronco; w,h = tiles bloqueados
     dict(sprite="flower1", x=36, y=28, w=2, h=1), dict(sprite="fruit1", x=53, y=28, w=2, h=1),
     dict(sprite="palm1", x=37, y=34, w=2, h=1), dict(sprite="palm2", x=52, y=34, w=2, h=1),
-    dict(sprite="tree2", x=45, y=26, w=1, h=1), dict(sprite="tree3", x=46, y=36, w=1, h=1), dict(sprite="moss1", x=40, y=36, w=2, h=1),
+    dict(sprite="tree2", x=45, y=26, w=1, h=1), dict(sprite="tree3", x=46, y=35, w=1, h=1), dict(sprite="moss1", x=40, y=35, w=2, h=1),
     # jardim
     dict(sprite="tree1", x=3, y=44, w=2, h=1), dict(sprite="autumn1", x=14, y=41, w=2, h=1), dict(sprite="tree1", x=24, y=44, w=2, h=1),
     dict(sprite="flower2", x=38, y=41, w=2, h=1), dict(sprite="fruit1", x=54, y=45, w=2, h=1), dict(sprite="tree2", x=41, y=47, w=1, h=1),
@@ -86,8 +86,8 @@ DECOR = [  # árvores: x,y = tile do tronco; w,h = tiles bloqueados
 ]
 GRAFFITI = [
     dict(sprite="expresspace", x=40, y=24), dict(sprite="slogan", x=30, y=24), dict(sprite="shortway", x=50, y=24),
-    dict(sprite="n7", x=3, y=10), dict(sprite="cafe", x=4, y=25), dict(sprite="foco", x=18, y=0),
-    dict(sprite="benice", x=6, y=0), dict(sprite="greenteam", x=29, y=0), dict(sprite="loot", x=51, y=0),
+    dict(sprite="n7", x=3, y=10), dict(sprite="cafe", x=4, y=25), dict(sprite="foco", x=18, y=1),
+    dict(sprite="benice", x=6, y=1), dict(sprite="greenteam", x=29, y=1), dict(sprite="loot", x=51, y=1),
     dict(sprite="expresspace", x=12, y=37),
 ]
 NPCS = [
@@ -111,6 +111,8 @@ for z in ZONES:
             if name == "grass" and rnd.random() < 0.18: name = "grass2"
             if name == "grass" and rnd.random() < 0.04: name = "flowers"
             if name == "floor_wood" and rnd.random() < 0.15: name = "floor_wood2"
+            if name == "floor_wood" and rnd.random() < 0.1: name = "floor_wood3"
+            if name == "floor_concrete" and rnd.random() < 0.12: name = "floor_concrete2"
             put(ground, x, y, name)
     if "stage" in z:
         s = z["stage"]
@@ -139,12 +141,24 @@ for (x, y, w, h, door) in WALLS:
     for yy in range(y, y + h):
         for xx in range(x, x + w):
             put(walls, xx, yy, "wall_side" if (w == 1 and h > 1) else "wall_front")
+# paredes horizontais ganham altura: uma linha de topo (vista de cima) acima da face.
+# A parede externa de cima (linha 0) vira topo, com a face na linha 1.
+for x in range(W):
+    if get(walls, x, 0) == gid("wall_front"): put(walls, x, 0, "wall_top"); put(walls, x, 1, "wall_front")
+for y in range(2, H):
+    for x in range(W):
+        if get(walls, x, y) == gid("wall_front") and not get(walls, x, y - 1): put(walls, x, y - 1, "wall_top")
+# canto: topo de parede encostando em parede vertical à direita ganha aresta
+for y in range(H):
+    for x in range(W):
+        if get(walls, x, y) == gid("wall_top") and get(walls, x + 1, y) == gid("wall_side") and get(walls, x + 1, y + 1) != gid("wall_side"):
+            put(walls, x, y, "wall_top_end")
 # janelas na parede externa de cima e na parede de fundo (vista do jardim)
 for x in range(2, 56, 3):
-    if get(walls, x, 0) == gid("wall_front"): put(walls, x, 0, "wall_front_window")
+    if get(walls, x, 1) == gid("wall_front"): put(walls, x, 1, "wall_front_window")
     if get(walls, x, 37) == gid("wall_front"): put(walls, x, 37, "wall_front_window")
 # luminárias no meio das paredes de cima das salas de reunião e do café
-for (x, y) in [(29, 0), (40, 0), (51, 0), (6, 25), (29, 24), (18, 25)]:
+for (x, y) in [(29, 1), (40, 1), (51, 1), (6, 25), (29, 24), (18, 25)]:
     if get(walls, x, y): put(walls, x, y, "wall_lamp")
 # fundo de grafite
 for g in GRAFFITI:
@@ -174,7 +188,7 @@ for (kind, x, y, w, h) in PROPS:
         table(x, y, w, h)
         if h == 2 and w >= 3:
             for i in range(w):
-                if not get(furn, x + i, y - 1) and not get(walls, x + i, y - 1): put(furn, x + i, y - 1, "chair")
+                if not get(furn, x + i, y - 1) and not get(walls, x + i, y - 1): put(furn, x + i, y - 1, "chair_back")
                 if not get(furn, x + i, y + h): put(furn, x + i, y + h, "chair")
     elif kind == "sofa":
         for i in range(w): put(furn, x + i, y, "sofa_l" if i == 0 else "sofa_r" if i == w - 1 else "sofa_m")
@@ -204,6 +218,12 @@ def obj(name, typ, x, y, w=0, h=0, props=None, point=False):
     oid[0] += 1
     return o
 
+# zonas: tira as linhas que viraram parede (face na linha 1 e topo na última linha de cada sala)
+def row_is_wall(z, yy): return all(get(walls, xx, yy) for xx in range(z["x"], z["x"] + z["w"]))
+for z in ZONES:
+    while z["h"] > 1 and row_is_wall(z, z["y"]): z["y"] += 1; z["h"] -= 1
+    while z["h"] > 1 and row_is_wall(z, z["y"] + z["h"] - 1): z["h"] -= 1
+    if "stage" in z and z["stage"]["y"] < z["y"]: z["stage"]["y"] = z["y"]
 zone_objs = []
 for z in ZONES:
     zone_objs.append(obj(z["name"], "zone", z["x"], z["y"], z["w"], z["h"], {"id": z["id"], "kind": z["kind"]}))
@@ -221,7 +241,7 @@ def objlayer(lid, name, objs): return {"id": lid, "name": name, "type": "objectg
 tileset = {
     "firstgid": 1, "name": "office", "tilewidth": TILE, "tileheight": TILE, "tilecount": TS["count"], "columns": COLS,
     "image": "../assets/tiles/office.png", "imagewidth": COLS * TILE, "imageheight": ((TS["count"] + COLS - 1) // COLS) * TILE, "margin": 0, "spacing": 0,
-    "tiles": [{"id": t["id"], "type": name, "properties": [{"name": "collides", "type": "bool", "value": True}]} for name, t in TS["tiles"].items() if t["collides"]],
+    "tiles": [{"id": t["id"], "type": name, "properties": [{"name": "collides", "type": "bool", "value": bool(t["collides"])}]} for name, t in TS["tiles"].items()],
 }
 tmap = {
     "type": "map", "version": "1.10", "tiledversion": "1.10.2", "orientation": "orthogonal", "renderorder": "right-down", "infinite": False,

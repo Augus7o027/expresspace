@@ -1,7 +1,7 @@
 {
  "tilewidth": 32,
  "columns": 8,
- "count": 65,
+ "count": 69,
  "tiles": {
   "floor_wood": {
    "id": 0,
@@ -262,6 +262,22 @@
   "lamp_post": {
    "id": 64,
    "collides": true
+  },
+  "floor_wood3": {
+   "id": 65,
+   "collides": false
+  },
+  "floor_concrete2": {
+   "id": 66,
+   "collides": false
+  },
+  "wall_top_end": {
+   "id": 67,
+   "collides": true
+  },
+  "chair_back": {
+   "id": 68,
+   "collides": false
   }
  }
 }

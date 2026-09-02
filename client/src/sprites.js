@@ -59,6 +59,13 @@ function bbox(src, fx, fy) {
   return x1 < 0 ? null : { x0, y0, x1: x1 + 1, y1: y1 + 1 };
 }
 
+const rowFrames = new Map();
+function framesInRow(src, row, max) {
+  const k = `${src.width}:${row}`;
+  if (!rowFrames.has(k)) { let n = 0; for (let f = 0; f < max; f++) { if (bbox(src, f * FW, row * FH)) n = f + 1; else break; } rowFrames.set(k, Math.max(1, n)); }
+  return rowFrames.get(k);
+}
+
 // Pinta um sheet inteiro (walk ou idle) com a config. Retorna canvas.
 export function paintSheet(src, frames, a) {
   a = normalizeAvatar(a);
@@ -157,8 +164,10 @@ export function ensureAvatarTexture(scene, a) {
   scene.textures.addSpriteSheet(key + ":idle", idle, { frameWidth: FW, frameHeight: FH });
   scene.textures.get(key + ":walk").setFilter(1); scene.textures.get(key + ":idle").setFilter(1);
   DIRS.forEach((dir, row) => {
-    scene.anims.create({ key: `${key}:walk:${dir}`, frames: scene.anims.generateFrameNumbers(key + ":walk", { start: row * WALK_FRAMES, end: row * WALK_FRAMES + WALK_FRAMES - 1 }), frameRate: 10, repeat: -1 });
-    scene.anims.create({ key: `${key}:idle:${dir}`, frames: scene.anims.generateFrameNumbers(key + ":idle", { start: row * IDLE_FRAMES, end: row * IDLE_FRAMES + IDLE_FRAMES - 1 }), frameRate: 6, repeat: -1 });
+    // só quadros desenhados: a linha "de costas" do idle da CraftPix tem 4 quadros, o resto é vazio (o boneco sumia/piscava)
+    const nWalk = framesInRow(base.walk, row, WALK_FRAMES), nIdle = framesInRow(base.idle, row, IDLE_FRAMES);
+    scene.anims.create({ key: `${key}:walk:${dir}`, frames: scene.anims.generateFrameNumbers(key + ":walk", { start: row * WALK_FRAMES, end: row * WALK_FRAMES + nWalk - 1 }), frameRate: 10, repeat: -1 });
+    scene.anims.create({ key: `${key}:idle:${dir}`, frames: scene.anims.generateFrameNumbers(key + ":idle", { start: row * IDLE_FRAMES, end: row * IDLE_FRAMES + nIdle - 1 }), frameRate: 6, repeat: -1 });
   });
   return key;
 }

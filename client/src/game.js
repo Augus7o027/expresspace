@@ -12,6 +12,8 @@ const DEFAULT_ZOOM = 2;
 const AVATAR_SCALE = 2;
 // tiles "de chão" da camada de móveis: ficam rentes ao piso, sem ordenação por profundidade
 const FLAT_TILES = /^(floor|rug|grass|path|door|flowers|stage_light|plant_small)/;
+// profundidades: 0 chão/paredes · 1 luzes · 2 rasteiro · 3 marcas · 10+y móveis e gente · 20 nomes · 22 escurecimento de outras salas · 24 títulos · 30 balões
+const D = { LABEL: 20, DIM: 22, TITLE: 24, BUBBLE: 30 };
 
 export class WorldScene extends Phaser.Scene {
   constructor({ map, me, net, onZoneChange, onObjectNear, locked = [] }) {
@@ -111,8 +113,11 @@ export class WorldScene extends Phaser.Scene {
   // Tiles empilhados na mesma coluna (mesa de 2 linhas, mesa + cadeira) compartilham a base do de baixo.
   sortFurniture(layer, ts) {
     const nameOf = (idx) => ts.getTileData(idx)?.type || "";
-    const solid = (t) => t && t.index > 0 && !FLAT_TILES.test(nameOf(t.index));
+    const solid = (t) => t && t.index > 0 && !FLAT_TILES.test(nameOf(t.index)) && nameOf(t.index) !== "chair_back";
     const w = layer.layer.width, h = layer.layer.height;
+    this.chairs = new Map();   // "x,y" -> direção que a cadeira encara (pra "sentar")
+    this.chairBase = new Map(); // "x,y" -> base (px) da pilha mesa+cadeira
+    this.occupied = new Set(); // tiles com móvel (pra achar lugar livre pros títulos)
     const baseOf = new Map(); // "x,y" -> y da base (px) do empilhamento
     for (let x = 0; x < w; x++) {
       let base = null;
@@ -126,6 +131,14 @@ export class WorldScene extends Phaser.Scene {
     layer.forEachTile((t) => {
       if (!t || t.index <= 0) return;
       const frame = t.index - ts.firstgid, name = nameOf(t.index);
+      this.occupied.add(`${t.x},${t.y}`);
+      if (name === "chair" || name === "chair_back") {
+        // encara o móvel vizinho: cadeira normal olha pra cima (mesa acima), de costas olha pra baixo
+        const above = layer.getTileAt(t.x, t.y - 1), below = layer.getTileAt(t.x, t.y + 1);
+        this.chairs.set(`${t.x},${t.y}`, name === "chair_back" ? "down" : solid(above) ? "up" : solid(below) ? "down" : "down");
+        this.chairBase.set(`${t.x},${t.y}`, baseOf.get(`${t.x},${t.y}`) || (t.y + 1) * TILE);
+      }
+      if (name === "chair_back") { this.add.image(t.pixelX, t.pixelY, "tilesheet", frame).setOrigin(0).setDepth(10 + (t.pixelY + TILE - 14) / 10000); return; }
       const img = this.add.image(t.pixelX, t.pixelY, "tilesheet", frame).setOrigin(0);
       if (FLAT_TILES.test(name)) { img.setDepth(2); return; }
       img.setDepth(10 + (baseOf.get(`${t.x},${t.y}`) - 4) / 10000);
@@ -159,9 +172,37 @@ export class WorldScene extends Phaser.Scene {
           fontFamily: "JetBrains Mono", fontSize: "10px", color: "#ffffff", letterSpacing: 3,
         }).setOrigin(0.5).setAlpha(0.45).setDepth(3);
       }
-      this.txt(x + 14, y + 8, z.name, { fontFamily: "Instrument Serif", fontSize: "22px", color: "#f2efe9" }).setAlpha(0.7).setDepth(3);
+      // título num trecho livre da primeira linha da sala (sem móvel/objeto embaixo)
+      const spot = this.freeSpot(z, 5, 2);
+      const tx = spot.x * TILE + 6, ty = spot.y * TILE + 4;
+      this.txt(tx, ty, z.name, { fontFamily: "Instrument Serif", fontSize: "22px", color: "#f2efe9", stroke: "#000000", strokeThickness: 3 }).setAlpha(0.8).setDepth(D.TITLE);
       const tag = { open: "voz por perto", meeting: "call da sala", silent: "silêncio", stage: "auditório" }[z.kind];
-      this.txt(x + 15, y + 34, tag.toUpperCase(), { fontFamily: "JetBrains Mono", fontSize: "9px", color: "#f2efe9", letterSpacing: 2 }).setAlpha(0.35).setDepth(3);
+      this.txt(tx + 1, ty + 26, tag.toUpperCase(), { fontFamily: "JetBrains Mono", fontSize: "9px", color: "#f2efe9", letterSpacing: 2, stroke: "#000000", strokeThickness: 2 }).setAlpha(0.5).setDepth(D.TITLE);
+      // escurecimento quando você está em outra sala (foco na sala atual)
+      const dim = this.add.graphics().setDepth(D.DIM).setAlpha(0);
+      dim.fillStyle(0x000000, 0.42).fillRect(x, y, w, h);
+      z.dim = dim;
+    }
+  }
+
+  // primeiro bloco de `w`x`h` tiles livre (sem móvel, objeto ou parede) varrendo a sala de cima pra baixo
+  freeSpot(z, w, h) {
+    const busy = (tx, ty) => this.occupied?.has(`${tx},${ty}`) || isBlocked(this.map, tx, ty) ||
+      (this.map.objects || []).some((o) => tx >= o.x - 1 && tx < o.x + o.w + 1 && ty >= o.y - 1 && ty < o.y + o.h + 1);
+    for (let ty = z.y; ty <= z.y + z.h - h; ty++) for (let tx = z.x; tx <= z.x + z.w - w; tx++) {
+      let ok = true;
+      for (let j = 0; j < h && ok; j++) for (let i = 0; i < w; i++) if (busy(tx + i, ty + j)) { ok = false; break; }
+      if (ok) return { x: tx, y: ty };
+    }
+    return { x: z.x, y: z.y };
+  }
+
+  // sala atual clara, as outras escurecem (no corredor, nada escurece)
+  focusZone(id) {
+    for (const z of this.map.zones) {
+      if (!z.dim) continue;
+      const want = id && z.id !== id ? 1 : 0;
+      if (z.dim.alpha !== want) this.tweens.add({ targets: z.dim, alpha: want, duration: 350 });
     }
   }
 
@@ -174,7 +215,7 @@ export class WorldScene extends Phaser.Scene {
       glow.fillRect(x + 2, y, w - 4, 1); glow.fillRect(x + 2, y + h - 1, w - 4, 1); glow.fillRect(x, y + 2, 1, h - 4); glow.fillRect(x + w - 1, y + 2, 1, h - 4);
       glow.fillRect(x + 1, y + 1, 1, 1); glow.fillRect(x + w - 2, y + 1, 1, 1); glow.fillRect(x + 1, y + h - 2, 1, 1); glow.fillRect(x + w - 2, y + h - 2, 1, 1);
       this.tweens.add({ targets: glow, alpha: { from: 0.3, to: 1 }, duration: 1600, yoyo: true, repeat: -1 });
-      this.txt(x + w / 2, y + h + 1, o.label, { fontFamily: "JetBrains Mono", fontSize: "8px", color: "#f2efe9", letterSpacing: 1, backgroundColor: "rgba(0,0,0,0.45)", padding: { x: 3, y: 1 } }).setOrigin(0.5, 0).setAlpha(0.7).setDepth(3);
+      this.txt(x + w / 2, y + h + 1, o.label, { fontFamily: "JetBrains Mono", fontSize: "8px", color: "#f2efe9", letterSpacing: 1, backgroundColor: "rgba(0,0,0,0.45)", padding: { x: 3, y: 1 } }).setOrigin(0.5, 0).setAlpha(0.7).setDepth(D.LABEL - 1);
     }
   }
 
@@ -254,7 +295,7 @@ export class WorldScene extends Phaser.Scene {
       drawPixelRing(ring, 0, 4, this.map.proximityRadius * TILE, 0xffffff, 0.3);
       c.add(ring);
     }
-    c.add(this.add.image(0, 3, "fx:shadow").setAlpha(0.55)); // sombra de contato
+    c.shadow = this.add.image(0, 3, "fx:shadow").setAlpha(0.55); c.add(c.shadow); // sombra de contato
     const speak = this.add.sprite(0, -50, "fx:wave", 0).setOrigin(0.5, 1);
     speak.play("fx:wave"); speak.setVisible(false);
     c.add(speak); c.speak = speak;
@@ -267,18 +308,31 @@ export class WorldScene extends Phaser.Scene {
       c.texKey = k; c.sprite.setTexture(k + ":walk", 0);
     };
 
+    // nome + bolinha de status ficam numa camada acima dos móveis (senão mesa/balcão cobrem o nome)
+    const tag = this.add.container(0, 0).setDepth(D.LABEL);
     const label = this.txt(0, 6, name, {
       fontFamily: "Inter", fontSize: "11px", color: "#f2efe9",
       backgroundColor: "rgba(0,0,0,0.55)", padding: { x: 5, y: 2 },
     }).setOrigin(0.5, 0);
-    c.add(label); c.label = label;
-    const dot = this.add.graphics(); c.add(dot); c.dot = dot;
+    const dot = this.add.graphics();
+    tag.add([label, dot]); c.label = label; c.dot = dot; c.tag = tag;
+    c.on("destroy", () => tag.destroy());
     c.mic = this.txt(17, -46, "", { fontFamily: "Inter", fontSize: "12px", color: "#f06e6e", fontStyle: "bold" }).setOrigin(0.5);
     c.add(c.mic);
     c.setDepth(10);
     this.setStatus(c, "available");
     return c;
   }
+
+  // sentado de frente pra mesa (de costas pra câmera): sobe o sprite e deixa mesa+cadeira na frente do tronco
+  setSeated(c, dir, key) {
+    const up = dir === "up" && !!key;
+    if (c.seatedUp === up) return up;
+    c.seatedUp = up; c.seatKey = key;
+    c.sprite.y = up ? -18 : 0; c.shadow.setVisible(!up);
+    return up;
+  }
+  depthFor(c, y) { return c.seatedUp && this.chairBase?.has(c.seatKey) ? 10 + (this.chairBase.get(c.seatKey) - 6) / 10000 : 10 + y / 10000; }
 
   setStatus(c, status) {
     if (c.statusNow === status) return;
@@ -306,6 +360,9 @@ export class WorldScene extends Phaser.Scene {
       r.target = { x: p.x, y: p.y };
       r.dir = p.dir || r.dir;
       r.moving = !!p.moving;
+      const seatKey = `${Math.floor(p.x)},${Math.floor(p.y)}`, ch = !r.moving && this.chairs?.get(seatKey);
+      if (ch) { r.target = { x: Math.floor(p.x) + 0.5, y: Math.floor(p.y) + 0.6 }; r.dir = ch; }
+      this.setSeated(r.container, ch || null, ch ? seatKey : null);
       r.container.mic.setText(p.muted ? "×" : "");
       if (p.avatar && avatarKey(p.avatar) !== r.container.texKey) r.container.setAvatar(p.avatar);
       const text = p.status ? `${p.name} · ${p.status}` : p.name;
@@ -328,7 +385,7 @@ export class WorldScene extends Phaser.Scene {
     if (!target) return;
     this.bubbles.get(userId)?.destroy();
     // balão estilo RPG em pixels: caixa desenhada por trás do texto, rabicho na cabeça
-    const t = this.add.container(0, 0).setDepth(20);
+    const t = this.add.container(0, 0).setDepth(D.BUBBLE);
     const txt = this.txt(0, -11, text, { fontFamily: "Inter", fontSize: "12px", color: "#050505", wordWrap: { width: 180 }, align: "center" }).setOrigin(0.5, 1);
     const w = Math.ceil(txt.width) + 16, h = Math.ceil(txt.height) + 10;
     const box = this.add.graphics(); drawPixelBubble(box, w, h);
@@ -371,6 +428,22 @@ export class WorldScene extends Phaser.Scene {
       this.updateZone();
       this.checkObjects();
     }
+    // parou numa cadeira: encaixa no assento e vira pra mesa ("sentar")
+    if (!moving && !this.frozen) {
+      const ch = this.chairs?.get(`${Math.floor(this.pos.x)},${Math.floor(this.pos.y)}`);
+      if (ch) {
+        const cx = Math.floor(this.pos.x) + 0.5, cy = Math.floor(this.pos.y) + 0.6;
+        if (Math.abs(this.pos.x - cx) > 0.01 || Math.abs(this.pos.y - cy) > 0.01) {
+          this.pos.x += (cx - this.pos.x) * Math.min(1, dt * 10); this.pos.y += (cy - this.pos.y) * Math.min(1, dt * 10);
+          if (Math.hypot(cx - this.pos.x, cy - this.pos.y) < 0.02) { this.pos.x = cx; this.pos.y = cy; }
+          this.player.setPosition(this.pos.x * TILE, this.pos.y * TILE);
+          this.sitSync = true;
+        }
+        if (this.dir !== ch) { this.dir = ch; this.sitSync = true; }
+        this.setSeated(this.player, ch, `${Math.floor(this.pos.x)},${Math.floor(this.pos.y)}`);
+      } else this.setSeated(this.player, null, null);
+    } else if (moving) this.setSeated(this.player, null, null);
+    if (this.sitSync && !moving && performance.now() - this.lastSent > 120) { this.net.emit("move", { x: this.pos.x, y: this.pos.y, dir: this.dir, moving: false }); this.lastSent = performance.now(); this.sitSync = false; }
     this.animate(this.player, this.dir, moving);
     const now = performance.now();
     if (now - (this.lastNearCheck || 0) > 300) { this.lastNearCheck = now; this.checkObjects(); }
@@ -384,17 +457,19 @@ export class WorldScene extends Phaser.Scene {
       const tx = r.target.x * TILE, ty = r.target.y * TILE;
       r.container.x += (tx - r.container.x) * Math.min(1, dt * 12);
       r.container.y += (ty - r.container.y) * Math.min(1, dt * 12);
-      r.container.setDepth(10 + r.container.y / 10000);
+      r.container.setDepth(this.depthFor(r.container, r.container.y));
+      r.container.tag.setPosition(Math.round(r.container.x), Math.round(r.container.y));
       this.animate(r.container, r.dir, r.moving);
     }
-    this.player.setDepth(10 + this.player.y / 10000);
+    this.player.setDepth(this.depthFor(this.player, this.player.y));
+    this.player.tag.setPosition(Math.round(this.player.x), Math.round(this.player.y));
     for (const r of this.npcs?.values() || []) {
       const tx = r.target.x * TILE, ty = r.target.y * TILE;
       r.sprite.x += (tx - r.sprite.x) * Math.min(1, dt * 10);
       r.sprite.y += (ty - r.sprite.y) * Math.min(1, dt * 10);
       r.sprite.setDepth(10 + r.sprite.y / 10000);
       if (r.shadow) r.shadow.setPosition(r.sprite.x, r.sprite.y + 4);
-      if (r.kind === "agent") { this.animate(r.container, r.dir || "down", !!r.moving); continue; }
+      if (r.kind === "agent") { r.container.tag.setPosition(Math.round(r.sprite.x), Math.round(r.sprite.y)); this.animate(r.container, r.dir || "down", !!r.moving); continue; }
       const anim = `npc:${r.kind}:${r.moving ? "walk" : "idle"}:${r.dir || "down"}`;
       if (r.sprite.anims.currentAnim?.key !== anim && this.anims.exists(anim)) r.sprite.play(anim, true);
     }
@@ -441,7 +516,7 @@ export class WorldScene extends Phaser.Scene {
   updateZone(force) {
     const z = zoneAt(this.map, Math.floor(this.pos.x), Math.floor(this.pos.y));
     const id = z ? z.id : null;
-    if (force || id !== this.currentZone) { this.currentZone = id; this.onZoneChange(z); }
+    if (force || id !== this.currentZone) { this.currentZone = id; this.focusZone(id); this.onZoneChange(z); }
   }
 
   checkObjects() {

@@ -2,7 +2,14 @@
 
 Ambiente 2D próprio da comunidade. Híbrido entre Gather e Discord: um mapa onde o avatar anda, entra em salas e cai em calls, mais canais de texto e voz que funcionam sem depender da posição no mapa.
 
-## O que já funciona (v0.8)
+## O que já funciona (v0.9)
+
+- **Sentar**: parou numa cadeira, o personagem encaixa no assento e vira pra mesa; de frente pra mesa (de costas pra câmera) a mesa e a cadeira ficam na frente do tronco, como alguém sentado trabalhando. Cadeiras do lado de cima das mesas grandes são de costas
+- **Paredes com altura**: paredes horizontais têm 2 linhas (topo visto de cima + face com rodapé e reboco), divisão mais clara entre salas; tileset com pisos mais trabalhados (tábuas com veios e nós, cerâmica com brilho, mármore com veios, concreto com manchas e rachaduras)
+- **Foco na sala**: as outras salas escurecem enquanto você está numa sala; no corredor nada escurece
+- **Nomes e títulos sem sobreposição**: nome + status ficam numa camada acima dos móveis; títulos das salas procuram um trecho livre da sala (sem móvel/objeto embaixo) e têm contorno
+- Corrigido: o idle "de costas" do personagem piscava/sumia (a linha de costas do sheet da CraftPix só tem 4 quadros; as animações agora usam só os quadros desenhados)
+- Barra inferior (HUD) mais baixa e discreta
 
 - **Renderização pixel-perfect**: Phaser em modo `pixelArt` (sem antialias, vizinho mais próximo), zoom só inteiro (1x, 2x, 3x pela roda do mouse, padrão 2x) e personagens em escala 2 — cada pixel da arte vira um bloco inteiro na tela, sem tremer ao andar
 - **Oclusão correta dos móveis**: a camada de móveis do Tiled vira sprites ordenados pela base; quem passa atrás de uma mesa, balcão ou estante fica atrás; parar numa cadeira "senta" (a cadeira cobre as pernas). Tiles rentes ao chão (tapetes, flores, luz de palco) ficam no piso
