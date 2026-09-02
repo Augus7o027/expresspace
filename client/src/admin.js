@@ -1,6 +1,7 @@
 // Painel admin: provedores de LLM, agentes (NPCs), mundo, usuários, configurações.
 import { mountAvatarEditor } from "./avatar-editor.js";
 import { loadBase } from "./sprites.js";
+import { renderMarkdown, wireCopyButtons } from "./md.js";
 
 const $ = (s, r = document) => r.querySelector(s);
 const el = (tag, attrs = {}, ...kids) => {
@@ -20,32 +21,34 @@ const field = (label, input) => el("div", { class: "field" }, el("span", { class
 const input = (attrs) => el("input", { type: "text", ...attrs });
 
 let me = null, overview = null;
+const STAFF = ["admin", "professor"];
+const PROFESSOR_TABS = ["content"];
 
 // ---------- login ----------
 $("#login-form").addEventListener("submit", async (e) => {
   e.preventDefault();
   try {
     const { user } = await api("POST", "/api/auth/login", { email: $("#email").value, password: $("#password").value });
-    if (user.role !== "admin") throw new Error("essa conta não é admin");
+    if (!STAFF.includes(user.role)) throw new Error("essa conta não é admin nem professor");
     me = user; boot();
   } catch (err) { $("#login-error").textContent = err.message; $("#login-error").classList.remove("hidden"); }
 });
-api("GET", "/api/auth/me").then(({ user }) => { if (user?.role === "admin") { me = user; boot(); } });
+api("GET", "/api/auth/me").then(({ user }) => { if (STAFF.includes(user?.role)) { me = user; boot(); } });
 $("#logout").onclick = async () => { await api("POST", "/api/auth/logout"); location.reload(); };
 
 async function boot() {
   $("#login").classList.add("hidden"); $("#app").classList.remove("hidden");
   $("#who").textContent = `${me.name} · ${me.email}`;
   await loadBase().catch(() => {});
-  document.querySelectorAll("#tabs button").forEach((b) => b.onclick = () => showTab(b.dataset.tab));
-  showTab("overview");
+  document.querySelectorAll("#tabs button").forEach((b) => { b.onclick = () => showTab(b.dataset.tab); if (me.role !== "admin") b.classList.toggle("hidden", !PROFESSOR_TABS.includes(b.dataset.tab)); });
+  showTab(me.role === "admin" ? "overview" : "content");
 }
-const RENDER = { overview: renderOverview, agents: renderAgents, providers: renderProviders, world: renderWorld, users: renderUsers, settings: renderSettings };
+const RENDER = { overview: renderOverview, content: renderContent, agents: renderAgents, providers: renderProviders, world: renderWorld, users: renderUsers, settings: renderSettings };
 async function showTab(name) {
   document.querySelectorAll("#tabs button").forEach((b) => b.classList.toggle("active", b.dataset.tab === name));
   document.querySelectorAll(".tab").forEach((t) => t.classList.toggle("hidden", t.id !== "tab-" + name));
   const root = $("#tab-" + name); root.innerHTML = ""; root.append(el("div", { class: "card glass" }, el("p", { class: "lead" }, "carregando…")));
-  try { overview = await api("GET", "/api/admin/overview"); root.innerHTML = ""; await RENDER[name](root); }
+  try { if (me.role === "admin") overview = await api("GET", "/api/admin/overview"); root.innerHTML = ""; await RENDER[name](root); }
   catch (e) { root.innerHTML = ""; root.append(el("div", { class: "card glass" }, el("p", { class: "err" }, e.message))); }
 }
 
@@ -58,6 +61,7 @@ async function renderOverview(root) {
       el("div", { class: "stat" }, el("b", {}, o.online.length), el("span", { class: "mono dim" }, "online")),
       el("div", { class: "stat" }, el("b", {}, o.users), el("span", { class: "mono dim" }, "contas")),
       el("div", { class: "stat" }, el("b", {}, o.agents), el("span", { class: "mono dim" }, "agentes")),
+      el("div", { class: "stat" }, el("b", {}, o.content), el("span", { class: "mono dim" }, "conteúdos")),
       el("div", { class: "stat" }, el("b", {}, o.locked.length), el("span", { class: "mono dim" }, "salas trancadas")),
     ),
     el("h3", {}, "Quem está online"),
@@ -244,4 +248,103 @@ async function renderSettings(root) {
     el("div", { class: "checks" }, el("label", {}, guests, "permitir visitantes (entrar só com nome, sem conta)"), el("label", {}, reg, "permitir cadastro livre (membros criam a própria conta)")),
     el("p", { class: "lead" }, "Pra comunidade paga: visitantes desligado, cadastro desligado, e você cria as contas dos membros aqui (ou depois via integração de pagamento)."),
     el("div", { class: "row", style: "margin-top:10px" }, el("button", { class: "btn primary", onclick: async () => { try { await api("PUT", "/api/admin/settings", { communityName: name.value, allowGuests: guests.checked, allowRegister: reg.checked }); toast("salvo"); } catch (e) { toast(e.message, false); } } }, "Salvar"))));
+}
+
+// ---------- conteúdos (biblioteca) ----------
+const TYPE_HINT = {
+  aula: "Vídeo (YouTube, Vimeo, Loom ou arquivo .mp4 enviado) + texto de apoio em Markdown.",
+  skill: "Uma habilidade pronta pra usar: explique o quê, quando e como. Anexe o arquivo da skill (zip, md) se houver.",
+  prompt: "O corpo vira o prompt em si, com botão 'copiar' pro membro. Use {variáveis} pra ele preencher.",
+  automacao: "Fluxo pronto (n8n, Make, Zapier, script). Explique a instalação e anexe o JSON/arquivo.",
+  template: "Arquivo pronto (planilha, doc, Notion, Canva). Anexe ou coloque o link.",
+  link: "Só um link externo com explicação curta.",
+};
+const uploadFile = (file, onProgress) => new Promise((resolve, reject) => {
+  const xhr = new XMLHttpRequest();
+  xhr.open("POST", `/api/admin/uploads?name=${encodeURIComponent(file.name)}`);
+  xhr.setRequestHeader("content-type", "application/octet-stream");
+  xhr.upload.onprogress = (e) => { if (e.lengthComputable) onProgress?.(Math.round((e.loaded / e.total) * 100)); };
+  xhr.onload = () => { try { const j = JSON.parse(xhr.responseText); xhr.status < 300 ? resolve(j) : reject(new Error(j.error || xhr.statusText)); } catch { reject(new Error("resposta inválida")); } };
+  xhr.onerror = () => reject(new Error("falha no envio"));
+  xhr.send(file);
+});
+const fmtSize = (n) => n > 1e6 ? (n / 1e6).toFixed(1) + " MB" : n > 1e3 ? Math.round(n / 1e3) + " KB" : n + " B";
+
+async function renderContent(root) {
+  const { items, types, typeLabel } = await api("GET", "/api/admin/content");
+  const cats = [...new Set(items.map((i) => i.category))];
+  root.append(el("div", { class: "card glass" }, el("h2", {}, "Conteúdos da biblioteca"),
+    el("p", { class: "lead" }, "Aulas, skills, prompts, automações e templates que os membros veem em /membros. Arquivos ficam hospedados no seu servidor. Só o que estiver publicado aparece pra eles.")));
+  let filterType = "";
+  const listEl = el("div", { class: "list" });
+  const paint = () => {
+    listEl.innerHTML = "";
+    const vis = items.filter((i) => !filterType || i.type === filterType);
+    if (!vis.length) listEl.append(el("p", { class: "lead" }, "nenhum conteúdo ainda."));
+    let last = null;
+    for (const it of vis) {
+      if (it.category !== last) { listEl.append(el("div", { class: "mono dim", style: "padding:8px 4px 2px" }, it.category)); last = it.category; }
+      listEl.append(el("div", { class: "item" },
+        el("span", { class: "badge" }, typeLabel[it.type]),
+        el("span", { class: "grow" }, el("b", {}, it.title), el("div", { class: "sub" }, [it.video ? "vídeo" : null, it.files?.length ? `${it.files.length} arquivo(s)` : null, it.visibility === "professor" ? "só professores" : null, it.author?.name ? `por ${it.author.name}` : null].filter(Boolean).join(" · "))),
+        el("span", { class: "badge " + (it.published ? "on" : "off") }, it.published ? "publicado" : "rascunho"),
+        el("button", { class: "btn small", onclick: () => openItem(it) }, "Editar")));
+    }
+  };
+  const typeSel = el("select", { onchange: (e) => { filterType = e.target.value; paint(); } }, el("option", { value: "" }, "todos os tipos"), ...types.map((t) => el("option", { value: t }, typeLabel[t])));
+  paint();
+  root.append(el("div", { class: "card glass" }, el("div", { class: "row", style: "justify-content:space-between" }, el("h3", {}, `${items.length} conteúdo(s)`), el("div", { class: "row" }, typeSel, el("button", { class: "btn primary", onclick: () => openItem({}) }, "Novo conteúdo"))), listEl));
+  const editor = el("div", {}); root.append(editor);
+
+  function openItem(it) {
+    editor.innerHTML = "";
+    const type = el("select", {}, ...types.map((t) => el("option", { value: t, selected: t === (it.type || "aula") ? "" : undefined }, typeLabel[t])));
+    const hint = el("p", { class: "lead" }, TYPE_HINT[it.type || "aula"]);
+    const title = input({ value: it.title || "", placeholder: "título" });
+    const summary = input({ value: it.summary || "", placeholder: "uma frase que aparece no card" });
+    const category = input({ value: it.category || "", placeholder: "módulo (ex.: Fundamentos de tráfego)", list: "cats" });
+    const dl = el("datalist", { id: "cats" }, ...cats.map((c) => el("option", { value: c })));
+    const tags = input({ value: (it.tags || []).join(", "), placeholder: "tags separadas por vírgula" });
+    const order = input({ type: "number", value: it.order ?? 0 });
+    const body = el("textarea", { class: "mono", style: "min-height:260px", placeholder: "Markdown: # título, **negrito**, - lista, ```código```, [link](url)" }, it.body || "");
+    const preview = el("div", { class: "md hidden", style: "background:rgba(0,0,0,0.35);border:1px solid var(--line);border-radius:8px;padding:12px 16px;max-height:420px;overflow:auto;margin-top:8px" });
+    const togglePrev = el("button", { class: "btn small", onclick: () => { preview.classList.toggle("hidden"); preview.innerHTML = renderMarkdown(body.value); wireCopyButtons(preview); togglePrev.textContent = preview.classList.contains("hidden") ? "prévia" : "fechar prévia"; } }, "prévia");
+    const video = input({ value: it.video || "", placeholder: "link do YouTube/Vimeo/Loom ou envie um .mp4 abaixo" });
+    const link = input({ value: it.link || "", placeholder: "https://…" });
+    const visibility = el("select", {}, el("option", { value: "member", selected: it.visibility !== "professor" ? "" : undefined }, "membros e professores"), el("option", { value: "professor", selected: it.visibility === "professor" ? "" : undefined }, "só professores e admin"));
+    const published = el("input", { type: "checkbox", checked: it.published ? "" : undefined });
+    let files = [...(it.files || [])];
+    const filesBox = el("div", { class: "list" });
+    const paintFiles = () => { filesBox.innerHTML = ""; for (const [i, f] of files.entries()) filesBox.append(el("div", { class: "item" }, el("span", { class: "grow" }, f.name, " ", el("span", { class: "sub" }, fmtSize(f.size))), el("button", { class: "btn small danger", onclick: async () => { if (f.url.startsWith("/files/") && confirm("apagar o arquivo do servidor?")) await api("DELETE", `/api/admin/uploads/${f.url.split("/").pop()}`).catch(() => {}); files.splice(i, 1); paintFiles(); } }, "×"))); };
+    paintFiles();
+    const fileIn = el("input", { type: "file", multiple: "" }), prog = el("span", { class: "sub" });
+    fileIn.onchange = async () => {
+      for (const f of fileIn.files) {
+        prog.textContent = `enviando ${f.name}… 0%`;
+        try { const r = await uploadFile(f, (p) => (prog.textContent = `enviando ${f.name}… ${p}%`)); if (/\.(mp4|webm|m4v|mov)$/i.test(f.name) && !video.value) video.value = r.url; else files.push(r); paintFiles(); prog.textContent = ""; }
+        catch (e) { prog.textContent = "erro: " + e.message; }
+      }
+      fileIn.value = "";
+    };
+    type.onchange = () => { hint.textContent = TYPE_HINT[type.value]; };
+    const collect = () => ({ id: it.id, type: type.value, title: title.value, summary: summary.value, category: category.value, tags: tags.value, order: Number(order.value) || 0, body: body.value, video: video.value, link: link.value, files, visibility: visibility.value, published: published.checked });
+    const save = async (pub) => { try { if (pub !== undefined) published.checked = pub; const r = await api("POST", "/api/admin/content", collect()); toast(r.published ? "publicado" : "salvo como rascunho"); showTab("content"); } catch (e) { toast(e.message, false); } };
+    editor.append(dl, el("div", { class: "card glass" },
+      el("h2", {}, it.id ? `Editar: ${it.title}` : "Novo conteúdo"),
+      el("div", { class: "grid" },
+        el("div", {}, el("div", { class: "row" }, field("tipo", type), field("módulo", category), field("ordem", order)), hint, field("título", title), field("resumo", summary), field("tags", tags),
+          el("div", { class: "row", style: "justify-content:space-between" }, el("span", { class: "mono" }, "corpo (markdown)"), togglePrev), body, preview),
+        el("div", {}, field("vídeo", video), field("link externo", link),
+          field("arquivos", el("div", {}, filesBox, el("div", { class: "row", style: "margin-top:6px" }, fileIn, prog))),
+          el("div", { class: "row" }, field("visibilidade", visibility)),
+          el("div", { class: "checks" }, el("label", {}, published, "publicado (visível pros membros)")),
+          it.id ? el("p", { class: "lead" }, el("a", { href: `/membros?i=${it.id}`, target: "_blank", style: "color:inherit" }, "ver como membro ↗")) : null),
+      ),
+      el("div", { class: "row" },
+        el("button", { class: "btn primary", onclick: () => save(true) }, "Salvar e publicar"),
+        el("button", { class: "btn", onclick: () => save(false) }, "Salvar rascunho"),
+        it.id ? el("button", { class: "btn danger", onclick: async () => { if (!confirm("apagar conteúdo e seus arquivos?")) return; await api("DELETE", `/api/admin/content/${it.id}`); showTab("content"); } }, "Apagar") : null,
+      )));
+    editor.scrollIntoView({ behavior: "smooth" });
+  }
 }

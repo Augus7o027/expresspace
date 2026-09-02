@@ -72,7 +72,7 @@ OBJECTS = [
     dict(id="quadro-dir", kind="board", x=46, y=2, w=1, h=2, label="Quadro"),
     dict(id="quadro-r3", kind="board", x=24, y=27, w=1, h=2, label="Quadro"),
     dict(id="telao", kind="video", x=36, y=10, w=9, h=1, label="Telão", url="https://www.youtube.com/embed/jfKfPfyJRdk"),
-    dict(id="docs", kind="link", x=3, y=12, w=1, h=1, label="Documentos", url="https://drive.google.com"),
+    dict(id="docs", kind="link", x=3, y=12, w=1, h=1, label="Biblioteca", url="/membros"),
     dict(id="jukebox", kind="link", x=11, y=27, w=1, h=1, label="Rádio", url="https://www.youtube.com/embed/videoseries?list=PLOzDu-MXXLliO9fBNZOQTBDddoA3FzZUo"),
 ]
 DECOR = [  # árvores: x,y = tile do tronco; w,h = tiles bloqueados

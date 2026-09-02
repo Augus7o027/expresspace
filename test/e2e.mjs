@@ -36,7 +36,7 @@ console.log("admin ok: provedor", !!prov.id, "agente", ag.name, "| teste do agen
 const users = await adminApi("POST", "/api/admin/users", { email: "membro@teste.com", name: "Membro", password: "senha123", role: "member" });
 console.log("conta criada:", users.email);
 
-setTimeout(() => { console.log("TIMEOUT global"); process.exit(2); }, 240000);
+setTimeout(() => { console.log("TIMEOUT global"); process.exit(2); }, 420000);
 const browser = await chromium.launch({ executablePath: "/opt/pw-browsers/chromium", args: ["--use-fake-ui-for-media-stream", "--use-fake-device-for-media-stream"] });
 const ctxA = await browser.newContext({ viewport: { width: 1440, height: 900 }, permissions: ["microphone", "camera"] });
 const ctxB = await browser.newContext({ viewport: { width: 1440, height: 900 }, permissions: ["microphone", "camera"] });
@@ -185,7 +185,40 @@ await AD.click("#tabs button[data-tab='agents']"); await AD.waitForTimeout(800);
 await AD.screenshot({ path: "test/shots/12-admin-agentes.png" });
 await AD.click("#tabs button[data-tab='world']"); await AD.waitForTimeout(800);
 await AD.screenshot({ path: "test/shots/13-admin-mundo.png" });
+
+// ---- biblioteca: conteúdo via API (com upload), depois como membro no navegador
+const up = await fetch(base + "/api/admin/uploads?name=" + encodeURIComponent("planilha de preço.csv"), { method: "POST", headers: { "content-type": "application/octet-stream", cookie }, body: "a,b\n1,2\n" }).then((r) => r.json());
+if (!up.url) throw new Error("upload falhou: " + JSON.stringify(up));
+const c1 = await adminApi("POST", "/api/admin/content", { type: "aula", title: "Aula 1 · Como funciona o funil", summary: "A base de tudo.", category: "Fundamentos", tags: "funil, básico", video: "https://www.youtube.com/watch?v=jfKfPfyJRdk", body: "# Objetivo\n\nEntender as **3 etapas**.\n\n- topo\n- meio\n- fundo\n\n```js\nconsole.log('oi')\n```", files: [up], published: true });
+const c2 = await adminApi("POST", "/api/admin/content", { type: "prompt", title: "Prompt de headline", category: "Copy", body: "Escreva 10 headlines para {produto} focadas em {dor}.", published: true });
+const c3 = await adminApi("POST", "/api/admin/content", { type: "template", title: "Rascunho oculto", category: "Copy", published: false });
+const c4 = await adminApi("POST", "/api/admin/content", { type: "skill", title: "Só pra professores", category: "Interno", visibility: "professor", published: true });
+await AD.click("#tabs button[data-tab='content']"); await AD.waitForTimeout(800);
+await AD.screenshot({ path: "test/shots/14-admin-conteudos.png" });
 await AD.close();
+// arquivo sem login não abre
+console.log("arquivo sem login:", (await fetch(base + up.url)).status, "| com login:", (await fetch(base + up.url, { headers: { cookie } })).status);
+const ctxM = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+const M = await ctxM.newPage(); await M.goto(base + "/membros", { waitUntil: "domcontentloaded" }); await M.waitForTimeout(600);
+await M.fill("#email", "membro@teste.com"); await M.fill("#password", "senha123"); await M.click("#login-form .btn-primary"); await M.waitForSelector("#app:not(.hidden)"); await M.waitForTimeout(600);
+const titles = await M.$$eval(".card-item h3", (els) => els.map((e) => e.textContent));
+console.log("biblioteca (membro) vê:", titles.join(" | "), "| oculto ok:", !titles.includes("Rascunho oculto") && !titles.includes("Só pra professores"));
+await M.screenshot({ path: "test/shots/15-biblioteca.png" });
+await M.click(".card-item:has-text('Aula 1')"); await M.waitForTimeout(500);
+console.log("aula aberta:", await M.textContent(".it-title"), "| vídeo:", !!(await M.$("iframe.player")), "| arquivo:", await M.textContent(".file span"), "| markdown h2:", !!(await M.$(".md h2")));
+await M.click("#item .it-head .btn:not(.small)"); await M.waitForTimeout(500);
+console.log("concluído:", await M.textContent("#item .it-head .btn.on").catch(() => "não"));
+await M.screenshot({ path: "test/shots/16-aula.png" });
+await M.click("#item .it-head .btn.small"); await M.waitForTimeout(300);
+console.log("progresso:", (await M.textContent(".prog-num")).replace(/\s+/g, " "));
+await M.close();
+// professor entra no painel só com conteúdos
+await adminApi("POST", "/api/admin/users", { email: "prof@teste.com", name: "Prof", password: "senha123", role: "professor" });
+const ctxP = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+const PR = await ctxP.newPage(); await PR.goto(base + "/admin", { waitUntil: "domcontentloaded" }); await PR.waitForTimeout(500);
+await PR.fill("#email", "prof@teste.com"); await PR.fill("#password", "senha123"); await PR.click("#login-form .btn-primary"); await PR.waitForTimeout(1000);
+console.log("professor no painel, abas visíveis:", await PR.$$eval("#tabs button:not(.hidden)", (b) => b.map((x) => x.textContent).join(",")), "| conteúdos listados:", await PR.$$eval("#tab-content .item", (i) => i.length));
+await PR.close();
 
 await browser.close();
 fake.close();

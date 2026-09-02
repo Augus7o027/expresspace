@@ -2,7 +2,17 @@
 
 Ambiente 2D próprio da comunidade. Híbrido entre Gather e Discord: um mapa onde o avatar anda, entra em salas e cai em calls, mais canais de texto e voz que funcionam sem depender da posição no mapa.
 
-## O que já funciona (v0.6)
+## O que já funciona (v0.8)
+
+- **Renderização pixel-perfect**: Phaser em modo `pixelArt` (sem antialias, vizinho mais próximo), zoom só inteiro (1x, 2x, 3x pela roda do mouse, padrão 2x) e personagens em escala 2 — cada pixel da arte vira um bloco inteiro na tela, sem tremer ao andar
+- **Oclusão correta dos móveis**: a camada de móveis do Tiled vira sprites ordenados pela base; quem passa atrás de uma mesa, balcão ou estante fica atrás; parar numa cadeira "senta" (a cadeira cobre as pernas). Tiles rentes ao chão (tapetes, flores, luz de palco) ficam no piso
+- **Sombra de contato** em pixels sob pessoas, bichos e árvores; **anel de proximidade pontilhado**, **balões de fala estilo RPG** (borda, canto chanfrado, rabicho) e **onda sonora animada** em vez das formas vetoriais lisas
+- Luz ambiente e spots do palco com **dithering** (xadrez em pixels) em vez de elipses suaves; poste do jardim com halo
+- Micro-animações: vapor na cafeteira, brilho pulsando em monitores e telão, copa das árvores balançando
+
+- **Biblioteca / área de membros em `/membros`**: aulas (vídeo do YouTube, Vimeo, Loom ou .mp4 hospedado no seu servidor), skills, prompts (com botão copiar), automações, templates e links, organizados em módulos, com busca, tags, progresso por membro ("marcar como concluído") e navegação anterior/próximo. Só entra quem tem conta. Dentro do espaço, o objeto **Biblioteca** na Recepção e o link na barra lateral abrem a área
+- **Aba Conteúdos no painel**: editor em Markdown com prévia, upload de arquivos direto pro servidor (`DATA_DIR/uploads`, servidos só pra quem tem conta em `/files/…`), visibilidade (membros ou só professores), rascunho/publicado, ordem. **Professores entram no painel** e veem só essa aba
+- Arquivos podem ter até 500 MB por padrão (`MAX_UPLOAD_MB`)
 
 - **Contas**: login por e-mail e senha, cargos `admin`, `professor`, `member`; visitantes (só nome) e cadastro livre são opções que o admin liga ou desliga
 - **Painel /admin** (só admin): visão geral de quem está online, **provedores de LLM** (qualquer API OpenAI-compatível: NVIDIA NIM, OpenRouter, Groq, Ollama, OpenAI) com teste de conexão, **agentes** (nome, papel, system prompt, modelo, temperatura, ferramentas, fontes RSS, aparência, posição no mapa, agenda), **mundo** (trancar salas, mover objetos e árvores, bichos, enviar mapa do Tiled sem deploy), **usuários** e **configurações**
@@ -80,7 +90,13 @@ Fluxo pra ter um agente no ar:
 
 Pra comunidade paga: em Configurações desligue visitantes e cadastro livre; crie as contas dos membros em Usuários (integração com pagamento vem depois).
 
-Sem Postgres tudo fica em `DATA_DIR/state.json` (contas, agentes, chaves, mensagens). No Coolify, em Persistent Storage, monte um volume em `/app/data`. Com `DATABASE_URL`, vai pra tabela `docs` do Postgres.
+Sem Postgres tudo fica em `DATA_DIR/state.json` (contas, agentes, chaves, mensagens). No Coolify, em Persistent Storage, monte um volume em `/app/data`. Com `DATABASE_URL`, vai pra tabela `docs` do Postgres — mas os arquivos enviados na biblioteca continuam em disco (`DATA_DIR/uploads`), então o volume em `/app/data` é necessário de qualquer jeito.
+
+## Biblioteca (conteúdo pros membros)
+
+No painel, aba **Conteúdos → Novo conteúdo**. Tipos: aula, skill, prompt, automação, template, link. O corpo é Markdown (títulos, listas, `código`, tabelas, links, imagens). Pra vídeo, cole o link do YouTube/Vimeo/Loom ou envie um `.mp4` no campo de arquivos (vira o player). Anexos (zip, pdf, json, planilha) ficam em `DATA_DIR/uploads` e só abrem logado. Publique quando estiver pronto; rascunho não aparece pros membros.
+
+Cada professor pode ter conta com cargo `professor`: entra em `/admin`, vê só Conteúdos, e o que ele publica sai com o nome dele.
 
 ## Deploy no Coolify (VPS Hostinger)
 
@@ -102,6 +118,9 @@ Se alguém da comunidade estiver em rede muito fechada (empresa, 4G com CGNAT) e
 
 ```
 server/src/index.js     Express + Socket.io: entrada, movimento, chat, canais, sinalização WebRTC
+server/src/library.js   Biblioteca: conteúdos, progresso, uploads (DATA_DIR/uploads)
+client/src/pixelfx.js   Texturas em pixel art geradas em canvas: sombra, luz com dithering, onda de voz, vapor, balão
+client/membros.html     Área de membros (client/src/membros.js, membros.css, md.js = markdown)
 server/src/world.js     estado do mundo e cálculo dos grupos de voz (proximidade, sala, palco, canal)
 server/src/map.js       carrega o Tiled (sede.json), monta grid de colisão, zonas e objetos. Servido em GET /api/map
 client/public/maps/     sede.json (mapa Tiled)

@@ -10,6 +10,7 @@ import { World } from "./world.js";
 import { WORLD, parseTiled, loadTiled, isBlocked, UPLOADED_MAP } from "./map.js";
 import { accountsRepo, bootstrapAdmin, sessionFromCookie, setSessionCookie, clearSessionCookie, ROLES } from "./auth.js";
 import { agentsRepo, runAgent, startScheduler, chatCompletion, TOOL_NAMES } from "./agents.js";
+import { libraryRepo, saveUpload, uploadPath, removeUpload, embedUrl, TYPES, TYPE_LABEL } from "./library.js";
 
 const PORT = Number(process.env.PORT || 3000);
 const ORIGIN = process.env.CLIENT_ORIGIN || "http://localhost:5173";
@@ -19,6 +20,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const store = await createStore();
 const accounts = accountsRepo(store);
 const agents = agentsRepo(store);
+const library = libraryRepo(store);
 await bootstrapAdmin(accounts);
 
 // ---------- configurações e ajustes do mundo (persistidos) ----------
@@ -42,6 +44,8 @@ const requireRole = (...roles) => async (req, res, next) => {
   req.user = u; next();
 };
 const admin = requireRole("admin");
+const staff = requireRole("admin", "professor");
+const member = requireRole(...ROLES);
 const wrap = (fn) => (req, res) => fn(req, res).catch((e) => res.status(400).json({ error: e.message }));
 
 // ---------- API pública ----------
@@ -70,7 +74,7 @@ app.post("/api/auth/avatar", wrap(async (req, res) => {
 app.get("/api/admin/overview", admin, wrap(async (_req, res) => res.json({
   online: world.snapshot(), settings: await getSettings(), locked: [...world.locked], zones: world.map.zones,
   objects: world.map.objects, decor: world.map.decor, npcs: world.map.npcs, agents: (await agents.list()).length, users: (await accounts.list()).length,
-  mapFile: world.map.tiledFile, uploadedMap: existsSync(UPLOADED_MAP), tools: TOOL_NAMES, channels: await store.channels(),
+  mapFile: world.map.tiledFile, uploadedMap: existsSync(UPLOADED_MAP), tools: TOOL_NAMES, channels: await store.channels(), content: (await library.list()).length,
 })));
 app.put("/api/admin/settings", admin, wrap(async (req, res) => {
   const cur = await getSettings(); const b = req.body || {};
@@ -142,6 +146,31 @@ app.post("/api/admin/map", admin, wrap(async (req, res) => {
   res.json({ ok: true, zones: parsed.zones.map((z) => z.id) });
 }));
 
+// ---------- biblioteca (área de membros) ----------
+// membros: só publicados e dentro da visibilidade; progresso por conta
+app.get("/api/library", member, wrap(async (req, res) => {
+  const items = (await library.visibleFor(req.user)).map((it) => ({ ...it, embed: embedUrl(it.video) }));
+  res.json({ items, progress: await library.progress(req.user.id), types: TYPES, typeLabel: TYPE_LABEL, user: req.user });
+}));
+app.post("/api/library/:id/done", member, wrap(async (req, res) => {
+  const it = await library.get(req.params.id); if (!it || !it.published) throw new Error("conteúdo não existe");
+  res.json({ done: await library.setDone(req.user.id, it.id, !!req.body?.done) });
+}));
+// arquivos hospedados: só quem tem conta
+app.get("/files/:name", member, (req, res) => {
+  const p = uploadPath(req.params.name); if (!p) return res.status(404).json({ error: "arquivo não existe" });
+  res.sendFile(p);
+});
+// gestão: admin e professores
+app.get("/api/admin/content", staff, wrap(async (_req, res) => res.json({ items: await library.list(), types: TYPES, typeLabel: TYPE_LABEL })));
+app.post("/api/admin/content", staff, wrap(async (req, res) => res.json(await library.put(req.body || {}, req.user))));
+app.delete("/api/admin/content/:id", staff, wrap(async (req, res) => { await library.del(req.params.id); res.json({ ok: true }); }));
+app.post("/api/admin/uploads", staff, express.raw({ type: () => true, limit: process.env.MAX_UPLOAD_MB ? `${process.env.MAX_UPLOAD_MB}mb` : "500mb" }), wrap(async (req, res) => {
+  const name = decodeURIComponent(String(req.query.name || "arquivo"));
+  res.json(saveUpload(name, req.body));
+}));
+app.delete("/api/admin/uploads/:name", staff, (req, res) => { removeUpload(req.params.name); res.json({ ok: true }); });
+
 // mapa enviado pelo painel tem prioridade sobre o do build
 app.get("/maps/sede.json", (_req, res, next) => existsSync(UPLOADED_MAP) ? res.sendFile(UPLOADED_MAP) : next());
 
@@ -150,6 +179,7 @@ const dist = path.resolve(__dirname, "../../client/dist");
 if (existsSync(dist)) {
   app.use(express.static(dist));
   app.get("/admin", (_req, res) => res.sendFile(path.join(dist, "admin.html")));
+  app.get("/membros", (_req, res) => res.sendFile(path.join(dist, "membros.html")));
   app.get(/^(?!\/api).*/, (_req, res) => res.sendFile(path.join(dist, "index.html")));
 }
 

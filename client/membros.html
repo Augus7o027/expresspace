@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ExpresSpace · Biblioteca</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Pinyon+Script&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/src/style.css" />
+    <link rel="stylesheet" href="/src/md.css" />
+    <link rel="stylesheet" href="/src/membros.css" />
+  </head>
+  <body>
+    <div id="grain"></div>
+
+    <section id="login" class="screen">
+      <div class="login-card glass" style="width:min(440px,92vw)">
+        <div class="meta-row"><span class="mono">©®™</span><span class="mono">área de membros</span></div>
+        <h1 class="display"><span class="kicker">entre na</span><span class="script">Biblioteca</span></h1>
+        <form id="login-form" style="margin-top:24px">
+          <label class="mono" for="email">e-mail</label>
+          <input id="email" type="email" autocomplete="username" required />
+          <label class="mono" for="password">senha</label>
+          <input id="password" type="password" autocomplete="current-password" required />
+          <div id="login-error" class="err hidden"></div>
+          <button type="submit" class="btn-primary">Entrar</button>
+          <p class="mono dim" style="text-transform:none;letter-spacing:0">Só quem tem conta na comunidade entra aqui. <a href="/" class="dim">Voltar ao espaço</a></p>
+        </form>
+      </div>
+    </section>
+
+    <main id="app" class="hidden">
+      <aside class="glass nav">
+        <div class="brand-title"><span class="script">Biblioteca</span></div>
+        <div class="mono dim" id="who">—</div>
+        <input id="search" type="search" placeholder="buscar…" autocomplete="off" />
+        <nav id="types"></nav>
+        <div class="group-label mono">Módulos</div>
+        <nav id="cats"></nav>
+        <div class="nav-foot">
+          <a href="/" class="mono">← espaço</a>
+          <a href="/admin" id="manage" class="mono hidden">gerir conteúdo</a>
+          <button id="logout" class="mono">sair</button>
+        </div>
+      </aside>
+      <section class="content">
+        <div id="progress" class="glass"></div>
+        <div id="list" class="cards"></div>
+        <article id="item" class="glass hidden"></article>
+      </section>
+    </main>
+    <div id="toast" class="glass hidden"></div>
+    <script type="module" src="/src/membros.js"></script>
+  </body>
+</html>

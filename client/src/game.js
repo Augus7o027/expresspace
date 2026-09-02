@@ -1,10 +1,17 @@
 import Phaser from "phaser";
 import { TILE, isBlocked, zoneAt, objectNear } from "./mapdata.js";
 import { ensureAvatarTexture, avatarKey } from "./sprites.js";
+import { shadowTexture, glowTexture, waveTexture, steamTexture, screenGlowTexture, drawPixelRing, drawPixelBubble } from "./pixelfx.js";
 
 const SPEED = 4.4; // tiles por segundo
 const SEND_HZ = 15;
 const STATUS_COLOR = { available: 0x6ef0a3, busy: 0xf06e6e, focus: 0xf0c76e };
+const ZOOMS = [1, 2, 3];          // só zoom inteiro: cada pixel da arte vira 1, 2 ou 3 pixels na tela
+const DEFAULT_ZOOM = 2;
+// o personagem da CraftPix ocupa 13x22 px do quadro de 64: em 2x fica com 1,4 tile de altura (e 2x2 = 4 na tela, inteiro)
+const AVATAR_SCALE = 2;
+// tiles "de chão" da camada de móveis: ficam rentes ao piso, sem ordenação por profundidade
+const FLAT_TILES = /^(floor|rug|grass|path|door|flowers|stage_light|plant_small)/;
 
 export class WorldScene extends Phaser.Scene {
   constructor({ map, me, net, onZoneChange, onObjectNear, locked = [] }) {
@@ -27,6 +34,7 @@ export class WorldScene extends Phaser.Scene {
   preload() {
     this.load.tilemapTiledJSON("sede", `/maps/${this.map.tiledFile || "sede.json"}`);
     this.load.image("tiles", "/assets/tiles/office.png");
+    this.load.spritesheet("tilesheet", "/assets/tiles/office.png", { frameWidth: TILE, frameHeight: TILE });
     const kinds = [...new Set((this.map.npcs || []).map((n) => n.kind))];
     for (const k of kinds) {
       this.load.spritesheet(`npc:${k}:idle`, `/assets/animals/${k}_idle.png`, { frameWidth: 32, frameHeight: 32 });
@@ -39,6 +47,10 @@ export class WorldScene extends Phaser.Scene {
   create() {
     const { map } = this;
     this.cameras.main.setBackgroundColor("#070707");
+    shadowTexture(this); waveTexture(this); steamTexture(this); screenGlowTexture(this);
+    this.anims.create({ key: "fx:wave", frames: this.anims.generateFrameNumbers("fx:wave", { start: 0, end: 2 }), frameRate: 6, repeat: -1 });
+    this.anims.create({ key: "fx:steam", frames: this.anims.generateFrameNumbers("fx:steam", { start: 0, end: 3 }), frameRate: 5, repeat: -1 });
+    this.anims.create({ key: "fx:screen", frames: this.anims.generateFrameNumbers("fx:screen", { start: 0, end: 1 }), frameRate: 2, repeat: -1 });
     this.drawTilemap();
     this.drawZones();
     this.drawObjects();
@@ -55,8 +67,14 @@ export class WorldScene extends Phaser.Scene {
 
     this.cameras.main.setBounds(0, 0, map.width * TILE, map.height * TILE);
     this.cameras.main.startFollow(this.player, true, 0.12, 0.12);
-    this.cameras.main.setZoom(1.4);
+    this.zoom = DEFAULT_ZOOM;
+    this.cameras.main.setZoom(this.zoom);
     this.cameras.main.roundPixels = true;
+    // roda do mouse: troca entre zooms inteiros (1x, 2x, 3x)
+    this.input.on("wheel", (_p, _o, _dx, dy) => {
+      const i = ZOOMS.indexOf(this.zoom), next = ZOOMS[Math.max(0, Math.min(ZOOMS.length - 1, i + (dy > 0 ? -1 : 1)))];
+      if (next !== this.zoom) { this.zoom = next; this.cameras.main.setZoom(next); }
+    });
 
     this.keys = this.input.keyboard.addKeys({
       up: "W", down: "S", left: "A", right: "D",
@@ -80,32 +98,70 @@ export class WorldScene extends Phaser.Scene {
     const tm = this.make.tilemap({ key: "sede" });
     const ts = tm.addTilesetImage("office", "tiles");
     this.textures.get("tiles").setFilter(1);
-    for (const name of ["ground", "walls", "furniture"]) {
+    for (const name of ["ground", "walls"]) {
       const layer = tm.createLayer(name, ts, 0, 0);
-      if (layer) layer.setDepth(name === "furniture" ? 2 : 0);
+      if (layer) layer.setDepth(0);
     }
+    const furn = tm.createLayer("furniture", ts, 0, 0);
+    if (furn) { this.sortFurniture(furn, ts); furn.setVisible(false); }
     this.tilemap = tm;
   }
 
+  // Móveis viram imagens individuais ordenadas pela base: quem passa atrás de uma mesa fica atrás dela.
+  // Tiles empilhados na mesma coluna (mesa de 2 linhas, mesa + cadeira) compartilham a base do de baixo.
+  sortFurniture(layer, ts) {
+    const nameOf = (idx) => ts.getTileData(idx)?.type || "";
+    const solid = (t) => t && t.index > 0 && !FLAT_TILES.test(nameOf(t.index));
+    const w = layer.layer.width, h = layer.layer.height;
+    const baseOf = new Map(); // "x,y" -> y da base (px) do empilhamento
+    for (let x = 0; x < w; x++) {
+      let base = null;
+      for (let y = h - 1; y >= 0; y--) {
+        const t = layer.getTileAt(x, y);
+        if (!solid(t)) { base = null; continue; }
+        if (base === null) base = (y + 1) * TILE;
+        baseOf.set(`${x},${y}`, base);
+      }
+    }
+    layer.forEachTile((t) => {
+      if (!t || t.index <= 0) return;
+      const frame = t.index - ts.firstgid, name = nameOf(t.index);
+      const img = this.add.image(t.pixelX, t.pixelY, "tilesheet", frame).setOrigin(0);
+      if (FLAT_TILES.test(name)) { img.setDepth(2); return; }
+      img.setDepth(10 + (baseOf.get(`${t.x},${t.y}`) - 4) / 10000);
+      this.decorateTile(name, t.pixelX, t.pixelY, img.depth);
+    });
+  }
+
+  // micro-animações ambientais por tipo de móvel
+  decorateTile(name, px, py, depth) {
+    if (name === "coffee") this.add.sprite(px + 8, py - 6, "fx:steam", 0).setOrigin(0).setDepth(depth + 0.00001).setAlpha(0.8).play("fx:steam");
+    else if (/^(screen_m|tv|desk_m)$/.test(name)) this.add.sprite(px, py, "fx:screen", 0).setOrigin(0).setDepth(depth + 0.00001).play({ key: "fx:screen", startFrame: (px / TILE) % 2 });
+    else if (name === "lamp_post") this.add.image(px + TILE / 2, py + TILE + 6, glowTexture(this, 96, 48, "255,240,200", 3)).setAlpha(0.14).setDepth(1);
+  }
+
+  // texto nítido no zoom inteiro (renderiza em 2x e mostra em escala)
+  txt(x, y, str, style) { return this.add.text(x, y, str, { resolution: 2, ...style }); }
+
   drawZones() {
     for (const z of this.map.zones) {
-      const g = this.add.graphics().setDepth(1);
       const x = z.x * TILE, y = z.y * TILE, w = z.w * TILE, h = z.h * TILE;
-      // luz ambiente: mais clara no centro
-      g.fillStyle(0xffffff, z.kind === "meeting" ? 0.035 : 0.02).fillEllipse(x + w / 2, y + h / 2, w * 0.9, h * 0.9);
+      // luz ambiente com dithering: mais clara no centro
+      const gw = Math.round(w * 0.9 / 4) * 4, gh = Math.round(h * 0.9 / 4) * 4;
+      this.add.image(x + w / 2, y + h / 2, glowTexture(this, gw, gh)).setAlpha(z.kind === "meeting" ? 0.05 : 0.03).setDepth(1);
       if (z.stage) {
         const s = z.stage;
         for (let i = 0; i < 4; i++) {
           const sx = (s.x + 3 + i * (s.w - 6) / 3) * TILE;
-          g.fillStyle(0xfff4dc, 0.05).fillEllipse(sx, (s.y + 1) * TILE, 140, 60);
+          this.add.image(sx, (s.y + 1) * TILE, glowTexture(this, 140, 60, "255,244,220", 4)).setAlpha(0.09).setDepth(1);
         }
-        this.add.text((s.x + s.w / 2) * TILE, (s.y + s.h / 2) * TILE, "PALCO", {
+        this.txt((s.x + s.w / 2) * TILE, (s.y + s.h / 2) * TILE, "PALCO", {
           fontFamily: "JetBrains Mono", fontSize: "10px", color: "#ffffff", letterSpacing: 3,
         }).setOrigin(0.5).setAlpha(0.45).setDepth(3);
       }
-      this.add.text(x + 14, y + 8, z.name, { fontFamily: "Instrument Serif", fontSize: "22px", color: "#f2efe9" }).setAlpha(0.7).setDepth(3);
+      this.txt(x + 14, y + 8, z.name, { fontFamily: "Instrument Serif", fontSize: "22px", color: "#f2efe9" }).setAlpha(0.7).setDepth(3);
       const tag = { open: "voz por perto", meeting: "call da sala", silent: "silêncio", stage: "auditório" }[z.kind];
-      this.add.text(x + 15, y + 34, tag.toUpperCase(), { fontFamily: "JetBrains Mono", fontSize: "9px", color: "#f2efe9", letterSpacing: 2 }).setAlpha(0.35).setDepth(3);
+      this.txt(x + 15, y + 34, tag.toUpperCase(), { fontFamily: "JetBrains Mono", fontSize: "9px", color: "#f2efe9", letterSpacing: 2 }).setAlpha(0.35).setDepth(3);
     }
   }
 
@@ -113,9 +169,12 @@ export class WorldScene extends Phaser.Scene {
     for (const o of this.map.objects || []) {
       const x = o.x * TILE, y = o.y * TILE, w = o.w * TILE, h = o.h * TILE;
       const glow = this.add.graphics().setDepth(3);
-      glow.lineStyle(1, 0xffffff, 0.5).strokeRoundedRect(x + 1, y + 1, w - 2, h - 2, 4);
-      this.tweens.add({ targets: glow, alpha: { from: 0.25, to: 0.9 }, duration: 1600, yoyo: true, repeat: -1 });
-      this.add.text(x + w / 2, y + h + 1, o.label, { fontFamily: "JetBrains Mono", fontSize: "8px", color: "#f2efe9", letterSpacing: 1, backgroundColor: "rgba(0,0,0,0.45)", padding: { x: 3, y: 1 } }).setOrigin(0.5, 0).setAlpha(0.7).setDepth(3);
+      // contorno em pixels com cantos chanfrados
+      glow.fillStyle(0xffffff, 0.6);
+      glow.fillRect(x + 2, y, w - 4, 1); glow.fillRect(x + 2, y + h - 1, w - 4, 1); glow.fillRect(x, y + 2, 1, h - 4); glow.fillRect(x + w - 1, y + 2, 1, h - 4);
+      glow.fillRect(x + 1, y + 1, 1, 1); glow.fillRect(x + w - 2, y + 1, 1, 1); glow.fillRect(x + 1, y + h - 2, 1, 1); glow.fillRect(x + w - 2, y + h - 2, 1, 1);
+      this.tweens.add({ targets: glow, alpha: { from: 0.3, to: 1 }, duration: 1600, yoyo: true, repeat: -1 });
+      this.txt(x + w / 2, y + h + 1, o.label, { fontFamily: "JetBrains Mono", fontSize: "8px", color: "#f2efe9", letterSpacing: 1, backgroundColor: "rgba(0,0,0,0.45)", padding: { x: 3, y: 1 } }).setOrigin(0.5, 0).setAlpha(0.7).setDepth(3);
     }
   }
 
@@ -135,6 +194,9 @@ export class WorldScene extends Phaser.Scene {
       const img = this.add.image(cx, by - 6, `tree:${d.sprite}`).setOrigin(0.5, 0.9);
       img.texture.setFilter(1);
       img.setDepth(10 + by / 10000); // ordena com os avatares pela base do tronco
+      this.add.image(cx, by - 4, "fx:shadow").setScale(2, 1.2).setAlpha(0.5).setDepth(2);
+      // balanço leve da copa
+      this.tweens.add({ targets: img, scaleX: { from: 0.985, to: 1.015 }, duration: 1800 + (cx % 700), yoyo: true, repeat: -1, ease: "Sine.easeInOut" });
     }
   }
 
@@ -166,20 +228,21 @@ export class WorldScene extends Phaser.Scene {
         c.setPosition(n.x * TILE, n.y * TILE);
         c.label.setText(`${n.name}${n.role ? " · " + n.role : ""}`);
         c.label.setStyle({ color: "#9ad0ff" });
-        const tag = this.add.text(0, -40, "IA", { fontFamily: "JetBrains Mono", fontSize: "9px", color: "#050505", backgroundColor: "#9ad0ff", padding: { x: 4, y: 1 } }).setOrigin(0.5);
+        const tag = this.txt(0, -56, "IA", { fontFamily: "JetBrains Mono", fontSize: "9px", color: "#050505", backgroundColor: "#9ad0ff", padding: { x: 4, y: 1 } }).setOrigin(0.5);
         c.add(tag);
         r = { sprite: c, target: { x: n.x, y: n.y }, kind: "agent", name: n.name, role: n.role, container: c, avatarKey: c.texKey };
         this.npcs.set(n.id, r);
       } else if (!r) {
         if (!this.textures.exists(`npc:${n.kind}:idle`)) continue;
-        const sp = this.add.sprite(n.x * TILE, n.y * TILE, `npc:${n.kind}:idle`, 0).setScale(1.3).setOrigin(0.5, 0.8);
-        r = { sprite: sp, target: { x: n.x, y: n.y }, kind: n.kind };
+        const sp = this.add.sprite(n.x * TILE, n.y * TILE, `npc:${n.kind}:idle`, 0).setOrigin(0.5, 0.8);
+        const sh = this.add.image(sp.x, sp.y + 4, "fx:shadow").setScale(0.8, 0.8).setAlpha(0.45).setDepth(2);
+        r = { sprite: sp, shadow: sh, target: { x: n.x, y: n.y }, kind: n.kind };
         this.npcs.set(n.id, r);
       }
       if (r.kind === "agent" && n.avatar && avatarKey(n.avatar) !== r.container.texKey) r.container.setAvatar(n.avatar);
       r.target = { x: n.x, y: n.y }; r.dir = n.dir; r.moving = n.moving;
     }
-    for (const [id, r] of this.npcs) if (!seen.has(id)) { r.sprite.destroy(); this.npcs.delete(id); }
+    for (const [id, r] of this.npcs) if (!seen.has(id)) { r.sprite.destroy(); r.shadow?.destroy(); this.npcs.delete(id); }
   }
 
   // --------- avatares ---------
@@ -188,16 +251,15 @@ export class WorldScene extends Phaser.Scene {
     const key = ensureAvatarTexture(this, avatar);
     if (isMe) {
       const ring = this.add.graphics();
-      ring.lineStyle(1, 0xffffff, 0.16).strokeCircle(0, 4, this.map.proximityRadius * TILE);
-      ring.fillStyle(0xffffff, 0.02).fillCircle(0, 4, this.map.proximityRadius * TILE);
+      drawPixelRing(ring, 0, 4, this.map.proximityRadius * TILE, 0xffffff, 0.3);
       c.add(ring);
     }
-    const speak = this.add.graphics();
-    speak.lineStyle(2, 0x6ef0a3, 0.9).strokeEllipse(0, 2, 30, 12);
-    speak.setVisible(false);
+    c.add(this.add.image(0, 3, "fx:shadow").setAlpha(0.55)); // sombra de contato
+    const speak = this.add.sprite(0, -50, "fx:wave", 0).setOrigin(0.5, 1);
+    speak.play("fx:wave"); speak.setVisible(false);
     c.add(speak); c.speak = speak;
 
-    const sprite = this.add.sprite(0, 0, key + ":walk", 0).setScale(1.7).setOrigin(0.5, 44 / 64);
+    const sprite = this.add.sprite(0, 0, key + ":walk", 0).setScale(AVATAR_SCALE).setOrigin(0.5, 44 / 64);
     c.add(sprite); c.sprite = sprite; c.texKey = key; c.dirNow = "down";
     c.setAvatar = (a) => {
       const k = ensureAvatarTexture(this, a);
@@ -205,13 +267,13 @@ export class WorldScene extends Phaser.Scene {
       c.texKey = k; c.sprite.setTexture(k + ":walk", 0);
     };
 
-    const label = this.add.text(0, 6, name, {
+    const label = this.txt(0, 6, name, {
       fontFamily: "Inter", fontSize: "11px", color: "#f2efe9",
       backgroundColor: "rgba(0,0,0,0.55)", padding: { x: 5, y: 2 },
     }).setOrigin(0.5, 0);
     c.add(label); c.label = label;
     const dot = this.add.graphics(); c.add(dot); c.dot = dot;
-    c.mic = this.add.text(13, -36, "", { fontFamily: "Inter", fontSize: "12px", color: "#f06e6e", fontStyle: "bold" }).setOrigin(0.5);
+    c.mic = this.txt(17, -46, "", { fontFamily: "Inter", fontSize: "12px", color: "#f06e6e", fontStyle: "bold" }).setOrigin(0.5);
     c.add(c.mic);
     c.setDepth(10);
     this.setStatus(c, "available");
@@ -265,10 +327,12 @@ export class WorldScene extends Phaser.Scene {
     const target = userId === this.me.id ? this.player : this.remote.get(userId)?.container;
     if (!target) return;
     this.bubbles.get(userId)?.destroy();
-    const t = this.add.text(0, 0, text, {
-      fontFamily: "Inter", fontSize: "12px", color: "#050505", backgroundColor: "#f2efe9",
-      padding: { x: 8, y: 5 }, wordWrap: { width: 180 },
-    }).setOrigin(0.5, 1).setDepth(20);
+    // balão estilo RPG em pixels: caixa desenhada por trás do texto, rabicho na cabeça
+    const t = this.add.container(0, 0).setDepth(20);
+    const txt = this.txt(0, -11, text, { fontFamily: "Inter", fontSize: "12px", color: "#050505", wordWrap: { width: 180 }, align: "center" }).setOrigin(0.5, 1);
+    const w = Math.ceil(txt.width) + 16, h = Math.ceil(txt.height) + 10;
+    const box = this.add.graphics(); drawPixelBubble(box, w, h);
+    t.add([box, txt]);
     t.follow = target;
     this.bubbles.set(userId, t);
     this.time.delayedCall(4500, () => { if (this.bubbles.get(userId) === t) { t.destroy(); this.bubbles.delete(userId); } });
@@ -329,11 +393,12 @@ export class WorldScene extends Phaser.Scene {
       r.sprite.x += (tx - r.sprite.x) * Math.min(1, dt * 10);
       r.sprite.y += (ty - r.sprite.y) * Math.min(1, dt * 10);
       r.sprite.setDepth(10 + r.sprite.y / 10000);
+      if (r.shadow) r.shadow.setPosition(r.sprite.x, r.sprite.y + 4);
       if (r.kind === "agent") { this.animate(r.container, r.dir || "down", !!r.moving); continue; }
       const anim = `npc:${r.kind}:${r.moving ? "walk" : "idle"}:${r.dir || "down"}`;
       if (r.sprite.anims.currentAnim?.key !== anim && this.anims.exists(anim)) r.sprite.play(anim, true);
     }
-    for (const b of this.bubbles.values()) b.setPosition(b.follow.x, b.follow.y - 40);
+    for (const b of this.bubbles.values()) b.setPosition(Math.round(b.follow.x), Math.round(b.follow.y) - 50);
   }
 
   blocked(tx, ty) {
@@ -357,7 +422,7 @@ export class WorldScene extends Phaser.Scene {
       g.fillStyle(0xf06e6e, 0.07).fillRect(z.x * TILE, z.y * TILE, z.w * TILE, z.h * TILE);
       g.lineStyle(2, 0xf06e6e, 0.5).strokeRect(z.x * TILE + 1, z.y * TILE + 1, z.w * TILE - 2, z.h * TILE - 2);
       c.add(g);
-      c.add(this.add.text((z.x + z.w / 2) * TILE, (z.y + z.h / 2) * TILE, "TRANCADA", { fontFamily: "JetBrains Mono", fontSize: "11px", color: "#f0a0a0", letterSpacing: 4, backgroundColor: "rgba(0,0,0,0.5)", padding: { x: 8, y: 4 } }).setOrigin(0.5));
+      c.add(this.txt((z.x + z.w / 2) * TILE, (z.y + z.h / 2) * TILE, "TRANCADA", { fontFamily: "JetBrains Mono", fontSize: "11px", color: "#f0a0a0", letterSpacing: 4, backgroundColor: "rgba(0,0,0,0.5)", padding: { x: 8, y: 4 } }).setOrigin(0.5));
       this.lockMarks.set(id, c);
     }
   }
@@ -411,7 +476,7 @@ export function createGame(parent, opts) {
     parent,
     backgroundColor: "#070707",
     scale: { mode: Phaser.Scale.RESIZE, width: "100%", height: "100%" },
-    render: { antialias: true, pixelArt: false },
+    render: { antialias: false, pixelArt: true, roundPixels: true },
     scene: [scene],
   });
   return { game, scene };
