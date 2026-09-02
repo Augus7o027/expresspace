@@ -1,13 +1,15 @@
 // Carrega o mapa no formato do Tiled (client/public/maps/sede.json) e normaliza pro app.
 // Camadas de tiles: ground, walls, furniture (tiles com propriedade "collides" bloqueiam).
 // Camadas de objetos: zones (zone/stage), objects (interactive), decor (tree), graffiti, npcs, meta (spawn).
-import { readFileSync } from "node:fs";
+import { readFileSync, existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 export const TILE = 32;
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const MAP_FILE = process.env.MAP_FILE || path.resolve(__dirname, "../../client/public/maps/sede.json");
+// Em dev o mapa está em client/public; na imagem de produção só existe o build (client/dist, onde o Vite copia o public/)
+const CANDIDATES = [process.env.MAP_FILE, path.resolve(__dirname, "../../client/public/maps/sede.json"), path.resolve(__dirname, "../../client/dist/maps/sede.json")].filter(Boolean);
+const MAP_FILE = CANDIDATES.find((f) => existsSync(f)) || CANDIDATES[0];
 
 function props(o) {
   const out = {};
