@@ -3,10 +3,19 @@ import { createGame } from "./game.js";
 import { Voice } from "./voice.js";
 
 const $ = (s) => document.querySelector(s);
+// crypto.randomUUID só existe em página segura (https ou localhost). Fallback pra http puro.
+function uuid() {
+  if (globalThis.crypto?.randomUUID) return crypto.randomUUID();
+  const b = crypto.getRandomValues(new Uint8Array(16));
+  b[6] = (b[6] & 0x0f) | 0x40; b[8] = (b[8] & 0x3f) | 0x80;
+  const h = [...b].map((x) => x.toString(16).padStart(2, "0")).join("");
+  return `${h.slice(0,8)}-${h.slice(8,12)}-${h.slice(12,16)}-${h.slice(16,20)}-${h.slice(20)}`;
+}
 const COLORS = ["#ffffff", "#c9c9c9", "#9a9a9a", "#e8e0d0", "#d6d6d6", "#b5b5b5"];
 
 // ---------- login ----------
-const saved = JSON.parse(localStorage.getItem("sede:me") || "{}");
+const safe = (fn, fallback) => { try { return fn(); } catch { return fallback; } };
+const saved = safe(() => JSON.parse(localStorage.getItem("sede:me") || "{}"), {});
 let pickedColor = saved.color || COLORS[0];
 const sw = $("#swatches");
 for (const c of COLORS) {
@@ -24,9 +33,9 @@ $("#login-form").addEventListener("submit", (e) => {
   const name = $("#name").value.trim();
   if (!name) return;
   // id por aba, pra poder testar com várias abas no mesmo navegador
-  let userId = sessionStorage.getItem("sede:uid");
-  if (!userId) { userId = crypto.randomUUID(); sessionStorage.setItem("sede:uid", userId); }
-  localStorage.setItem("sede:me", JSON.stringify({ name, color: pickedColor }));
+  let userId = safe(() => sessionStorage.getItem("sede:uid"), null);
+  if (!userId) { userId = uuid(); safe(() => sessionStorage.setItem("sede:uid", userId)); }
+  safe(() => localStorage.setItem("sede:me", JSON.stringify({ name, color: pickedColor })));
   start({ name, color: pickedColor, userId });
 });
 if (params.get("name") && params.get("auto")) $("#login-form").requestSubmit();
