@@ -2,10 +2,12 @@ import { io } from "socket.io-client";
 import { createGame } from "./game.js";
 import { Voice } from "./voice.js";
 import { sounds } from "./sounds.js";
+import { EMOJI, EMOJI_ORDER, renderEmoji, ICON, icon } from "./icons.js";
+import { mountAvatarEditor } from "./avatar-editor.js";
+import { SHIRTS, DEFAULT_AVATAR, normalizeAvatar } from "./sprites.js";
 
 const $ = (s) => document.querySelector(s);
 const COLORS = ["#ffffff", "#c9c9c9", "#9a9a9a", "#e8e0d0", "#d6d6d6", "#b5b5b5"];
-const EMOJIS = ["😀", "😂", "😍", "🤔", "😎", "🙌", "👏", "🔥", "✅", "❌", "👀", "💡", "🚀", "☕", "🎯", "💪", "🙏", "👍", "👎", "❤️", "🎉", "😅", "🤝", "📌"];
 const safe = (fn, fallback) => { try { return fn(); } catch { return fallback; } };
 
 // crypto.randomUUID só existe em página segura (https ou localhost). Fallback pra http puro.
@@ -19,14 +21,8 @@ function uuid() {
 
 // ---------- login ----------
 const saved = safe(() => JSON.parse(localStorage.getItem("sede:me") || "{}"), {});
-let pickedColor = saved.color || COLORS[0];
-const sw = $("#swatches");
-for (const c of COLORS) {
-  const b = document.createElement("button");
-  b.type = "button"; b.className = "swatch" + (c === pickedColor ? " active" : ""); b.style.background = c;
-  b.onclick = () => { pickedColor = c; sw.querySelectorAll(".swatch").forEach((x) => x.classList.toggle("active", x === b)); };
-  sw.appendChild(b);
-}
+let avatar = normalizeAvatar(saved.avatar || DEFAULT_AVATAR);
+const loginEditor = mountAvatarEditor($("#avatar-editor-login"), avatar, (a) => { avatar = a; });
 if (saved.name) $("#name").value = saved.name;
 const params = new URLSearchParams(location.search);
 if (params.get("name")) $("#name").value = params.get("name");
@@ -37,9 +33,10 @@ $("#login-form").addEventListener("submit", (e) => {
   if (!name) return;
   let userId = safe(() => sessionStorage.getItem("sede:uid"), null);
   if (!userId) { userId = uuid(); safe(() => sessionStorage.setItem("sede:uid", userId)); }
-  safe(() => localStorage.setItem("sede:me", JSON.stringify({ name, color: pickedColor })));
+  avatar = loginEditor.get();
+  safe(() => localStorage.setItem("sede:me", JSON.stringify({ name, avatar })));
   sounds.unlock();
-  start({ name, color: pickedColor, userId });
+  start({ name, color: SHIRTS[avatar.shirt], avatar, userId });
 });
 if (params.get("name") && params.get("auto")) $("#login-form").requestSubmit();
 
@@ -64,12 +61,13 @@ function boot(net, { user, map, channels, players }, creds) {
   $("#app").classList.remove("hidden");
   $("#me-name").textContent = user.name;
   $("#me-dot").style.background = user.color;
+  for (const [id, name] of [["#btn-mic", "micOff"], ["#btn-camera", "cameraOff"], ["#btn-screen", "screen"], ["#btn-sound", "bell"], ["#btn-avatar", "edit"], ["#btn-emoji", "smile"], ["#btn-send", "send"], ["#modal-close", "close"]]) $(id).innerHTML = ICON[name];
   document.title = `ExpresSpace · ${user.name}`;
 
   const state = {
     me: user, map, channels, players, zone: null,
     chatMode: "channel", channelId: "geral", voiceChannel: null, group: null,
-    presence: "available", nearObject: null, screens: new Map(), unread: {},
+    presence: "available", nearObject: null, videos: new Map(), unread: {},
   };
 
   // --- jogo ---
@@ -93,7 +91,7 @@ function boot(net, { user, map, channels, players }, creds) {
     onSpeaking: (who, on) => {
       if (who === "me") { scene.setMySpeaking(on); net.emit("speaking", on); }
     },
-    onScreen: (who, stream) => { if (stream) state.screens.set(who, stream); else state.screens.delete(who); renderScreens(); },
+    onVideo: (who, kind, stream) => { const k = who + ":" + kind; if (stream) state.videos.set(k, { who, kind, stream }); else state.videos.delete(k); renderScreens(); },
   });
   let lastPeerCount = 0;
   net.on("voice:group", (g) => {
@@ -103,10 +101,10 @@ function boot(net, { user, map, channels, players }, creds) {
     const n = (g.peers || []).length;
     if (n > lastPeerCount) sounds.nearby(); else if (n < lastPeerCount) sounds.leave();
     lastPeerCount = n;
-    if (!g.id && voice.screen) voice.stopScreen();
+    if (!g.id) { if (voice.screen) voice.stopScreen(); if (voice.camera) voice.stopCamera(); }
     renderVoice();
   });
-  const micBtn = $("#btn-mic"), screenBtn = $("#btn-screen"), soundBtn = $("#btn-sound");
+  const micBtn = $("#btn-mic"), screenBtn = $("#btn-screen"), soundBtn = $("#btn-sound"), camBtn = $("#btn-camera");
   micBtn.classList.add("muted");
   async function toggleMic() {
     if (!voice.stream) {
@@ -115,21 +113,40 @@ function boot(net, { user, map, channels, players }, creds) {
       voice.setMuted(false);
     } else voice.setMuted(!voice.muted);
     micBtn.classList.toggle("muted", voice.muted);
+    micBtn.innerHTML = ICON[voice.muted ? "micOff" : "mic"];
     scene.setMuted(voice.muted);
     net.emit("profile", { muted: voice.muted });
   }
   micBtn.onclick = toggleMic;
+  async function toggleCamera() {
+    if (voice.camera) { voice.stopCamera(); return; }
+    if (!state.group?.id) { toast("Entre numa sala de reunião ou canal de voz para ligar a câmera."); return; }
+    if (!(await voice.startCamera())) toast("Sem acesso à câmera. Confere a permissão do navegador.");
+  }
+  camBtn.onclick = toggleCamera;
   screenBtn.onclick = async () => {
     if (voice.screen) { voice.stopScreen(); return; }
     if (!state.group?.id) { toast("Entre numa sala de reunião ou canal de voz para compartilhar a tela."); return; }
     if (!(await voice.startScreen())) toast("Não foi possível compartilhar a tela.");
   };
   sounds.setEnabled(safe(() => localStorage.getItem("sede:sound") !== "off", true));
-  soundBtn.classList.toggle("off", !sounds.enabled);
-  soundBtn.onclick = () => {
-    sounds.setEnabled(!sounds.enabled);
-    soundBtn.classList.toggle("off", !sounds.enabled);
-    safe(() => localStorage.setItem("sede:sound", sounds.enabled ? "on" : "off"));
+  const paintSound = () => { soundBtn.classList.toggle("off", !sounds.enabled); soundBtn.innerHTML = ICON[sounds.enabled ? "bell" : "bellOff"]; };
+  paintSound();
+  soundBtn.onclick = () => { sounds.setEnabled(!sounds.enabled); paintSound(); safe(() => localStorage.setItem("sede:sound", sounds.enabled ? "on" : "off")); };
+
+  // editar avatar dentro do app
+  $("#btn-avatar").onclick = () => {
+    modalBody.innerHTML = "";
+    $("#modal-title").textContent = "Seu avatar"; $("#modal-kind").textContent = "personalização";
+    const wrap = document.createElement("div"); wrap.style.cssText = "flex:1;display:flex;align-items:center;justify-content:center;padding:20px;overflow:auto";
+    const ed = mountAvatarEditor(wrap, user.avatar, (a) => {
+      user.avatar = a; scene.setMyAvatar(a);
+      $("#me-dot").style.background = SHIRTS[a.shirt];
+      net.emit("profile", { avatar: a });
+      safe(() => localStorage.setItem("sede:me", JSON.stringify({ name: user.name, avatar: a })));
+    });
+    modalBody.append(wrap);
+    modal.classList.remove("hidden"); scene.frozen = true;
   };
 
   // --- presença ---
@@ -160,11 +177,13 @@ function boot(net, { user, map, channels, players }, creds) {
     el.textContent = "";
     let last = 0;
     for (const m of body.matchAll(mentionRe)) {
-      el.append(body.slice(last, m.index));
+      el.append(renderEmoji(body.slice(last, m.index)));
       const s = document.createElement("span"); s.className = "mention"; s.textContent = m[0]; el.append(s);
       last = m.index + m[0].length;
     }
-    el.append(body.slice(last));
+    el.append(renderEmoji(body.slice(last)));
+    // mensagem só de emojis: maior
+    if (/^(\s*:[a-z0-9_]+:\s*){1,3}$/.test(body)) el.classList.add("big-emoji");
   }
   function mentionsMe(body) {
     const mine = user.name.toLowerCase().replace(/\s+/g, "");
@@ -252,8 +271,9 @@ function boot(net, { user, map, channels, players }, creds) {
 
   // emojis
   const picker = $("#emoji-picker");
-  EMOJIS.forEach((em) => {
-    const b = document.createElement("button"); b.type = "button"; b.textContent = em;
+  EMOJI_ORDER.forEach((key) => {
+    const b = document.createElement("button"); b.type = "button"; b.innerHTML = EMOJI[key].svg; b.title = `${EMOJI[key].label} · :${key}:`;
+    const em = `:${key}:`;
     b.onclick = () => { const p = input.selectionStart ?? input.value.length; input.value = input.value.slice(0, p) + em + input.value.slice(p); input.focus(); input.setSelectionRange(p + em.length, p + em.length); picker.classList.add("hidden"); };
     picker.appendChild(b);
   });
@@ -307,6 +327,7 @@ function boot(net, { user, map, channels, players }, creds) {
     if (typing) return;
     if (e.key === "Enter") { e.preventDefault(); input.focus(); }
     else if (e.key.toLowerCase() === "m") toggleMic();
+    else if (e.key.toLowerCase() === "c") toggleCamera();
     else if (e.key.toLowerCase() === "e" && state.nearObject && modal.classList.contains("hidden")) openObject(state.nearObject);
   });
 
@@ -404,20 +425,28 @@ function boot(net, { user, map, channels, players }, creds) {
     micBtn.title = voice.muted ? "Ligar microfone (M)" : "Silenciar (M)";
     screenBtn.classList.toggle("live", !!voice.screen);
     screenBtn.classList.toggle("off", !g?.id && !voice.screen);
+    camBtn.classList.toggle("live", !!voice.camera);
+    camBtn.classList.toggle("off", !g?.id && !voice.camera);
+    camBtn.innerHTML = ICON[voice.camera ? "camera" : "cameraOff"];
   }
   function renderScreens() {
     const wrap = $("#screens");
     wrap.innerHTML = "";
-    if (!state.screens.size) { wrap.classList.add("hidden"); return; }
-    for (const [who, stream] of state.screens) {
-      const tile = document.createElement("div"); tile.className = "screen-tile";
-      const v = document.createElement("video"); v.autoplay = true; v.playsInline = true; v.muted = true; v.srcObject = stream;
-      const name = who === "me" ? "sua tela" : (state.players.find((p) => p.id === who)?.name || "tela");
+    if (!state.videos.size) { wrap.classList.add("hidden"); return; }
+    const screens = [...state.videos.values()].filter((v) => v.kind === "screen");
+    const cams = [...state.videos.values()].filter((v) => v.kind === "camera");
+    const tileFor = (v) => {
+      const tile = document.createElement("div"); tile.className = "screen-tile " + v.kind;
+      const el = document.createElement("video"); el.autoplay = true; el.playsInline = true; el.muted = true; el.srcObject = v.stream;
+      if (v.who === "me" && v.kind === "camera") el.style.transform = "scaleX(-1)";
+      const name = v.who === "me" ? (v.kind === "camera" ? "você" : "sua tela") : (state.players.find((p) => p.id === v.who)?.name || "…");
       const tag = document.createElement("span"); tag.className = "who"; tag.textContent = name;
-      tile.append(v, tag);
+      tile.append(el, tag);
       tile.onclick = () => tile.classList.toggle("big");
-      wrap.appendChild(tile);
-    }
+      return tile;
+    };
+    if (screens.length) { const row = document.createElement("div"); row.className = "screens-row"; screens.forEach((v) => row.appendChild(tileFor(v))); wrap.appendChild(row); }
+    if (cams.length) { const row = document.createElement("div"); row.className = "cams-row"; cams.forEach((v) => row.appendChild(tileFor(v))); wrap.appendChild(row); }
     wrap.classList.remove("hidden");
   }
 

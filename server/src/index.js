@@ -36,6 +36,18 @@ const socketsByUser = new Map(); // userId -> socket
 const lastVoice = new Map();     // userId -> JSON do último grupo enviado
 const COLORS = ["#ffffff", "#c9c9c9", "#9a9a9a", "#e8e0d0", "#d6d6d6", "#b5b5b5"];
 
+// Avatar: índices inteiros dentro dos limites (pele 5, cabelo 5, cor 6, camisa 8, acessório 4)
+const AVATAR_MAX = { skin: 5, hair: 5, hairColor: 6, shirt: 8, accessory: 4 };
+function sanitizeAvatar(a) {
+  const out = {};
+  for (const k of Object.keys(AVATAR_MAX)) {
+    const v = a && Number.isInteger(a[k]) && a[k] >= 0 && a[k] < AVATAR_MAX[k] ? a[k] : 0;
+    out[k] = v;
+  }
+  if (!a) out.skin = 1;
+  return out;
+}
+
 function sanitizeName(n) {
   return String(n || "").replace(/[^\p{L}\p{N} _.\-]/gu, "").trim().slice(0, 24) || "visitante";
 }
@@ -43,13 +55,13 @@ function sanitizeName(n) {
 io.on("connection", (socket) => {
   let user = null;
 
-  socket.on("join", async ({ name, userId, color, pos } = {}, ack) => {
+  socket.on("join", async ({ name, userId, color, avatar, pos } = {}, ack) => {
     if (user) return;
     const id = (typeof userId === "string" && /^[a-z0-9-]{8,40}$/.test(userId)) ? userId : crypto.randomUUID();
     // uma sessão por usuário
     const prev = socketsByUser.get(id);
     if (prev && prev.id !== socket.id) { prev.emit("kicked", "Você entrou em outra aba."); prev.disconnect(true); }
-    user = { id, name: sanitizeName(name), color: COLORS.includes(color) ? color : COLORS[0] };
+    user = { id, name: sanitizeName(name), color: /^#[0-9a-f]{6}$/i.test(color || "") ? color : COLORS[0], avatar: sanitizeAvatar(avatar) };
     await store.upsertUser(user);
     socketsByUser.set(id, socket);
     const p = world.add(user, socket.id);
@@ -79,10 +91,11 @@ io.on("connection", (socket) => {
     pushVoice();
   });
 
-  socket.on("profile", ({ status, muted, presence } = {}) => {
+  socket.on("profile", ({ status, muted, presence, avatar } = {}) => {
     if (!user) return;
     const p = world.players.get(user.id);
     if (!p) return;
+    if (avatar) p.avatar = user.avatar = sanitizeAvatar(avatar);
     if (typeof status === "string") p.status = status.slice(0, 40);
     if (typeof muted === "boolean") p.muted = muted;
     if (["available", "busy", "focus"].includes(presence)) { p.presence = presence; pushVoice(); }

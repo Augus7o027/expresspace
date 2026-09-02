@@ -3,22 +3,55 @@
 const ICE = [{ urls: "stun:stun.l.google.com:19302" }, { urls: "stun:stun1.l.google.com:19302" }];
 
 export class Voice {
-  constructor(net, myId, { onChange, onSpeaking, onScreen } = {}) {
+  constructor(net, myId, { onChange, onSpeaking, onVideo } = {}) {
     this.net = net;
     this.myId = myId;
     this.peers = new Map(); // peerId -> { pc, audio, video, polite, makingOffer, analyser }
     this.stream = null;      // microfone
     this.screen = null;      // tela compartilhada
+    this.camera = null;      // câmera
+    this.meta = new Map();   // peerId -> { streamId: "screen"|"camera" }
     this.muted = true;
     this.canSpeak = true;
     this.onChange = onChange || (() => {});
     this.onSpeaking = onSpeaking || (() => {});
-    this.onScreen = onScreen || (() => {});
+    // onVideo(who, kind, stream|null)  who = peerId | "me", kind = "screen" | "camera"
+    this.onVideo = onVideo || (() => {});
     this.sink = document.getElementById("audio-sink");
     this.speakingNow = new Map(); // peerId|me -> bool
     net.on("rtc:signal", (m) => this.onSignal(m));
     this.ctx = null;
     setInterval(() => this.pollSpeaking(), 120);
+    setInterval(() => this.watchdog(), 1000);
+  }
+
+  // Conexão que não fecha: em 4s renegocia; em 9s recria a conexão do zero.
+  watchdog() {
+    const now = Date.now();
+    for (const [id, e] of this.peers) {
+      const ok = e.pc.connectionState === "connected";
+      if (ok) { e.stuckSince = null; e.retried = false; continue; }
+      e.stuckSince ??= now;
+      const t = now - e.stuckSince;
+      if (t > 9000) { console.warn("rtc: recriando conexão com", id); this.close(id); this.open(id); continue; }
+      if (t > 4000 && !e.retried) {
+        e.retried = true;
+        const st = e.pc.signalingState;
+        if (st === "have-local-offer") e.pc.setLocalDescription({ type: "rollback" }).then(() => this.renegotiate(id, true)).catch(() => {});
+        else if (st === "stable") this.renegotiate(id, !!e.pc.remoteDescription);
+      }
+    }
+  }
+  async renegotiate(peerId, iceRestart = false) {
+    const e = this.peers.get(peerId);
+    if (!e || e.pc.signalingState !== "stable") return;
+    try {
+      e.makingOffer = true;
+      if (iceRestart) e.pc.restartIce();
+      await e.pc.setLocalDescription();
+      this.net.emit("rtc:signal", { to: peerId, data: { description: e.pc.localDescription } });
+    } catch (err) { console.warn("renegotiate", err); }
+    finally { e.makingOffer = false; }
   }
 
   audioCtx() {
@@ -61,7 +94,7 @@ export class Voice {
       this.stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }, video: false });
       this.myAnalyser = this.analyserFor(this.stream);
       this.applyMute();
-      for (const p of this.peers.values()) this.addTracks(p.pc, this.stream);
+      for (const p of this.peers.values()) if (p.ready) this.addTracks(p.pc, this.stream);
       return true;
     } catch (e) { console.warn("mic indisponível", e); return false; }
   }
@@ -73,27 +106,54 @@ export class Voice {
     for (const t of this.stream.getAudioTracks()) t.enabled = !this.muted && this.canSpeak;
   }
 
-  // ---------- tela ----------
+  // ---------- tela e câmera ----------
+  announce(peerId) {
+    const streams = {};
+    if (this.screen) streams[this.screen.id] = "screen";
+    if (this.camera) streams[this.camera.id] = "camera";
+    this.net.emit("rtc:signal", { to: peerId, data: { meta: { streams } } });
+  }
+  announceAll() { for (const id of this.peers.keys()) this.announce(id); }
+
   async startScreen() {
     if (this.screen) return true;
     try {
       this.screen = await navigator.mediaDevices.getDisplayMedia({ video: { frameRate: 15 }, audio: false });
-      const track = this.screen.getVideoTracks()[0];
-      track.onended = () => this.stopScreen();
-      for (const p of this.peers.values()) this.addTracks(p.pc, this.screen);
-      this.onScreen("me", this.screen);
+      this.screen.getVideoTracks()[0].onended = () => this.stopScreen();
+      this.announceAll();
+      for (const p of this.peers.values()) if (p.ready) this.addTracks(p.pc, this.screen);
+      this.onVideo("me", "screen", this.screen);
       this.onChange();
       return true;
     } catch (e) { console.warn("tela indisponível", e); return false; }
   }
-  stopScreen() {
-    if (!this.screen) return;
-    for (const t of this.screen.getTracks()) t.stop();
+  stopScreen() { this.stopStream("screen"); }
+
+  async startCamera() {
+    if (this.camera) return true;
+    try {
+      this.camera = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480, frameRate: 24, facingMode: "user" }, audio: false });
+      this.camera.getVideoTracks()[0].onended = () => this.stopCamera();
+      this.announceAll();
+      for (const p of this.peers.values()) if (p.ready) this.addTracks(p.pc, this.camera);
+      this.onVideo("me", "camera", this.camera);
+      this.onChange();
+      return true;
+    } catch (e) { console.warn("câmera indisponível", e); return false; }
+  }
+  stopCamera() { this.stopStream("camera"); }
+
+  stopStream(kind) {
+    const st = this[kind];
+    if (!st) return;
+    const ids = new Set(st.getTracks().map((t) => t.id));
+    for (const t of st.getTracks()) t.stop();
     for (const p of this.peers.values()) {
-      for (const s of p.pc.getSenders()) if (s.track?.kind === "video") { p.pc.removeTrack(s); }
+      for (const s of p.pc.getSenders()) if (s.track && ids.has(s.track.id)) p.pc.removeTrack(s);
     }
-    this.screen = null;
-    this.onScreen("me", null);
+    this[kind] = null;
+    this.onVideo("me", kind, null);
+    this.announceAll();
     this.onChange();
   }
 
@@ -110,7 +170,11 @@ export class Voice {
     const audio = document.createElement("audio");
     audio.autoplay = true; audio.dataset.peer = peerId;
     this.sink.appendChild(audio);
-    const entry = { pc, audio, polite: this.myId > peerId, makingOffer: false, ignoreOffer: false, pending: [], analyser: null };
+    // O lado "impolite" (id menor) inicia a negociação; o outro só adiciona as próprias
+    // trilhas depois de responder à primeira oferta. Evita colisão na abertura, que no Chrome
+    // pode perder os candidatos ICE após o rollback e deixar a conexão parada em "new".
+    const polite = this.myId > peerId;
+    const entry = { pc, audio, polite, initiator: !polite, ready: !polite, makingOffer: false, ignoreOffer: false, pending: [], analyser: null };
     this.peers.set(peerId, entry);
 
     pc.onicecandidate = ({ candidate }) => candidate && this.net.emit("rtc:signal", { to: peerId, data: { candidate } });
@@ -120,11 +184,14 @@ export class Voice {
         audio.srcObject = ms; audio.play().catch(() => {});
         entry.analyser = this.analyserFor(ms);
       } else {
+        const sid = streams[0]?.id;
+        const kind = () => this.meta.get(peerId)?.[sid] || "camera";
         const ms = new MediaStream([track]);
-        this.onScreen(peerId, ms);
-        track.onended = () => this.onScreen(peerId, null);
-        track.onmute = () => this.onScreen(peerId, null);
-        track.onunmute = () => this.onScreen(peerId, ms);
+        const show = () => this.onVideo(peerId, kind(), ms);
+        const hide = () => this.onVideo(peerId, kind(), null);
+        if (this.meta.get(peerId)?.[sid]) show();
+        else setTimeout(show, 300); // meta pode chegar logo depois do track
+        track.onended = hide; track.onmute = hide; track.onunmute = show;
       }
     };
     pc.onnegotiationneeded = async () => {
@@ -136,20 +203,28 @@ export class Voice {
       finally { entry.makingOffer = false; }
     };
     pc.onconnectionstatechange = () => { if (pc.connectionState === "failed") pc.restartIce(); this.onChange(); };
+    if (entry.initiator) this.attachLocal(entry, peerId);
+  }
+
+  // Adiciona ao pc tudo que estou transmitindo (mic, tela, câmera)
+  attachLocal(entry, peerId) {
+    const { pc } = entry;
     if (this.stream) this.addTracks(pc, this.stream);
-    else pc.addTransceiver("audio", { direction: "recvonly" });
+    else if (entry.initiator && !pc.getTransceivers().length) pc.addTransceiver("audio", { direction: "recvonly" });
+    if (this.screen || this.camera) this.announce(peerId);
     if (this.screen) this.addTracks(pc, this.screen);
+    if (this.camera) this.addTracks(pc, this.camera);
   }
 
   addTracks(pc, stream) {
     for (const t of stream.getTracks()) {
-      const sender = pc.getSenders().find((s) => s.track?.kind === t.kind);
-      if (sender) sender.replaceTrack(t);
-      else {
-        const tr = pc.getTransceivers().find((x) => x.receiver.track?.kind === t.kind && !x.sender.track && x.direction === "recvonly");
-        if (tr) { tr.direction = "sendrecv"; tr.sender.replaceTrack(t); }
-        else pc.addTrack(t, stream);
+      if (t.kind === "audio") {
+        const sender = pc.getSenders().find((s) => s.track?.kind === "audio");
+        if (sender) { sender.replaceTrack(t); continue; }
+        const tr = pc.getTransceivers().find((x) => x.receiver.track?.kind === "audio" && !x.sender.track && x.direction === "recvonly");
+        if (tr) { tr.direction = "sendrecv"; tr.sender.replaceTrack(t); continue; }
       }
+      if (!pc.getSenders().some((s) => s.track === t)) pc.addTrack(t, stream);
     }
   }
 
@@ -159,6 +234,7 @@ export class Voice {
     if (!entry) return;
     const { pc, polite } = entry;
     try {
+      if (data.meta) { this.meta.set(from, data.meta.streams || {}); return; }
       if (data.description) {
         const offerCollision = data.description.type === "offer" && (entry.makingOffer || pc.signalingState !== "stable");
         entry.ignoreOffer = offerCollision && !polite;
@@ -169,6 +245,7 @@ export class Voice {
         if (data.description.type === "offer") {
           await pc.setLocalDescription();
           this.net.emit("rtc:signal", { to: from, data: { description: pc.localDescription } });
+          if (!entry.ready) { entry.ready = true; this.attachLocal(entry, from); }
         }
       } else if (data.candidate) {
         if (!pc.remoteDescription) { entry.pending.push(data.candidate); return; }
@@ -183,7 +260,8 @@ export class Voice {
     p.pc.close(); p.audio.remove();
     this.peers.delete(peerId);
     this.speakingNow.delete(peerId);
-    this.onScreen(peerId, null);
+    this.meta.delete(peerId);
+    this.onVideo(peerId, "screen", null); this.onVideo(peerId, "camera", null);
   }
 
   closeAll() { for (const id of [...this.peers.keys()]) this.close(id); }

@@ -15,7 +15,7 @@
     <!-- Entrada -->
     <section id="login" class="screen">
       <div class="login-card glass">
-        <div class="meta-row"><span class="mono">©®™</span><span class="mono">v0.2 · beta</span></div>
+        <div class="meta-row"><span class="mono">©®™</span><span class="mono">v0.3 · beta</span></div>
         <h1 class="display">
           <span class="kicker">você é o arquiteto do seu</span>
           <span class="script">Próprio</span>
@@ -25,7 +25,8 @@
         <form id="login-form">
           <label class="mono" for="name">como quer ser chamado</label>
           <input id="name" name="name" autocomplete="off" maxlength="24" placeholder="seu nome" required />
-          <div class="swatches" id="swatches"></div>
+          <label class="mono">seu avatar</label>
+          <div id="avatar-editor-login"></div>
           <button type="submit" class="btn-primary">Entrar no ambiente</button>
         </form>
       </div>
@@ -67,9 +68,13 @@
             </select>
           </div>
           <div class="me-actions">
-            <button id="btn-mic" class="icon-btn" title="Microfone (M)">🎙</button>
-            <button id="btn-screen" class="icon-btn" title="Compartilhar tela (só em salas e canais de voz)">🖥</button>
-            <button id="btn-sound" class="icon-btn" title="Sons de notificação">🔔</button>
+            <button id="btn-mic" class="icon-btn" title="Microfone (M)"></button>
+            <button id="btn-camera" class="icon-btn" title="Câmera (C) · só em salas e canais de voz"></button>
+            <button id="btn-screen" class="icon-btn" title="Compartilhar tela · só em salas e canais de voz"></button>
+            <button id="btn-sound" class="icon-btn" title="Sons de notificação"></button>
+            <button id="btn-avatar" class="icon-btn" title="Editar avatar"></button>
+          </div>
+          <div class="me-actions">
             <input id="status-text" class="status-text" maxlength="40" placeholder="frase de status" />
           </div>
         </footer>
@@ -85,7 +90,7 @@
           </div>
           <div class="hud-right">
             <span id="hud-voice" class="mono dim">sem voz</span>
-            <span id="hud-hint" class="mono dim">WASD ou clique · Enter chat · M mic · E interagir</span>
+            <span id="hud-hint" class="mono dim">WASD ou clique · Enter chat · M mic · C câmera · E interagir</span>
           </div>
         </div>
         <div id="hud-prompt" class="glass hidden"><kbd>E</kbd> <span></span></div>
@@ -107,9 +112,9 @@
         <div id="mention-list" class="popover hidden"></div>
         <div id="emoji-picker" class="popover hidden"></div>
         <form id="chat-form">
-          <button type="button" id="btn-emoji" class="icon-btn" title="Emoji">☺</button>
-          <input id="chat-input" autocomplete="off" maxlength="1000" placeholder="Escreva algo… (@ para mencionar)" />
-          <button type="submit" class="icon-btn">↑</button>
+          <button type="button" id="btn-emoji" class="icon-btn" title="Emoji"></button>
+          <input id="chat-input" autocomplete="off" maxlength="1000" placeholder="Escreva algo… (@ menciona, :fire: emoji)" />
+          <button type="submit" class="icon-btn" id="btn-send"></button>
         </form>
       </aside>
     </main>
@@ -119,7 +124,7 @@
       <div class="modal-card glass">
         <header>
           <div><div class="mono dim" id="modal-kind"></div><div class="serif" id="modal-title"></div></div>
-          <button id="modal-close" class="icon-btn" title="Fechar (Esc)">✕</button>
+          <button id="modal-close" class="icon-btn" title="Fechar (Esc)"></button>
         </header>
         <div id="modal-body"></div>
       </div>

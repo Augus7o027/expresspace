@@ -13,6 +13,7 @@ export class World {
       socketId,
       name: user.name,
       color: user.color,
+      avatar: user.avatar,
       x: this.map.spawn.x,
       y: this.map.spawn.y,
       dir: "down",
@@ -56,7 +57,7 @@ export class World {
   snapshot() {
     const out = [];
     for (const p of this.players.values()) {
-      out.push({ id: p.id, name: p.name, color: p.color, x: p.x, y: p.y, dir: p.dir,
+      out.push({ id: p.id, name: p.name, color: p.color, avatar: p.avatar, x: p.x, y: p.y, dir: p.dir,
         moving: p.moving, zone: p.zone, onStage: p.onStage, voiceChannel: p.voiceChannel,
         muted: p.muted, status: p.status, presence: p.presence, speaking: p.speaking });
     }

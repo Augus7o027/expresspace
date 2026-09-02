@@ -9,8 +9,8 @@ const base = `http://localhost:${PORT}`;
 
 setTimeout(() => { console.log("TIMEOUT global"); process.exit(2); }, 240000);
 const browser = await chromium.launch({ executablePath: "/opt/pw-browsers/chromium", args: ["--use-fake-ui-for-media-stream", "--use-fake-device-for-media-stream"] });
-const ctxA = await browser.newContext({ viewport: { width: 1440, height: 900 }, permissions: ["microphone"] });
-const ctxB = await browser.newContext({ viewport: { width: 1440, height: 900 }, permissions: ["microphone"] });
+const ctxA = await browser.newContext({ viewport: { width: 1440, height: 900 }, permissions: ["microphone", "camera"] });
+const ctxB = await browser.newContext({ viewport: { width: 1440, height: 900 }, permissions: ["microphone", "camera"] });
 const A = await ctxA.newPage(), B = await ctxB.newPage();
 const errors = [];
 for (const p of [A, B]) { p.on("pageerror", (e) => errors.push(e.message)); p.on("console", (m) => { if (/rtc|offer|mic/i.test(m.text())) console.log("console:", m.text().slice(0, 200)); }); }
@@ -50,7 +50,28 @@ console.log("A zona:", await A.textContent("#hud-zone"), "| voz:", await A.textC
 // Mic liga e conecta WebRTC
 await A.click("#btn-mic"); await B.click("#btn-mic");
 await A.waitForTimeout(2500);
+const st = (pg) => pg.evaluate(() => [...window.__sede.voice.peers.values()].map((p) => `${p.pc.connectionState}/${p.pc.signalingState}/${p.pc.iceConnectionState}/polite=${p.polite}`));
+console.log("estados A:", await st(A), "B:", await st(B));
 console.log("A voz pós-mic:", await A.textContent("#hud-voice"));
+
+// Câmera: B liga, A recebe tile de vídeo
+await B.click("#btn-camera"); await A.waitForTimeout(3500);
+console.log("tiles de câmera em A:", await A.evaluate(() => document.querySelectorAll("#screens .screen-tile.camera").length), "| em B:", await B.evaluate(() => document.querySelectorAll("#screens .screen-tile.camera").length));
+await A.screenshot({ path: "test/shots/06-camera.png" });
+await B.click("#btn-camera"); await A.waitForTimeout(800);
+console.log("tiles após desligar:", await A.evaluate(() => document.querySelectorAll("#screens .screen-tile").length));
+
+// Emoji próprio no chat
+await A.click(".tab[data-mode='channel']"); await B.click(".tab[data-mode='channel']");
+await A.fill("#chat-input", "bora :fire: :rocket:"); await A.press("#chat-input", "Enter"); await B.waitForTimeout(400);
+console.log("emoji svg em B:", await B.evaluate(() => document.querySelectorAll("#messages .emo svg").length));
+
+// Avatar: B troca cabelo/roupa e A vê textura nova
+await B.click("#btn-avatar"); await B.waitForTimeout(200);
+await B.click("#modal .avatar-row:nth-child(2) .avatar-opt:nth-child(2)"); await B.click("#modal .avatar-row:nth-child(4) .avatar-opt:nth-child(4)");
+await B.keyboard.press("Escape"); await A.waitForTimeout(600);
+console.log("avatar de B visto por A:", await A.evaluate(() => [...window.__sede.scene.remote.values()][0]?.container.texKey));
+await B.click(".tab[data-mode='zone']"); await A.click(".tab[data-mode='zone']");
 
 // Chat local da sala + balão
 await B.click('.tab[data-mode="zone"]');
@@ -89,7 +110,7 @@ await A.click(".tab[data-mode='channel']");
 
 // Canal de voz Discord
 await B.click("#voice-channels li:nth-child(1)"); await A.click("#voice-channels li:nth-child(1)");
-await A.waitForTimeout(2000);
+await A.waitForTimeout(5000);
 console.log("A canal voz:", await A.textContent("#hud-voice"));
 await A.screenshot({ path: "test/shots/04-canal-voz.png" });
 

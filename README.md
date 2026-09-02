@@ -2,7 +2,14 @@
 
 Ambiente 2D próprio da comunidade. Híbrido entre Gather e Discord: um mapa onde o avatar anda, entra em salas e cai em calls, mais canais de texto e voz que funcionam sem depender da posição no mapa.
 
-## O que já funciona (v0.2)
+## O que já funciona (v0.3)
+
+- Avatar personalizável: pele, 5 cabelos, cor do cabelo, roupa e acessório (óculos, boné, fone), com preview no login e botão de editar dentro do app; todo mundo vê a mudança na hora
+- Câmera nas salas de reunião e canais de voz (botão ou tecla C), aparece em tiles sobre o mapa junto com as telas compartilhadas
+- Biblioteca própria de emojis em traço monocromático (32 ícones em SVG, `:fire:`, `:rocket:`, `:coffee:` etc.), picker no chat, mensagem só de emoji fica grande; ícones da interface no mesmo traço
+- Ambiente mais detalhado: piso por área (madeira, carpete, ladrilho, deck, mármore), paredes com rodapé e sombra, janelas, luminárias, cadeiras nas mesas, monitores, tapetes, palco com spots
+- Personagem com sombreamento, gola, sapatos, cabelo com volume
+- Negociação WebRTC mais robusta: o lado de id menor inicia, o outro entra depois de responder (evita colisão que travava a conexão), com watchdog que renegocia e recria a conexão se ficar parada
 
 - Mapa 2D (Phaser) de 58x38 tiles: Recepção, Open Space com ilhas de mesas, Foco (silêncio), Reunião 1/2/3, Diretoria, Auditório com palco, Café, Lounge e Terraço
 - Avatar em pixel art animado (4 direções), cor escolhida no login
@@ -70,7 +77,9 @@ server/src/db/          schema.sql, migrate.js e store.js (Postgres ou memória)
 client/src/main.js      login, sidebar, chat, integração socket
 client/src/game.js      cena Phaser: mapa, avatares, movimento, balões
 client/src/voice.js     WebRTC mesh (voz + tela) com "perfect negotiation" e detecção de fala
-client/src/sprites.js   gera os sprites de avatar em pixel art por código
+client/src/sprites.js   gera os sprites de avatar em pixel art a partir da config (pele, cabelo, roupa, acessório)
+client/src/avatar-editor.js  editor de avatar com preview (login e modal)
+client/src/icons.js     biblioteca de emojis e ícones em SVG monocromático
 client/src/sounds.js    sons de notificação sintetizados (sem arquivos)
 client/src/style.css    identidade visual (preto, vidro fosco, serif + script, grão)
 test/e2e.mjs            teste Playwright com dois usuários
@@ -90,6 +99,10 @@ A cada movimento o servidor recalcula um "grupo de voz" por pessoa, nesta ordem:
 
 O cliente recebe `voice:group` com a lista de peers e abre/fecha conexões WebRTC para bater com a lista.
 
+## Emojis próprios
+
+Estão em `client/src/icons.js`, no objeto `EMOJI`: cada chave vira `:chave:` no chat. Pra adicionar um novo, desenha um SVG 24x24 em traço (stroke) seguindo os existentes e coloca lá; o picker e a renderização pegam sozinhos.
+
 ## Editar o mapa
 
 Tudo em `server/src/map.js`. Coordenadas em tiles de 32px. Zonas têm `kind` (`open`, `meeting`, `silent`, `stage`). Paredes com `door: true` viram passagem. A mesma definição desenha o mapa no cliente, então não precisa mexer em dois lugares.
@@ -100,7 +113,6 @@ Objetos interativos ficam em `objects`: `board` (quadro de texto compartilhado, 
 
 - Login de verdade (magic link ou OAuth) e perfis persistentes
 - SFU (LiveKit ou mediasoup) quando as salas passarem de ~6 pessoas: mesh não escala além disso
-- Câmera nas salas de reunião
 - Mapas em Tiled com tilesets desenhados (o WorkAdventure usa esse formato)
 - Moderação: cargos, silenciar, expulsar
 - Editor de mapa dentro do app
