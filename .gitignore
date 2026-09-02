@@ -4,3 +4,4 @@ dist
 *.log
 tools/src/*
 !tools/src/README.md
+data/

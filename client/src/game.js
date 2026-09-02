@@ -7,9 +7,11 @@ const SEND_HZ = 15;
 const STATUS_COLOR = { available: 0x6ef0a3, busy: 0xf06e6e, focus: 0xf0c76e };
 
 export class WorldScene extends Phaser.Scene {
-  constructor({ map, me, net, onZoneChange, onObjectNear }) {
+  constructor({ map, me, net, onZoneChange, onObjectNear, locked = [] }) {
     super("world");
     this.map = map;
+    this.locked = new Set(locked);
+    this.lockMarks = new Map();
     this.me = me;
     this.net = net;
     this.onZoneChange = onZoneChange;
@@ -44,6 +46,7 @@ export class WorldScene extends Phaser.Scene {
     this.drawDecor();
     this.setupNpcAnims();
     this.npcs = new Map();
+    this.setLocked([...this.locked]);
 
     this.player = this.makeAvatar(this.me.name, this.me.avatar, true);
     this.player.setPosition((map.spawn.x + 0.5) * TILE, (map.spawn.y + 0.5) * TILE);
@@ -158,12 +161,22 @@ export class WorldScene extends Phaser.Scene {
     for (const n of list) {
       seen.add(n.id);
       let r = this.npcs.get(n.id);
-      if (!r) {
+      if (!r && n.kind === "agent") {
+        const c = this.makeAvatar(n.name, n.avatar, false);
+        c.setPosition(n.x * TILE, n.y * TILE);
+        c.label.setText(`${n.name}${n.role ? " · " + n.role : ""}`);
+        c.label.setStyle({ color: "#9ad0ff" });
+        const tag = this.add.text(0, -40, "IA", { fontFamily: "JetBrains Mono", fontSize: "9px", color: "#050505", backgroundColor: "#9ad0ff", padding: { x: 4, y: 1 } }).setOrigin(0.5);
+        c.add(tag);
+        r = { sprite: c, target: { x: n.x, y: n.y }, kind: "agent", name: n.name, role: n.role, container: c, avatarKey: c.texKey };
+        this.npcs.set(n.id, r);
+      } else if (!r) {
         if (!this.textures.exists(`npc:${n.kind}:idle`)) continue;
         const sp = this.add.sprite(n.x * TILE, n.y * TILE, `npc:${n.kind}:idle`, 0).setScale(1.3).setOrigin(0.5, 0.8);
         r = { sprite: sp, target: { x: n.x, y: n.y }, kind: n.kind };
         this.npcs.set(n.id, r);
       }
+      if (r.kind === "agent" && n.avatar && avatarKey(n.avatar) !== r.container.texKey) r.container.setAvatar(n.avatar);
       r.target = { x: n.x, y: n.y }; r.dir = n.dir; r.moving = n.moving;
     }
     for (const [id, r] of this.npcs) if (!seen.has(id)) { r.sprite.destroy(); this.npcs.delete(id); }
@@ -296,6 +309,7 @@ export class WorldScene extends Phaser.Scene {
     }
     this.animate(this.player, this.dir, moving);
     const now = performance.now();
+    if (now - (this.lastNearCheck || 0) > 300) { this.lastNearCheck = now; this.checkObjects(); }
     if ((moving || this.wasMoving) && now - this.lastSent > 1000 / SEND_HZ) {
       this.net.emit("move", { x: this.pos.x, y: this.pos.y, dir: this.dir, moving });
       this.lastSent = now;
@@ -315,15 +329,48 @@ export class WorldScene extends Phaser.Scene {
       r.sprite.x += (tx - r.sprite.x) * Math.min(1, dt * 10);
       r.sprite.y += (ty - r.sprite.y) * Math.min(1, dt * 10);
       r.sprite.setDepth(10 + r.sprite.y / 10000);
+      if (r.kind === "agent") { this.animate(r.container, r.dir || "down", !!r.moving); continue; }
       const anim = `npc:${r.kind}:${r.moving ? "walk" : "idle"}:${r.dir || "down"}`;
       if (r.sprite.anims.currentAnim?.key !== anim && this.anims.exists(anim)) r.sprite.play(anim, true);
     }
     for (const b of this.bubbles.values()) b.setPosition(b.follow.x, b.follow.y - 40);
   }
 
+  blocked(tx, ty) {
+    if (isBlocked(this.map, tx, ty)) return true;
+    if (this.locked.size && !["admin", "professor"].includes(this.me.role)) { const z = zoneAt(this.map, tx, ty); if (z && this.locked.has(z.id)) return true; }
+    return false;
+  }
   hits(x, y, r) {
     const pts = [[x - r, y - r], [x + r, y - r], [x - r, y + r], [x + r, y + r]];
-    return pts.some(([px, py]) => isBlocked(this.map, Math.floor(px), Math.floor(py)));
+    return pts.some(([px, py]) => this.blocked(Math.floor(px), Math.floor(py)));
+  }
+
+  setLocked(ids) {
+    this.locked = new Set(ids);
+    for (const [, m] of this.lockMarks) m.destroy();
+    this.lockMarks.clear();
+    for (const id of this.locked) {
+      const z = this.map.zones.find((x) => x.id === id); if (!z) continue;
+      const c = this.add.container(0, 0).setDepth(4);
+      const g = this.add.graphics();
+      g.fillStyle(0xf06e6e, 0.07).fillRect(z.x * TILE, z.y * TILE, z.w * TILE, z.h * TILE);
+      g.lineStyle(2, 0xf06e6e, 0.5).strokeRect(z.x * TILE + 1, z.y * TILE + 1, z.w * TILE - 2, z.h * TILE - 2);
+      c.add(g);
+      c.add(this.add.text((z.x + z.w / 2) * TILE, (z.y + z.h / 2) * TILE, "TRANCADA", { fontFamily: "JetBrains Mono", fontSize: "11px", color: "#f0a0a0", letterSpacing: 4, backgroundColor: "rgba(0,0,0,0.5)", padding: { x: 8, y: 4 } }).setOrigin(0.5));
+      this.lockMarks.set(id, c);
+    }
+  }
+
+  // agente (LLM) mais próximo, pra conversar com E
+  agentNear(reach = 2.2) {
+    let best = null, bd = Infinity;
+    for (const [id, r] of this.npcs || []) {
+      if (r.kind !== "agent") continue;
+      const d = Math.hypot(r.target.x - this.pos.x, r.target.y - this.pos.y);
+      if (d < reach && d < bd) { best = { id, name: r.name, role: r.role }; bd = d; }
+    }
+    return best;
   }
 
   updateZone(force) {
@@ -333,7 +380,8 @@ export class WorldScene extends Phaser.Scene {
   }
 
   checkObjects() {
-    const o = objectNear(this.map, this.pos.x, this.pos.y);
+    let o = objectNear(this.map, this.pos.x, this.pos.y);
+    if (!o) { const a = this.agentNear(); if (a) o = { id: "agent:" + a.id, kind: "agent", label: a.name, agentId: a.id, role: a.role }; }
     if ((o && o.id) !== (this.nearObject && this.nearObject.id)) { this.nearObject = o; this.onObjectNear(o); }
   }
 

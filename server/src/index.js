@@ -1,31 +1,155 @@
 import http from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { existsSync } from "node:fs";
+import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import crypto from "node:crypto";
 import express from "express";
 import { Server } from "socket.io";
 import { createStore } from "./db/store.js";
 import { World } from "./world.js";
-import { isBlocked } from "./map.js";
+import { WORLD, parseTiled, loadTiled, isBlocked, UPLOADED_MAP } from "./map.js";
+import { accountsRepo, bootstrapAdmin, sessionFromCookie, setSessionCookie, clearSessionCookie, ROLES } from "./auth.js";
+import { agentsRepo, runAgent, startScheduler, chatCompletion, TOOL_NAMES } from "./agents.js";
 
 const PORT = Number(process.env.PORT || 3000);
 const ORIGIN = process.env.CLIENT_ORIGIN || "http://localhost:5173";
+const SECURE = /^https:/.test(ORIGIN);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const store = await createStore();
-const world = new World();
-const app = express();
-app.use(express.json());
+const accounts = accountsRepo(store);
+const agents = agentsRepo(store);
+await bootstrapAdmin(accounts);
 
+// ---------- configurações e ajustes do mundo (persistidos) ----------
+const DEFAULT_SETTINGS = { communityName: "ExpresSpace", allowGuests: true, allowRegister: false };
+const getSettings = async () => ({ ...DEFAULT_SETTINGS, ...(await store.getDoc("settings", "main") || {}) });
+const getOverrides = async () => (await store.getDoc("world", "overrides")) || { locked: [], objects: {}, decor: {}, npcs: null };
+
+const world = new World();
+world.setMap(WORLD, await getOverrides());
+world.setAgents(await agents.list());
+
+const app = express();
+app.use(express.json({ limit: "10mb" }));
+app.set("trust proxy", 1);
+
+// ---------- helpers ----------
+const sessionUser = async (req) => { const s = sessionFromCookie(req.headers.cookie); return s ? accounts.pub(await accounts.get(s.uid)) : null; };
+const requireRole = (...roles) => async (req, res, next) => {
+  const u = await sessionUser(req);
+  if (!u || !roles.includes(u.role)) return res.status(401).json({ error: "sem permissão" });
+  req.user = u; next();
+};
+const admin = requireRole("admin");
+const wrap = (fn) => (req, res) => fn(req, res).catch((e) => res.status(400).json({ error: e.message }));
+
+// ---------- API pública ----------
 app.get("/api/map", (_req, res) => res.json(world.map));
 app.get("/api/channels", async (_req, res) => res.json(await store.channels()));
 app.get("/api/health", (_req, res) => res.json({ ok: true, online: world.players.size }));
+app.get("/api/auth/config", wrap(async (_req, res) => { const s = await getSettings(); res.json({ communityName: s.communityName, allowGuests: s.allowGuests, allowRegister: s.allowRegister }); }));
+app.get("/api/auth/me", wrap(async (req, res) => res.json({ user: await sessionUser(req) })));
+app.post("/api/auth/login", wrap(async (req, res) => {
+  const u = await accounts.login(req.body?.email, req.body?.password);
+  if (!u) return res.status(401).json({ error: "e-mail ou senha inválidos" });
+  setSessionCookie(res, u, SECURE); res.json({ user: u });
+}));
+app.post("/api/auth/logout", (_req, res) => { clearSessionCookie(res); res.json({ ok: true }); });
+app.post("/api/auth/register", wrap(async (req, res) => {
+  if (!(await getSettings()).allowRegister) return res.status(403).json({ error: "cadastro fechado. Peça acesso a um admin." });
+  const u = await accounts.create({ email: req.body?.email, name: req.body?.name, password: req.body?.password, role: "member" });
+  setSessionCookie(res, u, SECURE); res.json({ user: u });
+}));
+app.post("/api/auth/avatar", wrap(async (req, res) => {
+  const u = await sessionUser(req); if (!u) return res.status(401).json({ error: "faça login" });
+  res.json({ user: await accounts.update(u.id, { avatar: req.body?.avatar || null, name: req.body?.name }) });
+}));
+
+// ---------- API admin ----------
+app.get("/api/admin/overview", admin, wrap(async (_req, res) => res.json({
+  online: world.snapshot(), settings: await getSettings(), locked: [...world.locked], zones: world.map.zones,
+  objects: world.map.objects, decor: world.map.decor, npcs: world.map.npcs, agents: (await agents.list()).length, users: (await accounts.list()).length,
+  mapFile: world.map.tiledFile, uploadedMap: existsSync(UPLOADED_MAP), tools: TOOL_NAMES, channels: await store.channels(),
+})));
+app.put("/api/admin/settings", admin, wrap(async (req, res) => {
+  const cur = await getSettings(); const b = req.body || {};
+  const next = { ...cur, communityName: String(b.communityName ?? cur.communityName).slice(0, 40), allowGuests: !!b.allowGuests, allowRegister: !!b.allowRegister };
+  await store.putDoc("settings", "main", next); res.json(next);
+}));
+
+// usuários
+app.get("/api/admin/users", admin, wrap(async (_req, res) => res.json(await accounts.list())));
+app.post("/api/admin/users", admin, wrap(async (req, res) => res.json(await accounts.create(req.body || {}))));
+app.put("/api/admin/users/:id", admin, wrap(async (req, res) => res.json(await accounts.update(req.params.id, req.body || {}))));
+app.delete("/api/admin/users/:id", admin, wrap(async (req, res) => { if (req.params.id === req.user.id) throw new Error("não dá pra apagar a própria conta"); await accounts.remove(req.params.id); res.json({ ok: true }); }));
+
+// provedores e agentes
+app.get("/api/admin/providers", admin, wrap(async (_req, res) => res.json(await agents.listProviders())));
+app.post("/api/admin/providers", admin, wrap(async (req, res) => res.json(await agents.putProvider(req.body || {}))));
+app.delete("/api/admin/providers/:id", admin, wrap(async (req, res) => { await agents.delProvider(req.params.id); res.json({ ok: true }); }));
+app.post("/api/admin/providers/:id/test", admin, wrap(async (req, res) => {
+  const p = await agents.getProvider(req.params.id); if (!p) throw new Error("provedor não existe");
+  const model = req.body?.model || p.models[0]; if (!model) throw new Error("informe um modelo");
+  const t0 = Date.now();
+  const m = await chatCompletion(p, model, [{ role: "user", content: "Responda só: ok" }], { max_tokens: 20 });
+  res.json({ ok: true, ms: Date.now() - t0, reply: m.content });
+}));
+app.get("/api/admin/agents", admin, wrap(async (_req, res) => res.json(await agents.list())));
+app.post("/api/admin/agents", admin, wrap(async (req, res) => { const a = await agents.put(req.body || {}); world.setAgents(await agents.list()); res.json(a); }));
+app.delete("/api/admin/agents/:id", admin, wrap(async (req, res) => { await agents.del(req.params.id); world.setAgents(await agents.list()); res.json({ ok: true }); }));
+app.post("/api/admin/agents/:id/test", admin, wrap(async (req, res) => {
+  const a = await agents.get(req.params.id); if (!a) throw new Error("agente não existe");
+  const p = a.providerId && await agents.getProvider(a.providerId); if (!p) throw new Error("agente sem provedor");
+  const r = await runAgent({ agent: a, provider: p, history: [], userMessage: String(req.body?.message || "Se apresente em uma frase.") });
+  res.json(r);
+}));
+app.post("/api/admin/agents/:id/run-schedule", admin, wrap(async (req, res) => {
+  const a = await agents.get(req.params.id); if (!a?.schedule?.prompt) throw new Error("agente sem agenda");
+  const p = a.providerId && await agents.getProvider(a.providerId); if (!p) throw new Error("agente sem provedor");
+  const r = await runAgent({ agent: a, provider: p, history: [], userMessage: a.schedule.prompt });
+  if (r.content) await postAsAgent(a.schedule.channel, a, r.content);
+  await agents.put({ ...a, lastRun: new Date().toISOString() });
+  res.json(r);
+}));
+
+// mundo: trancas, posições, bichos, mapa
+app.put("/api/admin/world", admin, wrap(async (req, res) => {
+  const cur = await getOverrides(); const b = req.body || {};
+  const next = {
+    locked: Array.isArray(b.locked) ? b.locked.filter((id) => world.map.zones.some((z) => z.id === id)) : cur.locked,
+    objects: b.objects && typeof b.objects === "object" ? b.objects : cur.objects,
+    decor: b.decor && typeof b.decor === "object" ? b.decor : cur.decor,
+    npcs: Array.isArray(b.npcs) ? b.npcs.filter((n) => ["fox", "hare", "deer", "boar", "grouse"].includes(n.kind) && world.map.zones.some((z) => z.id === n.zone)).slice(0, 30) : cur.npcs,
+  };
+  await store.putDoc("world", "overrides", next);
+  world.setMap(loadTiled(), next);
+  world.setAgents(await agents.list());
+  io.to("world").emit("world:changed", { locked: [...world.locked], reload: !!(b.objects || b.decor) });
+  res.json({ ok: true, locked: [...world.locked] });
+}));
+app.post("/api/admin/map", admin, wrap(async (req, res) => {
+  const t = req.body;
+  if (!t || t.type !== "map" || !Array.isArray(t.layers)) throw new Error("envie o JSON exportado do Tiled");
+  const parsed = parseTiled(t, "sede.json"); // valida
+  if (!parsed.zones.length) throw new Error("mapa sem zonas (camada de objetos 'zones')");
+  mkdirSync(path.dirname(UPLOADED_MAP), { recursive: true });
+  writeFileSync(UPLOADED_MAP, JSON.stringify(t));
+  // o cliente também precisa do arquivo: servimos o enviado em /maps/sede.json
+  world.setMap(loadTiled(), await getOverrides());
+  world.setAgents(await agents.list());
+  io.to("world").emit("world:changed", { reload: true });
+  res.json({ ok: true, zones: parsed.zones.map((z) => z.id) });
+}));
+
+// mapa enviado pelo painel tem prioridade sobre o do build
+app.get("/maps/sede.json", (_req, res, next) => existsSync(UPLOADED_MAP) ? res.sendFile(UPLOADED_MAP) : next());
 
 // Em produção serve o build do cliente
 const dist = path.resolve(__dirname, "../../client/dist");
 if (existsSync(dist)) {
   app.use(express.static(dist));
+  app.get("/admin", (_req, res) => res.sendFile(path.join(dist, "admin.html")));
   app.get(/^(?!\/api).*/, (_req, res) => res.sendFile(path.join(dist, "index.html")));
 }
 
@@ -36,41 +160,49 @@ const socketsByUser = new Map(); // userId -> socket
 const lastVoice = new Map();     // userId -> JSON do último grupo enviado
 const COLORS = ["#ffffff", "#c9c9c9", "#9a9a9a", "#e8e0d0", "#d6d6d6", "#b5b5b5"];
 
-// Avatar: índices inteiros dentro dos limites (pele 5, cabelo 5, cor 6, camisa 8, acessório 4)
 const AVATAR_MAX = { skin: 5, hair: 5, hairColor: 6, shirt: 8, accessory: 4 };
 function sanitizeAvatar(a) {
   const out = {};
-  for (const k of Object.keys(AVATAR_MAX)) {
-    const v = a && Number.isInteger(a[k]) && a[k] >= 0 && a[k] < AVATAR_MAX[k] ? a[k] : 0;
-    out[k] = v;
-  }
+  for (const k of Object.keys(AVATAR_MAX)) out[k] = a && Number.isInteger(a[k]) && a[k] >= 0 && a[k] < AVATAR_MAX[k] ? a[k] : 0;
   if (!a) out.skin = 1;
   return out;
 }
-
 function sanitizeName(n) {
   return String(n || "").replace(/[^\p{L}\p{N} _.\-]/gu, "").trim().slice(0, 24) || "visitante";
 }
 
+async function postAsAgent(channelId, agent, body) {
+  const msg = await store.addMessage({ channel_id: channelId, user_id: "agent:" + agent.id, user_name: agent.name, user_color: "#9ad0ff", body: String(body).slice(0, 4000) });
+  io.to("world").emit("chat:message", msg);
+}
+
 io.on("connection", (socket) => {
   let user = null;
+  const busy = { agent: false };
 
   socket.on("join", async ({ name, userId, color, avatar, pos } = {}, ack) => {
     if (user) return;
-    const id = (typeof userId === "string" && /^[a-z0-9-]{8,40}$/.test(userId)) ? userId : crypto.randomUUID();
-    // uma sessão por usuário
+    const settings = await getSettings();
+    // conta logada (cookie) tem prioridade; senão visitante, se permitido
+    const sess = sessionFromCookie(socket.handshake.headers.cookie);
+    const acc = sess ? accounts.pub(await accounts.get(sess.uid)) : null;
+    if (!acc && !settings.allowGuests) return ack?.({ error: "Entrada só com conta. Faça login." });
+    const id = acc ? acc.id : (typeof userId === "string" && /^[a-z0-9-]{8,40}$/.test(userId)) ? userId : crypto.randomUUID();
     const prev = socketsByUser.get(id);
     if (prev && prev.id !== socket.id) { prev.emit("kicked", "Você entrou em outra aba."); prev.disconnect(true); }
-    user = { id, name: sanitizeName(name), color: /^#[0-9a-f]{6}$/i.test(color || "") ? color : COLORS[0], avatar: sanitizeAvatar(avatar) };
+    user = {
+      id, name: acc ? acc.name : sanitizeName(name), color: /^#[0-9a-f]{6}$/i.test(color || "") ? color : COLORS[0],
+      avatar: sanitizeAvatar(avatar || acc?.avatar), role: acc ? acc.role : "guest", accountId: acc?.id || null,
+    };
+    if (acc && avatar) accounts.update(acc.id, { avatar: user.avatar }).catch(() => {});
     await store.upsertUser(user);
     socketsByUser.set(id, socket);
     const p = world.add(user, socket.id);
     socket.join("world");
-    // reconexão: volta pra onde estava
     const { x, y } = pos || {};
-    if (Number.isFinite(x) && Number.isFinite(y) && !isBlocked(world.map, Math.floor(x), Math.floor(y))) { p.x = x; p.y = y; world.updateZone(p); }
+    if (Number.isFinite(x) && Number.isFinite(y) && world.canEnter(p, Math.floor(x), Math.floor(y))) { p.x = x; p.y = y; world.updateZone(p); }
     const channels = await store.channels();
-    ack?.({ user, map: world.map, channels, players: world.snapshot() });
+    ack?.({ user, map: world.map, channels, players: world.snapshot(), locked: [...world.locked], npcs: world.npcSnapshot(), communityName: settings.communityName });
     io.to("world").emit("system", { text: `${user.name} entrou.` });
     pushVoice();
   });
@@ -80,12 +212,11 @@ io.on("connection", (socket) => {
     if (world.move(user.id, x, y, dir, moving)) pushVoice();
   });
 
-  // Ir direto pra uma sala pela sidebar
   socket.on("teleport", ({ x, y } = {}) => {
     if (!user) return;
     const p = world.players.get(user.id);
     if (!p || !Number.isFinite(x) || !Number.isFinite(y)) return;
-    if (isBlocked(world.map, Math.floor(x), Math.floor(y))) return;
+    if (!world.canEnter(p, Math.floor(x), Math.floor(y))) return socket.emit("toast", "Essa sala está trancada.");
     p.x = x; p.y = y; p.moving = false;
     world.updateZone(p);
     pushVoice();
@@ -95,23 +226,39 @@ io.on("connection", (socket) => {
     if (!user) return;
     const p = world.players.get(user.id);
     if (!p) return;
-    if (avatar) p.avatar = user.avatar = sanitizeAvatar(avatar);
+    if (avatar) { p.avatar = user.avatar = sanitizeAvatar(avatar); if (user.accountId) accounts.update(user.accountId, { avatar: p.avatar }).catch(() => {}); }
     if (typeof status === "string") p.status = status.slice(0, 40);
     if (typeof muted === "boolean") p.muted = muted;
     if (["available", "busy", "focus"].includes(presence)) { p.presence = presence; pushVoice(); }
   });
 
-  socket.on("speaking", (on) => {
+  socket.on("speaking", (on) => { if (!user) return; const p = world.players.get(user.id); if (p) p.speaking = !!on; });
+
+  // Conversa com um agente (precisa estar perto dele no mapa)
+  socket.on("agent:chat", async ({ agentId, text } = {}, ack) => {
     if (!user) return;
     const p = world.players.get(user.id);
-    if (p) p.speaking = !!on;
+    const near = world.agents.find((a) => a.id === agentId);
+    if (!p || !near) return ack?.({ error: "agente não está aqui" });
+    if (Math.hypot(near.x - p.x, near.y - p.y) > 3 && user.role !== "admin") return ack?.({ error: "chega mais perto pra conversar" });
+    text = String(text || "").trim().slice(0, 2000);
+    if (!text) return ack?.({ error: "mensagem vazia" });
+    if (busy.agent) return ack?.({ error: "espera a resposta anterior" });
+    const a = await agents.get(agentId);
+    const provider = a?.providerId && await agents.getProvider(a.providerId);
+    if (!a || !provider) return ack?.({ error: "agente sem provedor configurado" });
+    busy.agent = true;
+    try {
+      const history = await agents.history(agentId, user.id);
+      const r = await runAgent({ agent: a, provider, history, userMessage: text, onTool: (name, args) => socket.emit("agent:tool", { agentId, name, args }) });
+      await agents.saveHistory(agentId, user.id, [...history, { role: "user", content: text }, { role: "assistant", content: r.content }]);
+      ack?.({ reply: r.content, trace: r.trace });
+    } catch (e) { ack?.({ error: "o agente falhou: " + e.message.slice(0, 200) }); }
+    finally { busy.agent = false; }
   });
+  socket.on("agent:history", async ({ agentId } = {}, ack) => { if (!user) return; ack?.(await agents.history(agentId, user.id)); });
 
-  // Quadro compartilhado (objeto "board" do mapa)
-  socket.on("board:get", async ({ id } = {}, ack) => {
-    if (!user || typeof id !== "string") return;
-    ack?.(await store.getBoard(id));
-  });
+  socket.on("board:get", async ({ id } = {}, ack) => { if (!user || typeof id !== "string") return; ack?.(await store.getBoard(id)); });
   socket.on("board:set", async ({ id, content } = {}) => {
     if (!user || typeof id !== "string" || typeof content !== "string") return;
     if (!world.map.objects.some((o) => o.id === id && o.kind === "board")) return;
@@ -120,7 +267,6 @@ io.on("connection", (socket) => {
     socket.to("world").emit("board:update", { id, content, by: user.name });
   });
 
-  // Canal de voz estilo Discord: entra/sai independente da posição no mapa
   socket.on("voice:channel", async ({ channelId } = {}) => {
     if (!user) return;
     const p = world.players.get(user.id);
@@ -133,22 +279,18 @@ io.on("connection", (socket) => {
     pushVoice();
   });
 
-  socket.on("chat:history", async ({ channelId } = {}, ack) => {
-    if (!user || typeof channelId !== "string") return;
-    ack?.(await store.history(channelId));
-  });
+  socket.on("chat:history", async ({ channelId } = {}, ack) => { if (!user || typeof channelId !== "string") return; ack?.(await store.history(channelId)); });
 
   socket.on("chat:send", async ({ channelId, body } = {}) => {
     if (!user) return;
     body = String(body || "").trim().slice(0, 1000);
     if (!body || typeof channelId !== "string") return;
     const p = world.players.get(user.id);
-    if (channelId.startsWith("zone:")) {
-      // chat local: só quem está na sala
-      if (!p || "zone:" + p.zone !== channelId) return;
-    } else {
-      const ok = (await store.channels()).some((c) => c.id === channelId && c.kind === "text");
-      if (!ok) return;
+    if (channelId.startsWith("zone:")) { if (!p || "zone:" + p.zone !== channelId) return; }
+    else {
+      const ch = (await store.channels()).find((c) => c.id === channelId && c.kind === "text");
+      if (!ch) return;
+      if (ch.id === "anuncios" && !["admin", "professor"].includes(user.role)) return socket.emit("toast", "Só professores postam em #anúncios.");
     }
     const msg = await store.addMessage({ channel_id: channelId, user_id: user.id, user_name: user.name, user_color: user.color, body });
     if (channelId.startsWith("zone:")) {
@@ -156,14 +298,12 @@ io.on("connection", (socket) => {
     } else io.to("world").emit("chat:message", msg);
   });
 
-  // Balão de fala rápido (aparece sobre o avatar de quem está perto)
   socket.on("bubble", ({ text } = {}) => {
     if (!user) return;
     text = String(text || "").trim().slice(0, 120);
     if (text) io.to("world").emit("bubble", { userId: user.id, text });
   });
 
-  // Sinalização WebRTC (relay puro)
   socket.on("rtc:signal", ({ to, data } = {}) => {
     if (!user || typeof to !== "string") return;
     socketsByUser.get(to)?.emit("rtc:signal", { from: user.id, data });
@@ -181,13 +321,11 @@ io.on("connection", (socket) => {
   });
 });
 
-// Broadcast de posições a 12Hz; bichos simulados no mesmo tick
 setInterval(() => {
   world.tickNpcs(1 / 12);
   if (world.players.size) { io.to("world").emit("state", world.snapshot()); io.to("world").emit("npcs", world.npcSnapshot()); }
 }, 1000 / 12);
 
-// Recalcula grupos de voz e envia só pra quem mudou
 function pushVoice() {
   const groups = world.voiceGroups();
   for (const [uid, g] of groups) {
@@ -198,4 +336,5 @@ function pushVoice() {
   }
 }
 
+startScheduler(agents, postAsAgent);
 server.listen(PORT, () => console.log(`[server] http://localhost:${PORT}`));

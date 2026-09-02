@@ -228,3 +228,26 @@ h1 .serif { font-size: 92px; }
 .screen-tile.camera video { object-fit: cover; }
 .screen-tile.camera.big { width: 420px; }
 .screen-tile.screen.big { grid-column: 1 / -1; }
+
+/* ---------- v0.6: contas e agentes ---------- */
+.login-tabs { display: flex; gap: 4px; background: rgba(0,0,0,0.3); padding: 3px; border-radius: 9px; width: max-content; margin-bottom: 14px; }
+#account-form { display: grid; gap: 12px; }
+#account-form input[type=email], #account-form input[type=password] { background: rgba(0,0,0,0.35); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; outline: none; font-size: 15px; width: 100%; }
+#account-form input:focus { border-color: rgba(255,255,255,0.35); }
+.err { color: #f0a0a0; font-size: 13px; }
+.hint { text-transform: none; letter-spacing: 0; }
+.hint a { color: inherit; }
+.link { background: none; border: 0; color: var(--ink-dim); text-decoration: underline; cursor: pointer; font-size: 12px; }
+#session-box { padding: 10px 12px; background: rgba(0,0,0,0.3); border-radius: 10px; display: flex; gap: 8px; align-items: center; }
+#agent-modal { position: fixed; inset: 0; background: rgba(0,0,0,0.55); display: grid; place-items: center; z-index: 60; }
+.agent-card { width: min(720px, 94vw); height: min(620px, 88vh); }
+#agent-log { flex: 1; overflow: auto; padding: 16px 20px; display: flex; flex-direction: column; gap: 12px; }
+.amsg { max-width: 80%; padding: 10px 14px; border-radius: 12px; line-height: 1.5; white-space: pre-wrap; word-break: break-word; font-size: 14px; }
+.amsg.user { align-self: flex-end; background: var(--ink); color: #000; border-bottom-right-radius: 4px; }
+.amsg.agent { align-self: flex-start; background: rgba(255,255,255,0.07); border: 1px solid var(--line); border-bottom-left-radius: 4px; }
+.amsg.agent a { color: #9ad0ff; }
+#agent-status { padding: 0 20px 6px; min-height: 18px; }
+#agent-form { display: flex; gap: 8px; padding: 12px 14px 14px; border-top: 1px solid var(--line); }
+#agent-form input { flex: 1; background: rgba(0,0,0,0.35); border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; outline: none; }
+.members li .badge-role { font-family: var(--mono); font-size: 9px; letter-spacing: 0.08em; text-transform: uppercase; padding: 1px 5px; border-radius: 4px; background: rgba(154,208,255,0.18); color: #9ad0ff; }
+.msg.agent .who b { color: #9ad0ff; }

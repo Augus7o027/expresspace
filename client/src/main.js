@@ -23,18 +23,57 @@ function uuid() {
 const saved = safe(() => JSON.parse(localStorage.getItem("sede:me") || "{}"), {});
 let avatar = normalizeAvatar(saved.avatar || DEFAULT_AVATAR);
 await loadBase(); // sheets do personagem base
-const loginEditor = mountAvatarEditor($("#avatar-editor-login"), avatar, (a) => { avatar = a; });
-if (saved.name) $("#name").value = saved.name;
 const params = new URLSearchParams(location.search);
-if (params.get("name")) $("#name").value = params.get("name");
+const apiJson = async (method, url, body) => { const r = await fetch(url, { method, headers: body ? { "content-type": "application/json" } : {}, body: body ? JSON.stringify(body) : undefined, credentials: "same-origin" }); const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.error || r.statusText); return j; };
+const config = await apiJson("GET", "/api/auth/config").catch(() => ({ allowGuests: true }));
+let session = (await apiJson("GET", "/api/auth/me").catch(() => ({}))).user || null;
 
+// abas: conta x visitante
+const showLogin = (which) => {
+  document.querySelectorAll(".login-tabs .tab").forEach((b) => b.classList.toggle("active", b.dataset.login === which));
+  $("#account-form").classList.toggle("hidden", which !== "account");
+  $("#login-form").classList.toggle("hidden", which !== "guest");
+};
+document.querySelectorAll(".login-tabs .tab").forEach((b) => b.onclick = () => showLogin(b.dataset.login));
+if (!config.allowGuests) $("#tab-guest").classList.add("hidden");
+
+// conta
+const accountEditor = mountAvatarEditor($("#avatar-editor-login"), session?.avatar || avatar, (a) => { avatar = a; });
+const paintSession = () => {
+  $("#session-box").classList.toggle("hidden", !session);
+  $("#account-fields").classList.toggle("hidden", !!session);
+  if (session) $("#session-name").textContent = `${session.name} (${session.role})`;
+};
+paintSession();
+$("#session-logout").onclick = async () => { await apiJson("POST", "/api/auth/logout"); session = null; paintSession(); };
+$("#account-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const err = $("#account-error"); err.classList.add("hidden");
+  try {
+    if (!session) {
+      const email = $("#email").value.trim(), password = $("#password").value;
+      if (!email || !password) throw new Error("preencha e-mail e senha");
+      session = (await apiJson("POST", "/api/auth/login", { email, password })).user;
+    }
+    avatar = accountEditor.get();
+    safe(() => localStorage.setItem("sede:me", JSON.stringify({ name: session.name, avatar })));
+    sounds.unlock();
+    start({ avatar, color: SHIRTS[avatar.shirt] });
+  } catch (ex) { err.textContent = ex.message; err.classList.remove("hidden"); }
+});
+
+// visitante
+const guestEditor = mountAvatarEditor($("#avatar-editor-guest"), avatar, (a) => { avatar = a; });
+if (saved.name) $("#name").value = saved.name;
+if (params.get("name")) { $("#name").value = params.get("name"); showLogin("guest"); }
+else if (!session && config.allowGuests && !saved.email) showLogin("guest");
 $("#login-form").addEventListener("submit", (e) => {
   e.preventDefault();
   const name = $("#name").value.trim();
   if (!name) return;
   let userId = safe(() => sessionStorage.getItem("sede:uid"), null);
   if (!userId) { userId = uuid(); safe(() => sessionStorage.setItem("sede:uid", userId)); }
-  avatar = loginEditor.get();
+  avatar = guestEditor.get();
   safe(() => localStorage.setItem("sede:me", JSON.stringify({ name, avatar })));
   sounds.unlock();
   start({ name, color: SHIRTS[avatar.shirt], avatar, userId });
@@ -47,7 +86,7 @@ function start(creds) {
   let app = null;
   net.on("connect", () => {
     if (!app) {
-      net.emit("join", creds, (res) => { if (res) app = boot(net, res, creds); });
+      net.emit("join", creds, (res) => { if (res?.error) { toast(res.error); net.disconnect(); return; } if (res) app = boot(net, res, creds); });
     } else {
       // reconectou: entra de novo no mesmo lugar, sem recarregar
       net.emit("join", { ...creds, pos: app.pos() }, (res) => { if (res) app.rejoined(res); });
@@ -57,13 +96,15 @@ function start(creds) {
   net.on("kicked", (msg) => { toast(msg); setTimeout(() => location.reload(), 1500); });
 }
 
-function boot(net, { user, map, channels, players }, creds) {
+function boot(net, { user, map, channels, players, locked = [], npcs = [], communityName }, creds) {
   $("#login").classList.add("hidden");
   $("#app").classList.remove("hidden");
   $("#me-name").textContent = user.name;
   $("#me-dot").style.background = user.color;
   for (const [id, name] of [["#btn-mic", "micOff"], ["#btn-camera", "cameraOff"], ["#btn-screen", "screen"], ["#btn-sound", "bell"], ["#btn-avatar", "edit"], ["#btn-emoji", "smile"], ["#btn-send", "send"], ["#modal-close", "close"]]) $(id).innerHTML = ICON[name];
-  document.title = `ExpresSpace · ${user.name}`;
+  document.title = `${communityName || "ExpresSpace"} · ${user.name}`;
+  if (communityName) document.querySelector(".brand-title .script").textContent = communityName;
+  for (const id of ["#agent-close", "#agent-send"]) $(id).innerHTML = ICON[id === "#agent-send" ? "send" : "close"];
 
   const state = {
     me: user, map, channels, players, zone: null,
@@ -76,7 +117,13 @@ function boot(net, { user, map, channels, players }, creds) {
     map, me: user, net,
     onZoneChange: (z) => { state.zone = z; renderZone(); if (state.chatMode === "zone") loadHistory(); },
     onObjectNear: (o) => { state.nearObject = o; renderPrompt(); },
+    locked,
   });
+  net.on("world:changed", ({ locked: l, reload } = {}) => {
+    if (reload) { toast("O espaço foi atualizado. Recarregando…"); setTimeout(() => location.reload(), 1200); return; }
+    if (l) { scene.setLocked(l); toast("Salas atualizadas."); }
+  });
+  net.on("toast", (t) => toast(t));
   let membersKey = "";
   net.on("state", (ps) => {
     state.players = ps;
@@ -194,7 +241,7 @@ function boot(net, { user, map, channels, players }, creds) {
   function addMsg(m) {
     if (m.channel_id !== currentChannel()) return;
     const el = document.createElement("div");
-    el.className = "msg" + (m.user_id !== user.id && mentionsMe(m.body) ? " mentions-me" : "");
+    el.className = "msg" + (m.user_id !== user.id && mentionsMe(m.body) ? " mentions-me" : "") + (String(m.user_id).startsWith("agent:") ? " agent" : "");
     const t = new Date(m.created_at);
     el.innerHTML = `<span class="dot"></span><div><div class="who"><b></b><time>${t.getHours().toString().padStart(2, "0")}:${t.getMinutes().toString().padStart(2, "0")}</time></div><div class="body"></div></div>`;
     el.querySelector(".dot").style.background = m.user_color;
@@ -322,15 +369,53 @@ function boot(net, { user, map, channels, players }, creds) {
     if (ta && document.activeElement !== ta) ta.value = content;
   });
 
+  // --- conversa com agente ---
+  const agentModal = $("#agent-modal"), agentLog = $("#agent-log"), agentInput = $("#agent-input"), agentStatus = $("#agent-status");
+  let agentOpen = null;
+  function addAgentMsg(role, text) {
+    const d = document.createElement("div"); d.className = "amsg " + (role === "user" ? "user" : "agent");
+    if (role === "user") d.textContent = text;
+    else { d.textContent = ""; renderRich(d, text); }
+    agentLog.appendChild(d); agentLog.scrollTop = agentLog.scrollHeight;
+  }
+  function renderRich(el, text) { // links clicáveis, resto texto
+    const re = /https?:\/\/[^\s)]+/g; let last = 0;
+    for (const m of text.matchAll(re)) { el.append(text.slice(last, m.index)); const a = document.createElement("a"); a.href = m[0]; a.target = "_blank"; a.rel = "noopener"; a.textContent = m[0]; el.append(a); last = m.index + m[0].length; }
+    el.append(text.slice(last));
+  }
+  function openAgent(o) {
+    agentOpen = o; agentLog.innerHTML = ""; agentStatus.textContent = "";
+    $("#agent-title").textContent = o.label; $("#agent-kind").textContent = "agente · ia" + (o.role ? " · " + o.role : "");
+    agentModal.classList.remove("hidden"); scene.frozen = true;
+    net.emit("agent:history", { agentId: o.agentId }, (hist) => { for (const m of hist || []) addAgentMsg(m.role, m.content); if (!hist?.length) addAgentMsg("agent", `Oi, eu sou ${o.label}. ${o.role ? o.role + ". " : ""}Pergunta o que quiser.`); });
+    setTimeout(() => agentInput.focus(), 50);
+  }
+  function closeAgent() { agentModal.classList.add("hidden"); scene.frozen = false; agentOpen = null; }
+  $("#agent-close").onclick = closeAgent;
+  agentModal.addEventListener("click", (e) => { if (e.target === agentModal) closeAgent(); });
+  net.on("agent:tool", ({ name, args }) => { agentStatus.textContent = { web_search: `buscando: ${args.query || ""}`, fetch_url: `lendo ${args.url || ""}`, rss: "lendo fontes RSS" }[name] || name; });
+  $("#agent-form").addEventListener("submit", (e) => {
+    e.preventDefault();
+    const text = agentInput.value.trim(); if (!text || !agentOpen) return;
+    addAgentMsg("user", text); agentInput.value = ""; agentStatus.textContent = "pensando…";
+    net.emit("agent:chat", { agentId: agentOpen.agentId, text }, (r) => {
+      agentStatus.textContent = "";
+      if (r?.error) { addAgentMsg("agent", "⚠ " + r.error); return; }
+      addAgentMsg("agent", r?.reply || "…");
+    });
+  });
+
   // --- teclado global ---
   document.addEventListener("keydown", (e) => {
     const typing = ["INPUT", "TEXTAREA", "SELECT"].includes(document.activeElement?.tagName);
-    if (e.key === "Escape") { if (!modal.classList.contains("hidden")) closeModal(); else { input.blur(); picker.classList.add("hidden"); } return; }
+    if (e.key === "Escape") { if (!agentModal.classList.contains("hidden")) closeAgent(); else if (!modal.classList.contains("hidden")) closeModal(); else { input.blur(); picker.classList.add("hidden"); } return; }
     if (typing) return;
     if (e.key === "Enter") { e.preventDefault(); input.focus(); }
     else if (e.key.toLowerCase() === "m") toggleMic();
     else if (e.key.toLowerCase() === "c") toggleCamera();
-    else if (e.key.toLowerCase() === "e" && state.nearObject && modal.classList.contains("hidden")) openObject(state.nearObject);
+    else if (e.key.toLowerCase() === "e" && state.nearObject && modal.classList.contains("hidden") && agentModal.classList.contains("hidden")) {
+      if (state.nearObject.kind === "agent") openAgent(state.nearObject); else openObject(state.nearObject);
+    }
   });
 
   // --- sidebar ---
@@ -391,6 +476,7 @@ function boot(net, { user, map, channels, players }, creds) {
       li.querySelector(".avatar-dot").style.background = p.color;
       li.querySelector(".pdot").classList.add(p.presence || "available");
       li.querySelector("span:nth-child(3)").textContent = p.name + (p.id === user.id ? " (você)" : "");
+      if (p.role === "admin" || p.role === "professor") { const b = document.createElement("span"); b.className = "badge-role"; b.textContent = p.role === "admin" ? "admin" : "prof"; li.querySelector("span:nth-child(3)").append(" ", b); }
       li.querySelector(".where").textContent = label[p.presence] || where;
       li.title = p.status || "";
       ul.appendChild(li);
@@ -410,7 +496,7 @@ function boot(net, { user, map, channels, players }, creds) {
   function renderPrompt() {
     const el = $("#hud-prompt");
     if (!state.nearObject) { el.classList.add("hidden"); return; }
-    const verb = { board: "Abrir quadro", link: "Abrir", video: "Assistir", info: "Ler" }[state.nearObject.kind];
+    const verb = { board: "Abrir quadro", link: "Abrir", video: "Assistir", info: "Ler", agent: "Conversar com" }[state.nearObject.kind];
     el.querySelector("span").textContent = `${verb} · ${state.nearObject.label}`;
     el.classList.remove("hidden");
   }

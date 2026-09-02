@@ -8,8 +8,11 @@ import { fileURLToPath } from "node:url";
 export const TILE = 32;
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // Em dev o mapa está em client/public; na imagem de produção só existe o build (client/dist, onde o Vite copia o public/)
-const CANDIDATES = [process.env.MAP_FILE, path.resolve(__dirname, "../../client/public/maps/sede.json"), path.resolve(__dirname, "../../client/dist/maps/sede.json")].filter(Boolean);
-const MAP_FILE = CANDIDATES.find((f) => existsSync(f)) || CANDIDATES[0];
+// Um mapa enviado pelo painel admin fica em DATA_DIR/maps/sede.json e tem prioridade
+const DATA_DIR = process.env.DATA_DIR || path.resolve(process.cwd(), "data");
+export const UPLOADED_MAP = path.join(DATA_DIR, "maps", "sede.json");
+const CANDIDATES = [process.env.MAP_FILE, UPLOADED_MAP, path.resolve(__dirname, "../../client/public/maps/sede.json"), path.resolve(__dirname, "../../client/dist/maps/sede.json")].filter(Boolean);
+export function mapFile() { return CANDIDATES.find((f) => existsSync(f)) || CANDIDATES[0]; }
 
 function props(o) {
   const out = {};
@@ -17,8 +20,11 @@ function props(o) {
   return out;
 }
 
-export function loadTiled(file = MAP_FILE) {
-  const t = JSON.parse(readFileSync(file, "utf8"));
+export function loadTiled(file = mapFile()) {
+  return parseTiled(JSON.parse(readFileSync(file, "utf8")), path.basename(file));
+}
+
+export function parseTiled(t, fileName = "sede.json") {
   const W = t.width, H = t.height;
   const mp = props(t);
   const world = {
@@ -61,9 +67,11 @@ export function loadTiled(file = MAP_FILE) {
   }
   for (const s of stages) { const z = world.zones.find((z) => z.id === s.zone); if (z) z.stage = { x: s.x, y: s.y, w: s.w, h: s.h }; }
   // objetos interativos e árvores bloqueiam
+  world.tiledGrid = [];
+  for (let y = 0; y < H; y++) world.tiledGrid.push(Array.from(grid.subarray(y * W, (y + 1) * W)).join(""));
   for (const o of [...world.objects, ...world.decor]) for (let y = o.y; y < o.y + o.h; y++) for (let x = o.x; x < o.x + o.w; x++) if (x >= 0 && y >= 0 && x < W && y < H) grid[y * W + x] = 1;
   for (let y = 0; y < H; y++) world.grid.push(Array.from(grid.subarray(y * W, (y + 1) * W)).join(""));
-  world.tiledFile = path.basename(file);
+  world.tiledFile = fileName;
   return world;
 }
 

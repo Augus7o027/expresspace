@@ -15,19 +15,37 @@
     <!-- Entrada -->
     <section id="login" class="screen">
       <div class="login-card glass">
-        <div class="meta-row"><span class="mono">©®™</span><span class="mono">v0.5 · beta</span></div>
+        <div class="meta-row"><span class="mono">©®™</span><span class="mono">v0.6 · beta</span></div>
         <h1 class="display">
           <span class="kicker">você é o arquiteto do seu</span>
           <span class="script">Próprio</span>
           <span class="serif">Espaço</span>
         </h1>
         <p class="sub mono">ExpresSpace. Um lugar só nosso. Entre, caminhe, converse.</p>
-        <form id="login-form">
-          <label class="mono" for="name">como quer ser chamado</label>
-          <input id="name" name="name" autocomplete="off" maxlength="24" placeholder="seu nome" required />
+        <div class="login-tabs">
+          <button type="button" class="tab active" data-login="account">Tenho conta</button>
+          <button type="button" class="tab" data-login="guest" id="tab-guest">Visitante</button>
+        </div>
+        <form id="account-form">
+          <div id="session-box" class="hidden"><span class="mono dim">logado como</span> <b id="session-name"></b> <button type="button" id="session-logout" class="link">sair</button></div>
+          <div id="account-fields">
+            <label class="mono" for="email">e-mail</label>
+            <input id="email" type="email" autocomplete="username" />
+            <label class="mono" for="password">senha</label>
+            <input id="password" type="password" autocomplete="current-password" />
+            <div id="account-error" class="err hidden"></div>
+          </div>
           <label class="mono">seu avatar</label>
           <div id="avatar-editor-login"></div>
           <button type="submit" class="btn-primary">Entrar no ambiente</button>
+          <p class="mono dim hint">Sem conta? Fale com um professor. <a href="/admin" class="dim">Painel admin</a></p>
+        </form>
+        <form id="login-form" class="hidden">
+          <label class="mono" for="name">como quer ser chamado</label>
+          <input id="name" name="name" autocomplete="off" maxlength="24" placeholder="seu nome" />
+          <label class="mono">seu avatar</label>
+          <div id="avatar-editor-guest"></div>
+          <button type="submit" class="btn-primary">Entrar como visitante</button>
         </form>
       </div>
     </section>
@@ -127,6 +145,22 @@
           <button id="modal-close" class="icon-btn" title="Fechar (Esc)"></button>
         </header>
         <div id="modal-body"></div>
+      </div>
+    </div>
+
+    <!-- conversa com agente -->
+    <div id="agent-modal" class="hidden">
+      <div class="modal-card glass agent-card">
+        <header>
+          <div><div class="mono dim" id="agent-kind">agente · ia</div><div class="serif" id="agent-title"></div></div>
+          <button id="agent-close" class="icon-btn" title="Fechar (Esc)"></button>
+        </header>
+        <div id="agent-log"></div>
+        <div id="agent-status" class="mono dim"></div>
+        <form id="agent-form">
+          <input id="agent-input" autocomplete="off" maxlength="2000" placeholder="Pergunte alguma coisa…" />
+          <button type="submit" class="icon-btn" id="agent-send"></button>
+        </form>
       </div>
     </div>
 

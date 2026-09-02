@@ -32,6 +32,15 @@ CREATE TABLE IF NOT EXISTS boards (
   updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+-- documentos genéricos (contas, provedores de LLM, agentes, configurações)
+CREATE TABLE IF NOT EXISTS docs (
+  collection  TEXT NOT NULL,
+  id          TEXT NOT NULL,
+  data        JSONB NOT NULL,
+  updated_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (collection, id)
+);
+
 INSERT INTO channels (id, name, kind, position) VALUES
   ('geral', 'geral', 'text', 0),
   ('anuncios', 'anúncios', 'text', 1),

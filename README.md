@@ -2,7 +2,13 @@
 
 Ambiente 2D próprio da comunidade. Híbrido entre Gather e Discord: um mapa onde o avatar anda, entra em salas e cai em calls, mais canais de texto e voz que funcionam sem depender da posição no mapa.
 
-## O que já funciona (v0.5)
+## O que já funciona (v0.6)
+
+- **Contas**: login por e-mail e senha, cargos `admin`, `professor`, `member`; visitantes (só nome) e cadastro livre são opções que o admin liga ou desliga
+- **Painel /admin** (só admin): visão geral de quem está online, **provedores de LLM** (qualquer API OpenAI-compatível: NVIDIA NIM, OpenRouter, Groq, Ollama, OpenAI) com teste de conexão, **agentes** (nome, papel, system prompt, modelo, temperatura, ferramentas, fontes RSS, aparência, posição no mapa, agenda), **mundo** (trancar salas, mover objetos e árvores, bichos, enviar mapa do Tiled sem deploy), **usuários** e **configurações**
+- **Agentes no mapa**: cada agente é um personagem com selo IA; chega perto, aperta E e conversa. Ferramentas: busca na web (DuckDuckGo), leitura de página e RSS. Histórico por pessoa. Com agenda, o agente pesquisa e posta sozinho num canal a cada N horas (ex.: briefing diário de tech)
+- **Salas trancadas** bloqueiam quem não é admin/professor, com aviso no mapa; `#anúncios` só professores postam
+- Persistência sem Postgres: `DATA_DIR/state.json` (monte um volume no Coolify)
 
 - Mapa inteiro em pixel art no formato **Tiled** (`client/public/maps/sede.json`): abre no Tiled (mapeditor.org) e edita à vontade, o app lê direto
 - Tileset próprio de escritório em 32px (`client/public/assets/tiles/office.png`, 65 tiles): pisos, paredes com janela e luminária, mesas com monitor, cadeiras, sofás, balcão, bebedouro, cafeteira, estante, quadro branco, telão, rádio, mural, e exterior (grama, calçada, cerca, poste, banco de praça)
@@ -63,14 +69,28 @@ Produção: `npm run build && npm start` (o servidor serve o build do cliente na
 
 Teste ponta a ponta (dois navegadores, chat, proximidade, WebRTC): `npm test`.
 
+## Contas, admin e agentes
+
+Primeiro acesso: defina `ADMIN_EMAIL`, `ADMIN_PASSWORD` e `SESSION_SECRET` nas variáveis de ambiente e suba. O admin é criado na primeira subida. Entre em `/admin`.
+
+Fluxo pra ter um agente no ar:
+1. **Provedores**: escolha um preset (NVIDIA NIM em build.nvidia.com dá chave gratuita), cole a chave, clique em Testar.
+2. **Agentes → Novo agente**: nome, papel, system prompt (a "personalidade" e a bagagem do professor), provedor + modelo, ferramentas (busca, páginas, RSS), aparência, zona e tile onde ele fica. Salvar e testar.
+3. Opcional, **Agenda**: ligada, a cada 24h, canal `#geral`, tarefa "Pesquise as notícias mais relevantes de IA e marketing das últimas 24h e escreva um resumo comentado com links". Rodar agenda agora pra ver.
+
+Pra comunidade paga: em Configurações desligue visitantes e cadastro livre; crie as contas dos membros em Usuários (integração com pagamento vem depois).
+
+Sem Postgres tudo fica em `DATA_DIR/state.json` (contas, agentes, chaves, mensagens). No Coolify, em Persistent Storage, monte um volume em `/app/data`. Com `DATABASE_URL`, vai pra tabela `docs` do Postgres.
+
 ## Deploy no Coolify (VPS Hostinger)
 
 1. Sobe o projeto num repositório Git (GitHub/GitLab). O Coolify puxa de lá.
 2. No Coolify: **Projects → New Resource → Postgres**. Copia a URL interna de conexão (formato `postgres://usuario:senha@host:5432/banco`).
 3. **New Resource → Application → Git repository**, Build Pack **Dockerfile**. Porta exposta: `3000`.
 4. Em Environment Variables:
-   - `DATABASE_URL` = a URL do passo 2
+   - `DATABASE_URL` = a URL do passo 2 (ou pule e monte um volume em `/app/data`)
    - `CLIENT_ORIGIN` = `https://seu-dominio.com`
+   - `ADMIN_EMAIL`, `ADMIN_PASSWORD`, `SESSION_SECRET`
 5. Em Domains coloca o domínio. O Coolify gera o certificado sozinho. **HTTPS é obrigatório**: o navegador só libera microfone em página segura.
 6. Deploy. O schema do banco é aplicado na primeira subida, sem passo manual.
 
@@ -86,7 +106,10 @@ server/src/world.js     estado do mundo e cálculo dos grupos de voz (proximidad
 server/src/map.js       carrega o Tiled (sede.json), monta grid de colisão, zonas e objetos. Servido em GET /api/map
 client/public/maps/     sede.json (mapa Tiled)
 tools/build-tileset.py  desenha o tileset de escritório; tools/build-map.py gera o sede.json
-server/src/db/          schema.sql, migrate.js e store.js (Postgres ou memória)
+server/src/db/          schema.sql, migrate.js e store.js (Postgres ou memória + state.json)
+server/src/auth.js      contas, senhas (scrypt), sessões por cookie, cargos
+server/src/agents.js    agentes: provedores OpenAI-compatíveis, tools (busca, página, RSS), agenda
+client/admin.html       painel admin (client/src/admin.js, admin.css)
 client/src/main.js      login, sidebar, chat, integração socket
 client/src/game.js      cena Phaser: mapa, avatares, movimento, balões
 client/src/voice.js     WebRTC mesh (voz + tela) com "perfect negotiation" e detecção de fala
@@ -137,7 +160,8 @@ Objetos interativos ficam em `objects`: `board` (quadro de texto compartilhado, 
 
 ## Próximos passos sugeridos
 
-- Login de verdade (magic link ou OAuth) e perfis persistentes
+- Pagamento (Stripe/Hotmart) criando contas de membro automaticamente
+- Área de membros: biblioteca de conteúdos, tutoriais, skills, prompts e templates hospedados no próprio servidor
 - SFU (LiveKit ou mediasoup) quando as salas passarem de ~6 pessoas: mesh não escala além disso
 - Moderação: cargos, silenciar, expulsar
 - Editor de mapa dentro do app

@@ -5,13 +5,59 @@ const NPC_SPEED = { fox: 2.2, hare: 3.0, deer: 1.6, boar: 1.4, grouse: 1.1 };
 
 export class World {
   constructor() {
-    this.map = WORLD;
     this.players = new Map(); // userId -> player
-    this.npcs = (WORLD.npcs || []).map((n, i) => {
-      const z = this.zoneById(n.zone);
+    this.locked = new Set();  // zonas trancadas (só admin/professor entram)
+    this.agents = [];         // NPCs com LLM (posição no mapa)
+    this.setMap(WORLD, {});
+  }
+
+  // (Re)carrega o mapa aplicando ajustes do painel (posições de objetos/árvores, bichos, trancas)
+  setMap(base, overrides = {}) {
+    const map = JSON.parse(JSON.stringify(base));
+    for (const [id, pos] of Object.entries(overrides.objects || {})) { const o = map.objects.find((x) => x.id === id); if (o) Object.assign(o, { x: pos.x, y: pos.y }); }
+    for (const [i, pos] of Object.entries(overrides.decor || {})) { const d = map.decor[Number(i)]; if (d) Object.assign(d, { x: pos.x, y: pos.y }); }
+    if (overrides.npcs) map.npcs = overrides.npcs;
+    // colisão = tiles do Tiled (paredes/móveis) + objetos e árvores nas posições atuais
+    const grid = map.tiledGrid.map((row) => row.split(""));
+    for (const o of [...map.objects, ...map.decor]) for (let y = o.y; y < o.y + o.h; y++) for (let x = o.x; x < o.x + o.w; x++) if (grid[y]?.[x] !== undefined) grid[y][x] = "1";
+    map.grid = grid.map((r) => r.join(""));
+    this.map = map;
+    this.locked = new Set(overrides.locked || []);
+    this.npcs = (map.npcs || []).map((n, i) => {
+      const z = this.zoneById(n.zone) || map.zones[0];
       const spot = this.freeTile(z) || { x: z.x, y: z.y };
-      return { id: "npc" + i, kind: n.kind, zone: n.zone, x: spot.x + 0.5, y: spot.y + 0.5, dir: "down", moving: false, target: null, wait: 1 + Math.random() * 3 };
+      return { id: "npc" + i, kind: n.kind, zone: z.id, x: spot.x + 0.5, y: spot.y + 0.5, dir: "down", moving: false, target: null, wait: 1 + Math.random() * 3 };
     });
+    for (const p of this.players.values()) { if (isBlocked(map, Math.floor(p.x), Math.floor(p.y))) { p.x = map.spawn.x + 0.5; p.y = map.spawn.y + 0.5; } this.updateZone(p); }
+  }
+
+  // Agentes (LLM) como NPCs: ficam parados no ponto ou passeiam na zona
+  setAgents(list) {
+    const prev = new Map(this.agents.map((a) => [a.id, a]));
+    this.agents = list.filter((a) => a.enabled).map((a) => {
+      const z = a.zone ? this.zoneById(a.zone) : null;
+      const old = prev.get(a.id);
+      let x = a.x, y = a.y;
+      if (!(x > 0 && y > 0) || isBlocked(this.map, Math.floor(x), Math.floor(y))) { const t = (z && this.freeTile(z)) || this.map.spawn; x = t.x + 0.5; y = t.y + 0.5; }
+      else { x = Math.floor(x) + 0.5; y = Math.floor(y) + 0.5; }
+      return { id: a.id, kind: "agent", name: a.name, role: a.role, avatar: a.avatar, zone: z?.id || null, wander: a.wander,
+        x: old && old.wander && a.wander ? old.x : x, y: old && old.wander && a.wander ? old.y : y, dir: "down", moving: false, target: null, wait: 2 };
+    });
+  }
+
+  canEnter(p, tx, ty) {
+    if (isBlocked(this.map, tx, ty)) return false;
+    if (!this.locked.size) return true;
+    const z = zoneAt(this.map, tx, ty);
+    if (z && this.locked.has(z.id) && !["admin", "professor"].includes(p.role)) return false;
+    return true;
+  }
+
+  // agente mais próximo de um jogador (pra conversar com E)
+  agentNear(p, reach = 2.2) {
+    let best = null, bd = Infinity;
+    for (const a of this.agents) { const d = Math.hypot(a.x - p.x, a.y - p.y); if (d < reach && d < bd) { best = a; bd = d; } }
+    return best;
   }
 
   freeTile(z) {
@@ -24,11 +70,12 @@ export class World {
 
   // Bichos passeando: escolhe um ponto livre na zona, anda até lá, para um pouco, repete
   tickNpcs(dt) {
-    for (const n of this.npcs) {
+    for (const n of [...this.npcs, ...this.agents.filter((a) => a.wander)]) {
+      if (n.kind === "agent" && !n.zone) continue;
       if (n.wait > 0) { n.wait -= dt; n.moving = false; continue; }
       if (!n.target) { const t = this.freeTile(this.zoneById(n.zone)); if (!t) { n.wait = 2; continue; } n.target = { x: t.x + 0.5, y: t.y + 0.5 }; }
       const vx = n.target.x - n.x, vy = n.target.y - n.y, d = Math.hypot(vx, vy);
-      const sp = NPC_SPEED[n.kind] || 1.5;
+      const sp = NPC_SPEED[n.kind] || (n.kind === "agent" ? 1.4 : 1.5);
       if (d < 0.1) { n.target = null; n.wait = 1 + Math.random() * 5; n.moving = false; continue; }
       const nx = n.x + (vx / d) * sp * dt, ny = n.y + (vy / d) * sp * dt;
       if (isBlocked(this.map, Math.floor(nx), Math.floor(ny))) { n.target = null; n.wait = 0.5; n.moving = false; continue; }
@@ -37,7 +84,12 @@ export class World {
     }
   }
 
-  npcSnapshot() { return this.npcs.map((n) => ({ id: n.id, kind: n.kind, x: n.x, y: n.y, dir: n.dir, moving: n.moving })); }
+  npcSnapshot() {
+    return [
+      ...this.npcs.map((n) => ({ id: n.id, kind: n.kind, x: n.x, y: n.y, dir: n.dir, moving: n.moving })),
+      ...this.agents.map((a) => ({ id: a.id, kind: "agent", name: a.name, role: a.role, avatar: a.avatar, x: a.x, y: a.y, dir: a.dir, moving: a.moving })),
+    ];
+  }
 
   add(user, socketId) {
     const p = {
@@ -46,6 +98,8 @@ export class World {
       name: user.name,
       color: user.color,
       avatar: user.avatar,
+      role: user.role || "guest",
+      accountId: user.accountId || null,
       x: this.map.spawn.x,
       y: this.map.spawn.y,
       dir: "down",
@@ -70,7 +124,7 @@ export class World {
     if (!p) return false;
     if (!Number.isFinite(x) || !Number.isFinite(y)) return false;
     const tx = Math.floor(x), ty = Math.floor(y);
-    if (isBlocked(this.map, tx, ty)) return false;
+    if (!this.canEnter(p, tx, ty)) return false;
     // anti-teleporte: no máximo ~2 tiles por mensagem
     if (Math.hypot(x - p.x, y - p.y) > 2.5) return false;
     p.x = x; p.y = y; p.dir = dir || p.dir; p.moving = !!moving;
@@ -89,7 +143,7 @@ export class World {
   snapshot() {
     const out = [];
     for (const p of this.players.values()) {
-      out.push({ id: p.id, name: p.name, color: p.color, avatar: p.avatar, x: p.x, y: p.y, dir: p.dir,
+      out.push({ id: p.id, name: p.name, color: p.color, avatar: p.avatar, role: p.role, x: p.x, y: p.y, dir: p.dir,
         moving: p.moving, zone: p.zone, onStage: p.onStage, voiceChannel: p.voiceChannel,
         muted: p.muted, status: p.status, presence: p.presence, speaking: p.speaking });
     }

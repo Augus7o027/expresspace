@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ExpresSpace · Admin</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Pinyon+Script&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/src/style.css" />
+    <link rel="stylesheet" href="/src/admin.css" />
+  </head>
+  <body>
+    <div id="grain"></div>
+
+    <section id="login" class="screen">
+      <div class="login-card glass" style="width:min(440px,92vw)">
+        <div class="meta-row"><span class="mono">©®™</span><span class="mono">painel · admin</span></div>
+        <h1 class="display"><span class="kicker">controle do</span><span class="script">Espaço</span></h1>
+        <form id="login-form" style="margin-top:24px">
+          <label class="mono" for="email">e-mail</label>
+          <input id="email" type="email" autocomplete="username" required />
+          <label class="mono" for="password">senha</label>
+          <input id="password" type="password" autocomplete="current-password" required />
+          <div id="login-error" class="err hidden"></div>
+          <button type="submit" class="btn-primary">Entrar</button>
+          <p class="mono dim" style="text-transform:none;letter-spacing:0">Primeiro admin: defina ADMIN_EMAIL e ADMIN_PASSWORD no servidor.</p>
+        </form>
+      </div>
+    </section>
+
+    <main id="app" class="hidden">
+      <aside class="glass nav">
+        <div class="brand-title"><span class="script">ExpresSpace</span></div>
+        <div class="mono dim" id="who">—</div>
+        <nav id="tabs">
+          <button data-tab="overview" class="active">Visão geral</button>
+          <button data-tab="agents">Agentes</button>
+          <button data-tab="providers">Provedores</button>
+          <button data-tab="world">Mundo</button>
+          <button data-tab="users">Usuários</button>
+          <button data-tab="settings">Configurações</button>
+        </nav>
+        <div class="nav-foot">
+          <a href="/" class="mono">← voltar ao espaço</a>
+          <button id="logout" class="mono">sair</button>
+        </div>
+      </aside>
+      <section class="content">
+        <div id="tab-overview" class="tab"></div>
+        <div id="tab-agents" class="tab hidden"></div>
+        <div id="tab-providers" class="tab hidden"></div>
+        <div id="tab-world" class="tab hidden"></div>
+        <div id="tab-users" class="tab hidden"></div>
+        <div id="tab-settings" class="tab hidden"></div>
+      </section>
+    </main>
+    <div id="toast" class="glass hidden"></div>
+    <script type="module" src="/src/admin.js"></script>
+  </body>
+</html>
