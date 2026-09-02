@@ -3,7 +3,10 @@
 const ICE = [{ urls: "stun:stun.l.google.com:19302" }, { urls: "stun:stun1.l.google.com:19302" }];
 
 export class Voice {
-  constructor(net, myId, { onChange, onSpeaking, onVideo } = {}) {
+  constructor(net, myId, { onChange, onSpeaking, onVideo, onAudio, onAudioClose } = {}) {
+    this.onAudio = onAudio || (() => {});           // (peerId, stream, audioEl) chegou áudio remoto
+    this.onAudioClose = onAudioClose || (() => {});  // (peerId)
+    this.noise = "normal";                           // supressão de ruído: off | normal | alta
     this.net = net;
     this.myId = myId;
     this.peers = new Map(); // peerId -> { pc, audio, video, polite, makingOffer, analyser }
@@ -84,19 +87,44 @@ export class Voice {
       const on = !extraMute && this.level(an) > 0.04;
       if (this.speakingNow.get(key) !== on) { this.speakingNow.set(key, on); this.onSpeaking(key, on); }
     };
-    if (this.stream) check("me", this.myAnalyser, this.muted || !this.canSpeak);
+    if (this.stream) { const lv = this.level(this.myAnalyser); this.tickGate(lv); const on = !(this.muted || !this.canSpeak) && lv > 0.04 && this.gateOpen !== false; if (this.speakingNow.get("me") !== on) { this.speakingNow.set("me", on); this.onSpeaking("me", on); } }
     for (const [id, p] of this.peers) if (p.analyser) check(id, p.analyser, false);
   }
 
   async enableMic() {
     if (this.stream) return true;
     try {
-      this.stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }, video: false });
-      this.myAnalyser = this.analyserFor(this.stream);
+      this.raw = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 }, video: false });
+      this.myAnalyser = this.analyserFor(this.raw);
+      this.stream = this.processMic(this.raw) || this.raw;
       this.applyMute();
       for (const p of this.peers.values()) if (p.ready) this.addTracks(p.pc, this.stream);
       return true;
     } catch (e) { console.warn("mic indisponível", e); return false; }
+  }
+
+  // Porta de ruído + filtro grave, em cima da supressão nativa do navegador:
+  // mic -> passa-altas 90Hz -> ganho (abre quando há voz, fecha no silêncio) -> trilha enviada
+  processMic(raw) {
+    try {
+      const ctx = this.audioCtx();
+      const src = ctx.createMediaStreamSource(raw);
+      const hp = ctx.createBiquadFilter(); hp.type = "highpass"; hp.frequency.value = 90;
+      const gate = ctx.createGain(); gate.gain.value = 1;
+      const dest = ctx.createMediaStreamDestination();
+      src.connect(hp).connect(gate).connect(dest);
+      this.gate = gate; this.gateOpen = true; this.gateLastVoice = 0;
+      return dest.stream;
+    } catch (e) { console.warn("sem processamento de mic", e); return null; }
+  }
+  setNoise(level) { this.noise = level; if (this.gate && level === "off") { this.gate.gain.setTargetAtTime(1, this.ctx.currentTime, 0.02); this.gateOpen = true; } }
+  tickGate(level) {
+    if (!this.gate || this.noise === "off") return;
+    const thr = this.noise === "alta" ? 0.045 : 0.018;
+    const now = performance.now();
+    if (level > thr) this.gateLastVoice = now;
+    const open = now - this.gateLastVoice < 350; // segura 350ms depois da última voz
+    if (open !== this.gateOpen) { this.gateOpen = open; this.gate.gain.setTargetAtTime(open ? 1 : 0, this.ctx.currentTime, open ? 0.015 : 0.08); }
   }
 
   setMuted(m) { this.muted = m; this.applyMute(); this.onChange(); }
@@ -183,6 +211,7 @@ export class Voice {
         const ms = streams[0] || new MediaStream([track]);
         audio.srcObject = ms; audio.play().catch(() => {});
         entry.analyser = this.analyserFor(ms);
+        this.onAudio(peerId, ms, audio);
       } else {
         const sid = streams[0]?.id;
         const kind = () => this.meta.get(peerId)?.[sid] || "camera";
@@ -257,6 +286,7 @@ export class Voice {
   close(peerId) {
     const p = this.peers.get(peerId);
     if (!p) return;
+    this.onAudioClose(peerId);
     p.pc.close(); p.audio.remove();
     this.peers.delete(peerId);
     this.speakingNow.delete(peerId);

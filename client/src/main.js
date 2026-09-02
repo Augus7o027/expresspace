@@ -1,6 +1,8 @@
 import { io } from "socket.io-client";
 import { createGame } from "./game.js";
 import { Voice } from "./voice.js";
+import { Spatial } from "./spatial.js";
+import { Tiles } from "./tiles.js";
 import { sounds } from "./sounds.js";
 import { EMOJI, EMOJI_ORDER, renderEmoji, ICON, icon } from "./icons.js";
 import { mountAvatarEditor } from "./avatar-editor.js";
@@ -135,13 +137,25 @@ function boot(net, { user, map, channels, players, locked = [], npcs = [], commu
   net.on("npcs", (list) => scene.player && scene.applyNpcs(list));
 
   // --- voz e tela ---
+  let spatial = null;
+  const getSpatial = () => { if (!spatial) { try { spatial = new Spatial(voice.audioCtx()); spatial.setEnabled(sounds.enabled); for (const e of scene.emitters || []) spatial.addEmitter(e.kind, e.x, e.y); } catch (e) { console.warn("sem áudio espacial", e); } } return spatial; };
   const voice = new Voice(net, user.id, {
     onChange: renderVoice,
     onSpeaking: (who, on) => {
       if (who === "me") { scene.setMySpeaking(on); net.emit("speaking", on); }
     },
     onVideo: (who, kind, stream) => { const k = who + ":" + kind; if (stream) state.videos.set(k, { who, kind, stream }); else state.videos.delete(k); renderScreens(); },
+    onAudio: (peerId, stream, el) => getSpatial()?.attachPeer(peerId, stream, el),
+    onAudioClose: (peerId) => spatial?.detachPeer(peerId),
   });
+  // áudio espacial: volume e lado da voz de quem está perto e dos sons do ambiente, pela distância
+  setInterval(() => {
+    const sp = spatial; if (!sp || !scene.pos) return;
+    const positions = new Map(); for (const p of state.players) positions.set(p.id, { x: p.x, y: p.y });
+    const spatialPeers = !!state.group?.id?.startsWith("prox:"); // em sala de reunião/canal, todo mundo no mesmo volume
+    sp.update(scene.pos.x, scene.pos.y, { proximityRadius: map.proximityRadius || 3.2, positions, spatialPeers });
+  }, 150);
+  const tiles = new Tiles($("#stage"), { nameOf: (who, kind) => who === "me" ? (kind === "camera" ? "você" : "sua tela") : (state.players.find((p) => p.id === who)?.name || "…") + (kind === "screen" ? " · tela" : "") });
   let lastPeerCount = 0;
   net.on("voice:group", (g) => {
     state.group = g;
@@ -155,16 +169,25 @@ function boot(net, { user, map, channels, players, locked = [], npcs = [], commu
   });
   const micBtn = $("#btn-mic"), screenBtn = $("#btn-screen"), soundBtn = $("#btn-sound"), camBtn = $("#btn-camera");
   micBtn.classList.add("muted");
+  const paintMic = () => { micBtn.classList.toggle("muted", voice.muted); micBtn.innerHTML = ICON[voice.muted ? "micOff" : "mic"]; scene.setMuted(voice.muted); net.emit("profile", { muted: voice.muted }); };
+  // Padrão: microfone ligado ao entrar (quem chega perto já fala). Quem desligou, continua desligado na próxima visita.
+  (async () => {
+    if (safe(() => localStorage.getItem("sede:mic"), "on") === "off") return;
+    if (await voice.enableMic()) { voice.setMuted(false); paintMic(); getSpatial(); }
+  })();
+  const noiseBtn = $("#btn-noise"), NOISE = ["normal", "alta", "off"], NOISE_LABEL = { normal: "supressão de ruído: normal", alta: "supressão de ruído: alta (só voz forte passa)", off: "supressão de ruído: desligada" };
+  voice.setNoise(safe(() => localStorage.getItem("sede:noise"), "normal") || "normal");
+  const paintNoise = () => { noiseBtn.className = "icon-btn " + (voice.noise === "normal" ? "" : voice.noise); noiseBtn.title = NOISE_LABEL[voice.noise]; noiseBtn.innerHTML = ICON.noise; };
+  paintNoise();
+  noiseBtn.onclick = () => { const n = NOISE[(NOISE.indexOf(voice.noise) + 1) % NOISE.length]; voice.setNoise(n); safe(() => localStorage.setItem("sede:noise", n)); paintNoise(); toast(NOISE_LABEL[n]); };
   async function toggleMic() {
     if (!voice.stream) {
       const ok = await voice.enableMic();
       if (!ok) { toast("Sem acesso ao microfone. Confere a permissão do navegador."); return; }
       voice.setMuted(false);
     } else voice.setMuted(!voice.muted);
-    micBtn.classList.toggle("muted", voice.muted);
-    micBtn.innerHTML = ICON[voice.muted ? "micOff" : "mic"];
-    scene.setMuted(voice.muted);
-    net.emit("profile", { muted: voice.muted });
+    safe(() => localStorage.setItem("sede:mic", voice.muted ? "off" : "on"));
+    paintMic(); getSpatial();
   }
   micBtn.onclick = toggleMic;
   async function toggleCamera() {
@@ -181,7 +204,7 @@ function boot(net, { user, map, channels, players, locked = [], npcs = [], commu
   sounds.setEnabled(safe(() => localStorage.getItem("sede:sound") !== "off", true));
   const paintSound = () => { soundBtn.classList.toggle("off", !sounds.enabled); soundBtn.innerHTML = ICON[sounds.enabled ? "bell" : "bellOff"]; };
   paintSound();
-  soundBtn.onclick = () => { sounds.setEnabled(!sounds.enabled); paintSound(); safe(() => localStorage.setItem("sede:sound", sounds.enabled ? "on" : "off")); };
+  soundBtn.onclick = () => { sounds.setEnabled(!sounds.enabled); spatial?.setEnabled(sounds.enabled); paintSound(); safe(() => localStorage.setItem("sede:sound", sounds.enabled ? "on" : "off")); };
 
   // editar avatar dentro do app
   $("#btn-avatar").onclick = () => {
@@ -413,6 +436,7 @@ function boot(net, { user, map, channels, players, locked = [], npcs = [], commu
     if (e.key === "Enter") { e.preventDefault(); input.focus(); }
     else if (e.key.toLowerCase() === "m") toggleMic();
     else if (e.key.toLowerCase() === "c") toggleCamera();
+    else if (e.key.toLowerCase() === "v") tiles.toggleAll();
     else if (e.key.toLowerCase() === "e" && state.nearObject && modal.classList.contains("hidden") && agentModal.classList.contains("hidden")) {
       if (state.nearObject.kind === "agent") openAgent(state.nearObject); else openObject(state.nearObject);
     }
@@ -517,29 +541,11 @@ function boot(net, { user, map, channels, players, locked = [], npcs = [], commu
     camBtn.classList.toggle("off", !g?.id && !voice.camera);
     camBtn.innerHTML = ICON[voice.camera ? "camera" : "cameraOff"];
   }
-  function renderScreens() {
-    const wrap = $("#screens");
-    wrap.innerHTML = "";
-    if (!state.videos.size) { wrap.classList.add("hidden"); return; }
-    const screens = [...state.videos.values()].filter((v) => v.kind === "screen");
-    const cams = [...state.videos.values()].filter((v) => v.kind === "camera");
-    const tileFor = (v) => {
-      const tile = document.createElement("div"); tile.className = "screen-tile " + v.kind;
-      const el = document.createElement("video"); el.autoplay = true; el.playsInline = true; el.muted = true; el.srcObject = v.stream;
-      if (v.who === "me" && v.kind === "camera") el.style.transform = "scaleX(-1)";
-      const name = v.who === "me" ? (v.kind === "camera" ? "você" : "sua tela") : (state.players.find((p) => p.id === v.who)?.name || "…");
-      const tag = document.createElement("span"); tag.className = "who"; tag.textContent = name;
-      tile.append(el, tag);
-      tile.onclick = () => tile.classList.toggle("big");
-      return tile;
-    };
-    if (screens.length) { const row = document.createElement("div"); row.className = "screens-row"; screens.forEach((v) => row.appendChild(tileFor(v))); wrap.appendChild(row); }
-    if (cams.length) { const row = document.createElement("div"); row.className = "cams-row"; cams.forEach((v) => row.appendChild(tileFor(v))); wrap.appendChild(row); }
-    wrap.classList.remove("hidden");
-  }
+  function renderScreens() { tiles.sync(state.videos); }
+  scene.onWalking = (on) => tiles.walking(on);
 
   renderMembers(); renderZone(); loadHistory(); renderVoice();
-  window.__sede = { scene, state, net, voice };
+  window.__sede = { scene, state, net, voice, get spatial() { return spatial; }, tiles };
 
   return {
     pos: () => ({ x: scene.pos.x, y: scene.pos.y }),

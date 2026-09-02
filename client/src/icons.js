@@ -81,6 +81,7 @@ export const ICON = {
   room:     S('<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18M9 10v10"/>'),
   user:     S('<circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-7 8-7s8 3 8 7"/>'),
   expand:   S('<path d="M4 9V4h5M20 15v5h-5M20 4l-6 6M4 20l6-6"/>'),
+  noise:    S('<path d="M3 12h2l2-5 3 10 3-8 2 5 2-2h4"/>'),
 };
 
 export function icon(name, cls = "") { const s = document.createElement("span"); s.className = "ico " + cls; s.innerHTML = ICON[name]; return s; }

@@ -2,7 +2,12 @@
 
 Ambiente 2D próprio da comunidade. Híbrido entre Gather e Discord: um mapa onde o avatar anda, entra em salas e cai em calls, mais canais de texto e voz que funcionam sem depender da posição no mapa.
 
-## O que já funciona (v0.9)
+## O que já funciona (v0.10)
+
+- **Voz por proximidade ligada por padrão**: o microfone já liga ao entrar (quem desligou fica desligado na próxima visita); chegou perto de alguém, a conexão fecha sozinha, sem precisar de canal de voz
+- **Áudio espacial**: a voz de quem está perto fica mais baixa e "mais pro lado" conforme a distância (dentro do raio de proximidade); em sala de reunião e canal de voz todo mundo no mesmo volume. Sons do ambiente pela distância: cafeteira, bebedouro, o rádio do Café tocando um lo-fi sintetizado, vento e passarinhos no Jardim e no Terraço (o botão do sino desliga)
+- **Supressão de ruído**: além da nativa do navegador, porta de ruído + filtro grave no microfone (botão de onda no rodapé: normal / alta / desligada)
+- **Janelas de câmera e tela**: arrastáveis, redimensionáveis (canto inferior direito), maximizam com 2 cliques, minimizam pra uma barra, ficam translúcidas enquanto você anda e a tecla **V** esconde/mostra todas. Tamanho fica salvo
 
 - **Sentar**: parou numa cadeira, o personagem encaixa no assento e vira pra mesa; de frente pra mesa (de costas pra câmera) a mesa e a cadeira ficam na frente do tronco, como alguém sentado trabalhando. Cadeiras do lado de cima das mesas grandes são de costas
 - **Paredes com altura**: paredes horizontais têm 2 linhas (topo visto de cima + face com rodapé e reboco), divisão mais clara entre salas; tileset com pisos mais trabalhados (tábuas com veios e nós, cerâmica com brilho, mármore com veios, concreto com manchas e rachaduras)
@@ -126,6 +131,8 @@ Se alguém da comunidade estiver em rede muito fechada (empresa, 4G com CGNAT) e
 ```
 server/src/index.js     Express + Socket.io: entrada, movimento, chat, canais, sinalização WebRTC
 server/src/library.js   Biblioteca: conteúdos, progresso, uploads (DATA_DIR/uploads)
+client/src/spatial.js   Áudio espacial (Web Audio): voz por distância + sons do ambiente sintetizados
+client/src/tiles.js     Janelas de câmera/tela arrastáveis
 client/src/pixelfx.js   Texturas em pixel art geradas em canvas: sombra, luz com dithering, onda de voz, vapor, balão
 client/membros.html     Área de membros (client/src/membros.js, membros.css, md.js = markdown)
 server/src/world.js     estado do mundo e cálculo dos grupos de voz (proximidade, sala, palco, canal)

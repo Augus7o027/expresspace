@@ -54,6 +54,7 @@ export class WorldScene extends Phaser.Scene {
     this.anims.create({ key: "fx:steam", frames: this.anims.generateFrameNumbers("fx:steam", { start: 0, end: 3 }), frameRate: 5, repeat: -1 });
     this.anims.create({ key: "fx:screen", frames: this.anims.generateFrameNumbers("fx:screen", { start: 0, end: 1 }), frameRate: 2, repeat: -1 });
     this.drawTilemap();
+    for (const z of map.zones) if (z.id === "jardim" || z.id === "terraco") this.emitters.push({ kind: "garden", x: z.x + z.w / 2, y: z.y + z.h / 2 });
     this.drawZones();
     this.drawObjects();
     this.drawGraffiti();
@@ -115,6 +116,7 @@ export class WorldScene extends Phaser.Scene {
     const nameOf = (idx) => ts.getTileData(idx)?.type || "";
     const solid = (t) => t && t.index > 0 && !FLAT_TILES.test(nameOf(t.index)) && nameOf(t.index) !== "chair_back";
     const w = layer.layer.width, h = layer.layer.height;
+    this.emitters = [];        // fontes de som do ambiente: { kind, x, y } (áudio espacial)
     this.chairs = new Map();   // "x,y" -> direção que a cadeira encara (pra "sentar")
     this.chairBase = new Map(); // "x,y" -> base (px) da pilha mesa+cadeira
     this.occupied = new Set(); // tiles com móvel (pra achar lugar livre pros títulos)
@@ -132,6 +134,7 @@ export class WorldScene extends Phaser.Scene {
       if (!t || t.index <= 0) return;
       const frame = t.index - ts.firstgid, name = nameOf(t.index);
       this.occupied.add(`${t.x},${t.y}`);
+      if (name === "coffee" || name === "cooler" || name === "radio") this.emitters.push({ kind: name, x: t.x + 0.5, y: t.y + 0.5 });
       if (name === "chair" || name === "chair_back") {
         // encara o móvel vizinho: cadeira normal olha pra cima (mesa acima), de costas olha pra baixo
         const above = layer.getTileAt(t.x, t.y - 1), below = layer.getTileAt(t.x, t.y + 1);
@@ -375,10 +378,10 @@ export class WorldScene extends Phaser.Scene {
     }
   }
 
-  setMyPresence(status) { this.setStatus(this.player, status); }
-  setMySpeaking(on) { this.player.speak.setVisible(on); }
-  setMuted(m) { this.player.mic.setText(m ? "×" : ""); }
-  setMyAvatar(a) { this.player.setAvatar(a); }
+  setMyPresence(status) { if (this.player) this.setStatus(this.player, status); }
+  setMySpeaking(on) { this.player?.speak.setVisible(on); }
+  setMuted(m) { this.player?.mic.setText(m ? "×" : ""); }
+  setMyAvatar(a) { this.player?.setAvatar(a); }
 
   showBubble(userId, text) {
     const target = userId === this.me.id ? this.player : this.remote.get(userId)?.container;
@@ -451,6 +454,7 @@ export class WorldScene extends Phaser.Scene {
       this.net.emit("move", { x: this.pos.x, y: this.pos.y, dir: this.dir, moving });
       this.lastSent = now;
     }
+    if (moving !== !!this.wasMoving) this.onWalking?.(moving);
     this.wasMoving = moving;
 
     for (const r of this.remote.values()) {

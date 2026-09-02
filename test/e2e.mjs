@@ -58,6 +58,9 @@ const online = await A.textContent("#online-count");
 console.log("online:", online);
 const near1 = await A.textContent("#hud-voice");
 console.log("A voz (spawn juntos):", near1);
+// proximidade: mic ligado por padrão, conexão fecha sozinha sem canal de voz
+await A.waitForTimeout(3000);
+console.log("proximidade (sem canal) A:", await A.evaluate(() => [...window.__sede.voice.peers.values()].map((p) => p.pc.connectionState).join(",")), "| mic ligado:", await A.evaluate(() => !window.__sede.voice.muted), "| porta de ruído:", await A.evaluate(() => !!window.__sede.voice.gate), "| espacial:", await A.evaluate(() => window.__sede.spatial?.peers.size ?? "n/a"), "| emissores:", await A.evaluate(() => window.__sede.scene.emitters.length));
 
 // Bruno anda pra longe: sobe e cruza a porta da direita (entra no Foco)
 await B.keyboard.down("ArrowUp"); await B.waitForTimeout(350); await B.keyboard.up("ArrowUp");
@@ -99,10 +102,10 @@ console.log("A voz pós-mic:", await A.textContent("#hud-voice"));
 
 // Câmera: B liga, A recebe tile de vídeo
 await B.click("#btn-camera"); await A.waitForTimeout(3500);
-console.log("tiles de câmera em A:", await A.evaluate(() => document.querySelectorAll("#screens .screen-tile.camera").length), "| em B:", await B.evaluate(() => document.querySelectorAll("#screens .screen-tile.camera").length));
+console.log("tiles de câmera em A:", await A.evaluate(() => document.querySelectorAll("#tiles .tile.camera").length), "| em B:", await B.evaluate(() => document.querySelectorAll("#tiles .tile.camera").length));
 await A.screenshot({ path: "test/shots/06-camera.png" });
 await B.click("#btn-camera"); await A.waitForTimeout(800);
-console.log("tiles após desligar:", await A.evaluate(() => document.querySelectorAll("#screens .screen-tile").length));
+console.log("tiles após desligar:", await A.evaluate(() => document.querySelectorAll("#tiles .tile:not(.hidden)").length));
 
 // Emoji próprio no chat
 await A.click(".tab[data-mode='channel']"); await B.click(".tab[data-mode='channel']");
