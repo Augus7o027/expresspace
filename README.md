@@ -2,8 +2,9 @@
 
 Ambiente 2D próprio da comunidade. Híbrido entre Gather e Discord: um mapa onde o avatar anda, entra em salas e cai em calls, mais canais de texto e voz que funcionam sem depender da posição no mapa.
 
-## O que já funciona (v0.11)
+## O que já funciona (v0.12)
 
+- **Celular**: o mapa ocupa a tela inteira; canais/salas e chat viram gavetas laterais (botões na barra de baixo, badge de não lidas); joystick virtual no canto (empurrando mais longe, corre) além do toque no mapa pra andar; barra com microfone, câmera, correr e zoom (1x/2x); o "E" vira um botão tocável; HUD compacto no topo; áreas seguras do iPhone respeitadas; sem zoom acidental no teclado. Voz, câmera e chat funcionam; compartilhar tela não existe em navegador de celular (botão some). Painel e biblioteca também se adaptam
 - **Traço coeso**: o mapa inteiro passou a 16px ampliados 2x, a mesma densidade de pixel do personagem. Pisos, paredes (reboco + pedra com rodapé, janelas), grama, calçada e cerca vêm dos packs CraftPix (Main Characters Home, Glassblower's Workshop, Dungeon); mesas de trabalho com monitor, cadeiras, sofás, telão etc. redesenhados em 16px
 - **Ambientes trabalhados com props dos packs**: balcão da recepção com recepcionista (NPC animado), plantas e jardineiras, tapetes, estantes com livros, vitrais, lanternas, balcão do café com vasos, mesas redondas com cadeiras, estante de vidro, barris, caixotes; Terraço com fogueira animada (com luz e som de estalos), arbustos, tocos; Jardim com árvores animadas (13 quadros), arbustos, pedras
 - **Correr**: Shift + direção corre (1,75x); os outros veem a corrida

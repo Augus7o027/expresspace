@@ -55,3 +55,10 @@ td input, td select { padding: 5px 8px; font-size: 12px; }
 .avatar-preview canvas { width: 96px; height: 112px; }
 .zone-row { display: grid; grid-template-columns: 1fr auto auto; gap: 10px; align-items: center; padding: 8px 10px; border-bottom: 1px solid var(--line); }
 .online-dot { width: 8px; height: 8px; border-radius: 50%; background: #6ef0a3; display: inline-block; margin-right: 6px; }
+@media (max-width: 800px) {
+  #app { grid-template-columns: 1fr; }
+  .nav { position: static; height: auto; }
+  #tabs { flex-direction: row; flex-wrap: wrap; }
+  .grid { grid-template-columns: 1fr; }
+  input, select, textarea, button { font-size: 16px; }
+}

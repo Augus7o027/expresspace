@@ -3,6 +3,7 @@ import { createGame } from "./game.js";
 import { Voice } from "./voice.js";
 import { Spatial } from "./spatial.js";
 import { Tiles } from "./tiles.js";
+import { isMobile, isIOS, mountJoystick, drawers } from "./mobile.js";
 import { sounds } from "./sounds.js";
 import { EMOJI, EMOJI_ORDER, renderEmoji, ICON, icon } from "./icons.js";
 import { mountAvatarEditor } from "./avatar-editor.js";
@@ -118,7 +119,7 @@ function boot(net, { user, map, channels, players, locked = [], npcs = [], commu
 
   // --- jogo ---
   const { scene } = createGame("game", {
-    map, me: user, net,
+    map, me: user, net, startZoom: isMobile() && innerWidth < 700 ? 1 : undefined,
     onZoneChange: (z) => { state.zone = z; renderZone(); if (state.chatMode === "zone") loadHistory(); },
     onObjectNear: (o) => { state.nearObject = o; renderPrompt(); },
     locked,
@@ -140,7 +141,7 @@ function boot(net, { user, map, channels, players, locked = [], npcs = [], commu
 
   // --- voz e tela ---
   let spatial = null;
-  const getSpatial = () => { if (!spatial) { try { spatial = new Spatial(voice.audioCtx()); spatial.setEnabled(sounds.enabled); for (const e of scene.emitters || []) spatial.addEmitter(e.kind, e.x, e.y); } catch (e) { console.warn("sem áudio espacial", e); } } return spatial; };
+  const getSpatial = () => { if (!spatial) { try { spatial = new Spatial(voice.audioCtx(), { routeVoice: !isIOS() }); spatial.setEnabled(sounds.enabled); for (const e of scene.emitters || []) spatial.addEmitter(e.kind, e.x, e.y); } catch (e) { console.warn("sem áudio espacial", e); } } return spatial; };
   const voice = new Voice(net, user.id, {
     onChange: renderVoice,
     onSpeaking: (who, on) => {
@@ -158,7 +159,7 @@ function boot(net, { user, map, channels, players, locked = [], npcs = [], commu
     sp.update(scene.pos.x, scene.pos.y, { proximityRadius: map.proximityRadius || 3.2, positions, spatialPeers });
   }, 150);
   const tiles = new Tiles($("#stage"), { nameOf: (who, kind) => who === "me" ? (kind === "camera" ? "você" : "sua tela") : (state.players.find((p) => p.id === who)?.name || "…") + (kind === "screen" ? " · tela" : "") });
-  let lastPeerCount = 0;
+  let lastPeerCount = 0, mobileUnread = 0;
   net.on("voice:group", (g) => {
     state.group = g;
     voice.setCanSpeak(g.canSpeak);
@@ -279,6 +280,7 @@ function boot(net, { user, map, channels, players, locked = [], npcs = [], commu
   }
   function scrollDown() { msgs.scrollTop = msgs.scrollHeight; }
   net.on("chat:message", (m) => {
+    if (document.body.classList.contains("mobile") && !$("#chat").classList.contains("open") && m.user_id !== user.id) { mobileUnread++; window.__paintMobileBar?.(); }
     if (m.channel_id === currentChannel()) { addMsg(m); scrollDown(); }
     else { state.unread[m.channel_id] = (state.unread[m.channel_id] || 0) + 1; renderChannels(); }
     if (m.user_id !== user.id) { if (mentionsMe(m.body)) { sounds.mention(); toast(`${m.user_name} mencionou você`); } else sounds.message(); }
@@ -519,6 +521,7 @@ function boot(net, { user, map, channels, players, locked = [], npcs = [], commu
     if (state.chatMode === "zone") { $("#chat-kind").textContent = "chat da sala"; $("#chat-title").textContent = state.zone ? state.zone.name : "—"; }
     else { $("#chat-kind").textContent = "canal"; $("#chat-title").textContent = "#" + (channels.find((c) => c.id === state.channelId)?.name || state.channelId); }
   }
+  $("#hud-prompt").onclick = () => { if (!state.nearObject) return; if (state.nearObject.kind === "agent") openAgent(state.nearObject); else openObject(state.nearObject); };
   function renderPrompt() {
     const el = $("#hud-prompt");
     if (!state.nearObject) { el.classList.add("hidden"); return; }
@@ -547,6 +550,36 @@ function boot(net, { user, map, channels, players, locked = [], npcs = [], commu
   scene.onWalking = (on) => tiles.walking(on);
 
   renderMembers(); renderZone(); loadHistory(); renderVoice();
+
+  // ---- celular: gavetas, barra e joystick ----
+  const mobile = isMobile();
+  document.body.classList.toggle("mobile", mobile);
+  if (mobile) {
+    const dr = drawers({ sidebar: $("#sidebar"), chat: $("#chat"), backdrop: $("#drawer-backdrop"), onOpenChat: () => { mobileUnread = 0; paintMobileBar(); setTimeout(() => scrollDown(), 50); } });
+    mountJoystick($("#joy"), (v) => { scene.touch = v; });
+    const mb = { menu: $("#mb-menu"), chat: $("#mb-chat"), mic: $("#mb-mic"), cam: $("#mb-cam"), run: $("#mb-run"), zoom: $("#mb-zoom") };
+    mb.menu.innerHTML = ICON.hash; mb.run.innerHTML = ICON.run; mb.zoom.innerHTML = ICON.expand;
+    mb.chat.insertAdjacentHTML("afterbegin", ICON.smile);
+    const paintMobileBar = () => {
+      mb.mic.innerHTML = ICON[voice.muted ? "micOff" : "mic"]; mb.mic.classList.toggle("on", !voice.muted && !!voice.stream);
+      mb.cam.innerHTML = ICON[voice.camera ? "camera" : "cameraOff"]; mb.cam.classList.toggle("on", !!voice.camera);
+      mb.run.classList.toggle("on", !!scene.runToggle);
+      const b = mb.chat.querySelector(".badge-n"); b.textContent = mobileUnread; b.classList.toggle("hidden", !mobileUnread);
+    };
+    window.__paintMobileBar = paintMobileBar;
+    mb.menu.onclick = () => dr.open("sidebar"); mb.chat.onclick = () => dr.open("chat");
+    $("#sb-close").innerHTML = ICON.close; $("#chat-close").innerHTML = ICON.close; $("#sb-close").onclick = dr.closeAll; $("#chat-close").onclick = dr.closeAll;
+    mb.mic.onclick = async () => { await toggleMic(); paintMobileBar(); };
+    mb.cam.onclick = async () => { await toggleCamera(); paintMobileBar(); };
+    mb.run.onclick = () => { scene.runToggle = !scene.runToggle; paintMobileBar(); toast(scene.runToggle ? "correndo" : "andando"); };
+    mb.zoom.onclick = () => { const z = scene.setZoom(scene.zoom === 1 ? 2 : 1); toast(`zoom ${z}x`); };
+    voice.onChange = () => { renderVoice(); paintMobileBar(); };
+    // tocar num canal/sala fecha a gaveta
+    for (const id of ["#text-channels", "#voice-channels", "#zones"]) $(id).addEventListener("click", (e) => { if (e.target.closest("li")) setTimeout(dr.closeAll, 120); });
+    // iOS: destrava o áudio no primeiro toque
+    document.addEventListener("touchstart", () => { try { voice.audioCtx(); } catch {} for (const a of document.querySelectorAll("#audio-sink audio")) a.play().catch(() => {}); }, { once: true, passive: true });
+    paintMobileBar();
+  }
   window.__sede = { scene, state, net, voice, get spatial() { return spatial; }, tiles };
 
   return {

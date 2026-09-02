@@ -280,3 +280,40 @@ h1 .serif { font-size: 92px; }
 #btn-noise.alta { border-color: rgba(154,208,255,0.6); }
 
 .avatar-opt.locked { opacity: 0.45; cursor: not-allowed; }
+
+/* ---------- v0.12: celular ---------- */
+.mobile-only { display: none; }
+#drawer-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.55); z-index: 19; }
+@media (max-width: 820px), (pointer: coarse) and (max-width: 1100px) {
+  html, body { height: 100dvh; }
+  .mobile-only { display: flex; }
+  #app { display: block; padding: 0; }
+  #stage { position: fixed; inset: 0; border-radius: 0; border: 0; }
+  #sidebar, #chat { position: fixed; top: 0; bottom: 0; width: min(86vw, 360px); z-index: 20; border-radius: 0; transition: transform 0.22s ease; padding-top: env(safe-area-inset-top); padding-bottom: env(safe-area-inset-bottom); }
+  #sidebar { left: 0; transform: translateX(-102%); }
+  #chat { right: 0; transform: translateX(102%); }
+  #sidebar.open, #chat.open { transform: none; }
+  #chat #messages { flex: 1; }
+  #chat-form input, #agent-form input, #login-form input, #account-form input { font-size: 16px; } /* iOS não dá zoom no foco */
+  #hud { left: 8px; right: 8px; top: calc(8px + env(safe-area-inset-top)); bottom: auto; padding: 5px 10px; pointer-events: none; }
+  #toast { top: calc(52px + env(safe-area-inset-top)); }
+  #tiles .tile { top: calc(52px + env(safe-area-inset-top)) !important; }
+  #hud-hint { display: none; }
+  #hud-zone { font-size: 15px; }
+  #hud-prompt { bottom: calc(150px + env(safe-area-inset-bottom)); pointer-events: auto; cursor: pointer; padding: 10px 16px; font-size: 14px; }
+  #mbar { position: absolute; left: 8px; right: 8px; bottom: calc(8px + env(safe-area-inset-bottom)); padding: 6px; border-radius: 14px; display: flex; justify-content: space-around; gap: 4px; z-index: 6; }
+  #mbar .icon-btn { width: 44px; height: 44px; position: relative; }
+  #mbar .icon-btn.on { border-color: rgba(110,240,163,0.6); box-shadow: 0 0 10px rgba(110,240,163,0.25); }
+  #mbar .badge-n { position: absolute; top: -4px; right: -4px; min-width: 16px; height: 16px; border-radius: 8px; background: #f06e6e; color: #fff; font-family: var(--mono); font-size: 9px; line-height: 16px; padding: 0 4px; }
+  #joy { position: absolute; left: 18px; bottom: calc(76px + env(safe-area-inset-bottom)); width: 112px; height: 112px; border-radius: 50%; background: rgba(0,0,0,0.28); border: 1px solid rgba(255,255,255,0.18); z-index: 6; touch-action: none; }
+  #joy-knob { position: absolute; left: 50%; top: 50%; width: 46px; height: 46px; margin: -23px 0 0 -23px; border-radius: 50%; background: rgba(255,255,255,0.35); border: 1px solid rgba(255,255,255,0.5); pointer-events: none; }
+  #tiles .tile.camera { width: 110px !important; height: 82px !important; }
+  #tiles-dock { bottom: calc(68px + env(safe-area-inset-bottom)); }
+  #toast { max-width: 90vw; }
+  .login-card { padding: 22px 18px 24px; max-height: 100dvh; }
+  .avatar-editor { grid-template-columns: 1fr; }
+  .avatar-preview { width: 150px; margin: 0 auto; }
+  .modal-card, .agent-card { width: 96vw !important; max-height: 92dvh; }
+  #btn-screen, #btn-noise { display: none; }
+}
+.drawer-close { width: 32px; height: 32px; margin-left: 6px; }

@@ -18,8 +18,9 @@ const FLAT_TILES = /^(floor|rug|grass|path|door|flowers|stage_light|plant_small)
 const D = { LABEL: 20, DIM: 22, TITLE: 24, BUBBLE: 30 };
 
 export class WorldScene extends Phaser.Scene {
-  constructor({ map, me, net, onZoneChange, onObjectNear, locked = [] }) {
+  constructor({ map, me, net, onZoneChange, onObjectNear, locked = [], startZoom }) {
     super("world");
+    this.startZoom = startZoom;
     this.map = map;
     this.locked = new Set(locked);
     this.lockMarks = new Map();
@@ -79,7 +80,7 @@ export class WorldScene extends Phaser.Scene {
 
     this.cameras.main.setBounds(0, 0, map.width * TILE, map.height * TILE);
     this.cameras.main.startFollow(this.player, true, 0.12, 0.12);
-    this.zoom = DEFAULT_ZOOM;
+    this.zoom = this.startZoom || DEFAULT_ZOOM;
     this.cameras.main.setZoom(this.zoom);
     this.cameras.main.roundPixels = true;
     // roda do mouse: troca entre zooms inteiros (1x, 2x, 3x)
@@ -166,6 +167,8 @@ export class WorldScene extends Phaser.Scene {
     else if (/^(screen_m|tv|desk_m)$/.test(name)) this.add.sprite(px, py, "fx:screen", 0).setOrigin(0).setDepth(depth + 0.00001).play({ key: "fx:screen", startFrame: (px / TILE) % 2 });
     else if (name === "lamp_post") this.add.image(px + TILE / 2, py + TILE + 6, glowTexture(this, 96, 48, "255,240,200", 3)).setAlpha(0.14).setDepth(1);
   }
+
+  setZoom(z) { if (ZOOMS.includes(z)) { this.zoom = z; this.cameras.main.setZoom(z); } return this.zoom; }
 
   // texto nítido no zoom inteiro (renderiza em 2x e mostra em escala)
   txt(x, y, str, style) { return this.add.text(x, y, str, { resolution: 2, ...style }); }
@@ -454,6 +457,7 @@ export class WorldScene extends Phaser.Scene {
       if (k.right.isDown || k.right2.isDown) dx += 1;
       if (k.up.isDown || k.up2.isDown) dy -= 1;
       if (k.down.isDown || k.down2.isDown) dy += 1;
+      if (!dx && !dy && this.touch) { dx = this.touch.x; dy = this.touch.y; } // joystick do celular
       if (dx || dy) this.clickTarget = null;
       else if (this.clickTarget) {
         const vx = this.clickTarget.x - this.pos.x, vy = this.clickTarget.y - this.pos.y;
@@ -463,9 +467,10 @@ export class WorldScene extends Phaser.Scene {
       }
     }
     const moving = dx !== 0 || dy !== 0;
-    const running = moving && (k.shift.isDown || this.runToggle); // Shift corre
+    const running = moving && (k.shift.isDown || this.runToggle || !!this.touch?.run); // Shift corre (ou botão/joystick no celular)
     if (moving) {
-      if (dx && dy && !this.clickTarget) { dx *= Math.SQRT1_2; dy *= Math.SQRT1_2; }
+      if (dx && dy && !this.clickTarget && !this.touch) { dx *= Math.SQRT1_2; dy *= Math.SQRT1_2; }
+      else if (this.touch) { const d = Math.hypot(dx, dy); if (d > 1) { dx /= d; dy /= d; } }
       const speed = SPEED * (running ? RUN_MULT : 1);
       const nx = this.pos.x + dx * speed * dt;
       const ny = this.pos.y + dy * speed * dt;

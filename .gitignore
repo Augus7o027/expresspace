@@ -5,3 +5,4 @@ dist
 tools/src/*
 !tools/src/README.md
 data/
+*.tgz

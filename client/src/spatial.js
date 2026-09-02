@@ -2,8 +2,9 @@
 // Um único AudioContext (compartilhado com voice.js). Se o navegador não deixar rotear a voz pelo
 // Web Audio, cai pro volume do <audio> (sem pan).
 export class Spatial {
-  constructor(ctx) {
+  constructor(ctx, { routeVoice = true } = {}) {
     this.ctx = ctx;
+    this.routeVoice = routeVoice; // iOS antigo não deixa rotear voz remota pelo Web Audio: usa volume do <audio>
     this.peers = new Map();     // peerId -> { src, gain, pan, audio, ok }
     this.emitters = [];         // { kind, x, y, gain, pan, nodes }
     this.master = ctx.createGain(); this.master.gain.value = 1; this.master.connect(ctx.destination);
@@ -16,6 +17,7 @@ export class Spatial {
     this.detachPeer(peerId);
     const e = { audio: audioEl, ok: false, target: 1, targetPan: 0 };
     try {
+      if (!this.routeVoice) throw new Error("sem roteamento");
       e.src = this.ctx.createMediaStreamSource(stream);
       e.gain = this.ctx.createGain(); e.pan = this.ctx.createStereoPanner();
       e.src.connect(e.gain).connect(e.pan).connect(this.master);

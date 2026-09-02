@@ -82,6 +82,7 @@ export const ICON = {
   user:     S('<circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-7 8-7s8 3 8 7"/>'),
   expand:   S('<path d="M4 9V4h5M20 15v5h-5M20 4l-6 6M4 20l6-6"/>'),
   noise:    S('<path d="M3 12h2l2-5 3 10 3-8 2 5 2-2h4"/>'),
+  run:      S('<circle cx="15" cy="4.5" r="1.8"/><path d="M9 20l2.5-5.5L9 12l3-4 3 3h4M11 8l-4 3 1.5 3M14 14l2 2-1 4"/>'),
 };
 
 export function icon(name, cls = "") { const s = document.createElement("span"); s.className = "ico " + cls; s.innerHTML = ICON[name]; return s; }

@@ -2,7 +2,9 @@
 <html lang="pt-BR">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no" />
+    <meta name="theme-color" content="#070707" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
     <title>ExpresSpace</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -15,7 +17,7 @@
     <!-- Entrada -->
     <section id="login" class="screen">
       <div class="login-card glass">
-        <div class="meta-row"><span class="mono">©®™</span><span class="mono">v0.11 · beta</span></div>
+        <div class="meta-row"><span class="mono">©®™</span><span class="mono">v0.12 · beta</span></div>
         <h1 class="display">
           <span class="kicker">você é o arquiteto do seu</span>
           <span class="script">Próprio</span>
@@ -55,7 +57,7 @@
       <aside id="sidebar" class="glass">
         <header class="brand">
           <div class="brand-title"><span class="script">ExpresSpace</span></div>
-          <div class="brand-row"><span class="mono dim" id="online-count">0 online</span><a href="/membros" target="_blank" class="mono lib-link" title="Aulas, skills, prompts e templates">biblioteca ↗</a></div>
+          <div class="brand-row"><span class="mono dim" id="online-count">0 online</span><a href="/membros" target="_blank" class="mono lib-link" title="Aulas, skills, prompts e templates">biblioteca ↗</a><button id="sb-close" class="icon-btn mobile-only drawer-close" title="Fechar"></button></div>
         </header>
 
         <nav class="channels">
@@ -113,7 +115,18 @@
         </div>
         <div id="hud-prompt" class="glass hidden"><kbd>E</kbd> <span></span></div>
         <div id="toast" class="glass hidden"></div>
+        <!-- celular: joystick + barra de ações; painéis laterais viram gavetas -->
+        <div id="joy" class="mobile-only"><div id="joy-knob"></div></div>
+        <nav id="mbar" class="glass mobile-only">
+          <button id="mb-menu" class="icon-btn" title="Canais e salas"></button>
+          <button id="mb-chat" class="icon-btn" title="Chat"><span class="badge-n hidden"></span></button>
+          <button id="mb-mic" class="icon-btn" title="Microfone"></button>
+          <button id="mb-cam" class="icon-btn" title="Câmera"></button>
+          <button id="mb-run" class="icon-btn" title="Correr"></button>
+          <button id="mb-zoom" class="icon-btn" title="Zoom"></button>
+        </nav>
       </section>
+      <div id="drawer-backdrop" class="hidden"></div>
 
       <aside id="chat" class="glass">
         <header>
@@ -124,6 +137,7 @@
           <div class="chat-tabs">
             <button class="tab active" data-mode="channel">Canal</button>
             <button class="tab" data-mode="zone">Sala</button>
+            <button id="chat-close" class="icon-btn mobile-only drawer-close" title="Fechar"></button>
           </div>
         </header>
         <div id="messages"></div>
