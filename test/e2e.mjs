@@ -146,6 +146,23 @@ await B.waitForTimeout(300);
 const board = await A.evaluate(() => new Promise((r) => window.__sede.net.emit("board:get", { id: "quadro-open" }, r)));
 console.log("quadro:", board);
 
+// v0.13: caixa de som do Lounge — B escolhe, A (na mesma sala) recebe e vê o widget
+await A.click("#zones li:nth-child(4)"); await B.click("#zones li:nth-child(4)"); await A.waitForTimeout(900);
+const spk = await B.evaluate(() => new Promise((r) => window.__sede.net.emit("speaker:set", { id: "som-lounge", url: "https://www.youtube.com/watch?v=jfKfPfyJRdk&t=10" }, r)));
+console.log("caixa de som set:", spk?.state?.videoId, "|", spk?.state?.title?.slice(0, 40), "| erro:", spk?.error);
+await A.waitForTimeout(2500);
+console.log("A recebeu música da sala:", await A.evaluate(() => window.__sede.state.speakers["som-lounge"]?.videoId), "| widget visível:", await A.evaluate(() => !document.querySelector("#speaker-widget").classList.contains("hidden")), "| título:", await A.textContent("#sw-title"));
+await A.click("#sw-open"); await A.waitForTimeout(400);
+await A.screenshot({ path: "test/shots/16-caixa-de-som.png" });
+const srch = await A.evaluate(() => new Promise((r) => window.__sede.net.emit("speaker:search", { q: "lofi hip hop radio" }, r)));
+console.log("pesquisa youtube:", srch?.results?.length, "resultados | ia:", srch?.aiQuery, "| erro:", srch?.error);
+await A.waitForTimeout(300);
+console.log("stop por quem não colocou:", (await A.evaluate(() => new Promise((r) => window.__sede.net.emit("speaker:stop", { id: "som-lounge" }, r))))?.error);
+await A.keyboard.press("Escape");
+console.log("guest editando telão (deve falhar):", (await A.evaluate(() => new Promise((r) => window.__sede.net.emit("object:set", { id: "telao", url: "https://x.com" }, r))))?.error);
+await A.click("#zones li:nth-child(1)"); await A.waitForTimeout(600);
+console.log("A saiu da sala, widget escondido:", await A.evaluate(() => document.querySelector("#speaker-widget").classList.contains("hidden")));
+
 // Menção + status
 await A.click(".tab[data-mode='channel']"); await B.click(".tab[data-mode='channel']"); await B.fill("#chat-input", "@Ana bora?"); await B.press("#chat-input", "Enter"); await A.waitForTimeout(400);
 console.log("A viu menção:", !!(await A.$(".msg.mentions-me")));
@@ -188,6 +205,16 @@ await AD.click("#tabs button[data-tab='agents']"); await AD.waitForTimeout(800);
 await AD.screenshot({ path: "test/shots/12-admin-agentes.png" });
 await AD.click("#tabs button[data-tab='world']"); await AD.waitForTimeout(800);
 await AD.screenshot({ path: "test/shots/13-admin-mundo.png" });
+// v0.13: admin no mundo edita o link do telão; A recebe object:update
+const W = await ctxA.newPage(); await W.goto(base + "/?canvas=1", { waitUntil: "domcontentloaded" }); await W.waitForTimeout(800);
+await W.click(".login-tabs .tab[data-login='account']"); await W.click("#account-form .btn-primary"); await W.waitForSelector("#app:not(.hidden)"); await W.waitForTimeout(800);
+await W.screenshot({ path: "test/shots/17-avatar-editor.png" }).catch(() => {});
+const oset = await W.evaluate(() => new Promise((r) => window.__sede.net.emit("object:set", { id: "telao", url: "https://youtu.be/jfKfPfyJRdk", label: "Telão · aula" }, r)));
+console.log("admin editou telão:", oset?.url, oset?.label, "| erro:", oset?.error);
+await A.waitForTimeout(500);
+console.log("A viu novo link do telão:", await A.evaluate(() => { const o = window.__sede.state.map.objects.find((x) => x.id === "telao"); return o.url + " / " + o.label; }));
+console.log("link persistido no mapa do servidor:", (await (await fetch(base + "/api/map")).json()).objects.find((o) => o.id === "telao").label);
+await W.close();
 
 // ---- biblioteca: conteúdo via API (com upload), depois como membro no navegador
 const up = await fetch(base + "/api/admin/uploads?name=" + encodeURIComponent("planilha de preço.csv"), { method: "POST", headers: { "content-type": "application/octet-stream", cookie }, body: "a,b\n1,2\n" }).then((r) => r.json());

@@ -71,9 +71,15 @@ OBJECTS = [
     dict(id="quadro-r2", kind="board", x=35, y=2, w=1, h=2, label="Quadro"),
     dict(id="quadro-dir", kind="board", x=46, y=2, w=1, h=2, label="Quadro"),
     dict(id="quadro-r3", kind="board", x=24, y=27, w=1, h=2, label="Quadro"),
-    dict(id="telao", kind="video", x=36, y=10, w=9, h=1, label="Telão", url="https://www.youtube.com/embed/jfKfPfyJRdk"),
+    dict(id="telao", kind="video", x=30, y=10, w=9, h=1, label="Telão", url="https://www.youtube.com/embed/jfKfPfyJRdk"),
     dict(id="docs", kind="link", x=8, y=12, w=2, h=1, label="Biblioteca", url="/membros"),
-    dict(id="jukebox", kind="link", x=11, y=27, w=1, h=1, label="Rádio", url="https://www.youtube.com/embed/videoseries?list=PLOzDu-MXXLliO9fBNZOQTBDddoA3FzZUo"),
+    dict(id="palco-link", kind="link", x=52, y=11, w=2, h=1, label="Palco · link", url="https://www.youtube.com/embed/jfKfPfyJRdk"),
+    # caixas de som: cada uma toca (YouTube) pra quem está na sala dela; qualquer um pode escolher a música (E)
+    dict(id="som-cafe", kind="speaker", x=11, y=27, w=1, h=1, label="Caixa de som"),
+    dict(id="som-lounge", kind="speaker", x=22, y=27, w=1, h=1, label="Caixa de som"),
+    dict(id="som-auditorio", kind="speaker", x=25, y=11, w=1, h=1, label="Caixa de som"),
+    dict(id="som-terraco", kind="speaker", x=36, y=26, w=1, h=1, label="Caixa de som"),
+    dict(id="som-jardim", kind="speaker", x=2, y=40, w=1, h=1, label="Caixa de som"),
 ]
 # Props dos packs CraftPix (client/public/assets/props): x,y = canto superior esquerdo da imagem em tiles.
 # A base (últimas bh linhas) bloqueia; tapetes (bh=0) ficam no chão.
@@ -234,7 +240,9 @@ for o in OBJECTS:
         for xx in range(o["w"]): put(furn, o["x"] + xx, o["y"], "noticeboard")
     elif o["kind"] == "video":
         for xx in range(o["w"]): put(furn, o["x"] + xx, o["y"], "screen_l" if xx == 0 else "screen_r" if xx == o["w"] - 1 else "screen_m")
-    elif o["id"] == "jukebox": put(furn, o["x"], o["y"], "radio")
+    elif o["kind"] == "speaker": put(furn, o["x"], o["y"], "radio")
+    elif o["kind"] == "link" and o["id"] != "docs":
+        for xx in range(o["w"]): put(furn, o["x"] + xx, o["y"], "screen_l" if xx == 0 else "screen_r" if xx == o["w"] - 1 else "screen_m")
 
 # ---------- objetos do Tiled ----------
 oid = [1]

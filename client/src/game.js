@@ -232,9 +232,12 @@ export class WorldScene extends Phaser.Scene {
       glow.fillRect(x + 2, y, w - 4, 1); glow.fillRect(x + 2, y + h - 1, w - 4, 1); glow.fillRect(x, y + 2, 1, h - 4); glow.fillRect(x + w - 1, y + 2, 1, h - 4);
       glow.fillRect(x + 1, y + 1, 1, 1); glow.fillRect(x + w - 2, y + 1, 1, 1); glow.fillRect(x + 1, y + h - 2, 1, 1); glow.fillRect(x + w - 2, y + h - 2, 1, 1);
       this.tweens.add({ targets: glow, alpha: { from: 0.3, to: 1 }, duration: 1600, yoyo: true, repeat: -1 });
-      this.txt(x + w / 2, y + h + 1, o.label, { fontFamily: "JetBrains Mono", fontSize: "8px", color: "#f2efe9", letterSpacing: 1, backgroundColor: "rgba(0,0,0,0.45)", padding: { x: 3, y: 1 } }).setOrigin(0.5, 0).setAlpha(0.7).setDepth(D.LABEL - 1);
+      this.objLabels ??= {};
+      this.objLabels[o.id] = this.txt(x + w / 2, y + h + 1, o.label, { fontFamily: "JetBrains Mono", fontSize: "8px", color: "#f2efe9", letterSpacing: 1, backgroundColor: "rgba(0,0,0,0.45)", padding: { x: 3, y: 1 } }).setOrigin(0.5, 0).setAlpha(0.7).setDepth(D.LABEL - 1);
     }
   }
+
+  updateObjectLabel(id, label) { this.objLabels?.[id]?.setText(label); }
 
   drawGraffiti() {
     for (const g of this.map.graffiti || []) {
@@ -474,10 +477,18 @@ export class WorldScene extends Phaser.Scene {
       const speed = SPEED * (running ? RUN_MULT : 1);
       const nx = this.pos.x + dx * speed * dt;
       const ny = this.pos.y + dy * speed * dt;
-      const r = 0.26;
+      const r = 0.24;
       let movedX = false, movedY = false;
       if (!this.hits(nx, this.pos.y, r)) { this.pos.x = nx; movedX = true; }
+      else if (dx && !dy) { // bateu numa quina andando reto: escorrega pro lado livre (portas e cantos de mesa)
+        const step = Math.abs(dx) * speed * dt;
+        for (const s of [1, -1]) { const ty = this.pos.y + s * 0.5; if (!this.hits(nx, ty, r)) { this.pos.y += s * Math.min(step, Math.abs(ty - this.pos.y)); movedX = true; break; } }
+      }
       if (!this.hits(this.pos.x, ny, r)) { this.pos.y = ny; movedY = true; }
+      else if (dy && !dx && !movedX) {
+        const step = Math.abs(dy) * speed * dt;
+        for (const s of [1, -1]) { const tx = this.pos.x + s * 0.5; if (!this.hits(tx, ny, r)) { this.pos.x += s * Math.min(step, Math.abs(tx - this.pos.x)); movedY = true; break; } }
+      }
       if (this.clickTarget && !movedX && !movedY) this.clickTarget = null; // travou: desiste
       this.dir = Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? "right" : "left") : (dy > 0 ? "down" : "up");
       this.player.setPosition(this.pos.x * TILE, this.pos.y * TILE);

@@ -6,14 +6,17 @@ const WALK_FRAMES = 6, IDLE_FRAMES = 12;
 const DIRS = ["down", "left", "right", "up"];
 const ROW = { down: 0, left: 1, right: 2, up: 3 };
 
-export const SKINS = ["#f4dcc4", "#e8c3a0", "#c9926a", "#a06b47", "#6b4530"];
-export const HAIR_COLORS = ["#1a1a1a", "#4a2f1f", "#8a5a2b", "#d9b27a", "#e8e0d0", "#7a7a7a"];
+export const SKINS = ["#f4dcc4", "#e8c3a0", "#c9926a", "#a06b47", "#6b4530", "#fbe7d6", "#b98a5e", "#4a2e20"];
+export const HAIR_COLORS = ["#1a1a1a", "#4a2f1f", "#8a5a2b", "#d9b27a", "#e8e0d0", "#7a7a7a", "#b4321f", "#3a63c9", "#d94fa0", "#3e9a4f"];
 export const HAIRS = ["curto", "longo", "raspado", "cacheado", "coque", "moicano", "franja", "afro", "rabo de cavalo"];
 export const BODIES = ["humano", "orc"];   // orc = skin premium (pack Orc da CraftPix)
-export const ASSET_V = "11";
-export const SHIRTS = ["#ffffff", "#c9c9c9", "#8a8a8a", "#3a3a3a", "#e8e0d0", "#8b7355", "#5b6b5a", "#4a5a7a"];
-export const ACCESSORIES = ["nenhum", "óculos", "boné", "fone"];
-export const DEFAULT_AVATAR = { skin: 1, hair: 0, hairColor: 0, shirt: 0, accessory: 0, body: 0 };
+export const ASSET_V = "13";
+export const SHIRTS = ["#ffffff", "#c9c9c9", "#8a8a8a", "#3a3a3a", "#e8e0d0", "#8b7355", "#5b6b5a", "#4a5a7a", "#b4322a", "#2f5fb3", "#2f8a4a", "#d9a92a"];
+export const OUTFITS = ["camiseta", "regata", "jaqueta", "social"];
+export const PANTS_COLORS = ["#2e2e36", "#1f3a63", "#4a3a2a", "#6b6b70", "#8a1f2a", "#2a5a3a", "#d8d2c4", "#3a1f5a"];
+export const SHOES_COLORS = ["#1c1c1c", "#5a3a1f", "#f0f0f0", "#8a1f2a", "#2a3a6a", "#7a7a7a"];
+export const ACCESSORIES = ["nenhum", "óculos", "boné", "fone", "barba", "gorro", "bandana", "máscara"];
+export const DEFAULT_AVATAR = { skin: 1, hair: 0, hairColor: 0, shirt: 0, accessory: 0, body: 0, outfit: 0, pants: 0, shoes: 0 };
 
 export function normalizeAvatar(a) {
   const n = (v, max) => (Number.isInteger(v) && v >= 0 && v < max ? v : 0);
@@ -21,9 +24,10 @@ export function normalizeAvatar(a) {
   return {
     skin: n(a.skin, SKINS.length), hair: n(a.hair, HAIRS.length), hairColor: n(a.hairColor, HAIR_COLORS.length),
     shirt: n(a.shirt, SHIRTS.length), accessory: n(a.accessory, ACCESSORIES.length), body: n(a.body, BODIES.length),
+    outfit: n(a.outfit, OUTFITS.length), pants: n(a.pants, PANTS_COLORS.length), shoes: n(a.shoes, SHOES_COLORS.length),
   };
 }
-export function avatarKey(a) { const n = normalizeAvatar(a); return n.body === 1 ? "av:orc" : `av:${n.skin}${n.hair}${n.hairColor}${n.shirt}${n.accessory}`; }
+export function avatarKey(a) { const n = normalizeAvatar(a); return n.body === 1 ? "av:orc" : `av:${n.skin}-${n.hair}-${n.hairColor}-${n.shirt}-${n.accessory}-${n.outfit}-${n.pants}-${n.shoes}`; }
 
 // ---------- base ----------
 const base = { walk: null, idle: null, ready: null };
@@ -50,7 +54,7 @@ function ramp(hex) {
   const sh = (k) => [clamp(r * k), clamp(g * k), clamp(b * k)];
   return [[clamp(r + (255 - r) * 0.35), clamp(g + (255 - g) * 0.35), clamp(b + (255 - b) * 0.35)], [r, g, b], sh(0.82), sh(0.66), sh(0.5), sh(0.34)];
 }
-const PANTS = ramp("#2e2e36"), SHOES = ramp("#1c1c1c");
+const BEANIE = ramp("#b8323a"), BANDANA = ramp("#2f5fb3"), MASK = ramp("#e8ecf2"), COLLAR = ramp("#f4f4f4");
 const skinIndex = (r, g, b) => SKIN_PAL.findIndex((p) => p[0] === r && p[1] === g && p[2] === b);
 
 function bbox(src, fx, fy) {
@@ -75,7 +79,8 @@ export function paintSheet(src, frames, a) {
   const ctx = out.getContext("2d"); const img = ctx.createImageData(src.width, src.height);
   const S = src.data, O = img.data, W = src.width;
   const skinR = ramp(SKINS[a.skin]), hairR = ramp(HAIR_COLORS[a.hairColor]), shirtR = ramp(SHIRTS[a.shirt]);
-  const H = a.hair, A = a.accessory;
+  const PANTS = ramp(PANTS_COLORS[a.pants]), SHOES = ramp(SHOES_COLORS[a.shoes]);
+  const H = a.hair, A = a.accessory, OF = a.outfit;
   const put = (x, y, c) => { const i = (y * W + x) * 4; O[i] = c[0]; O[i + 1] = c[1]; O[i + 2] = c[2]; O[i + 3] = 255; };
 
   for (let r = 0; r < 4; r++) {
@@ -135,26 +140,36 @@ export function paintSheet(src, frames, a) {
           if (A === 3 && ry === 1) c = [200, 200, 200];
           if (A === 3 && ry >= 7 && ry <= 9 && (rx <= 1 || rx >= w - 2)) c = [210, 210, 215];
           if (A === 1 && ry === 8 && dir === "down" && rx >= 2 && rx <= w - 3) c = i >= 2 ? [24, 24, 28] : [60, 60, 66];
+          const front = dir === "down" || (dir === "left" ? rx < mid : rx >= mid);
+          if (A === 4 && dir !== "up" && ry >= 8 && ry <= 10 && !hairAt(rx, ry) && (dir === "down" ? rx >= 1 && rx <= w - 2 : front)) c = hairR[Math.min(5, i + 1)]; // barba
+          if (A === 5) { if (ry <= 4) c = BEANIE[Math.min(5, i)]; else if (ry === 5) c = BEANIE[4]; }                                                               // gorro
+          if (A === 6 && (ry === 3 || ry === 4) && (dir === "up" || !center(rx) || ry === 4)) c = BANDANA[ry === 4 ? 3 : i < 3 ? 1 : 2];                      // bandana
+          if (A === 7 && dir !== "up" && ry >= 7 && ry <= 10 && (dir === "down" ? rx >= 1 && rx <= w - 2 : front)) c = MASK[Math.min(5, i + 1)];              // máscara
         } else if (y === top + 11) c = skinR[i];               // pescoço
         else if (y < bot - 5) {                                 // tronco
           c = shirtR[i];
-          if (y >= bot - 7 && (rx <= 1 || rx >= w - 2)) c = skinR[i]; // mãos
+          const ty = y - (top + 12), arm = rx <= 1 || rx >= w - 2;
+          if (OF === 1 && arm) c = skinR[i];                                                    // regata: braços de fora
+          if (OF === 2) { if (arm || rx === mid) c = shirtR[Math.min(5, i + 2)]; if (ty === 0 && !arm) c = shirtR[Math.min(5, i + 3)]; } // jaqueta: zíper + gola
+          if (OF === 3) { if (ty === 0 && !arm) c = COLLAR[i]; else if (rx === mid && ty % 2 === 1) c = shirtR[Math.min(5, i + 3)]; }    // social: colarinho + botões
+          if (y >= bot - 7 && arm) c = skinR[i]; // mãos
         } else if (y < bot - 2) c = PANTS[i];                   // pernas
         else c = SHOES[i];                                      // pés
         put(px, py, c);
       }
       // volume extra acima da cabeça: coque e cacheado
       const cx = fx + x0 + (w >> 1), ty = fy + top;
-      if (H === 4) {
+      if (H === 4 && A !== 5) {
         for (let dx = -2; dx < 2; dx++) { put(cx + dx, ty - 3, hairR[1]); put(cx + dx, ty - 2, hairR[2]); }
         put(cx - 3, ty - 2, hairR[4]); put(cx + 2, ty - 2, hairR[4]);
       }
-      if (H === 3) {
+      if (H === 3 && A !== 5) {
         for (let dx = -4; dx < 4; dx++) put(cx + dx, ty - 1, hairR[(dx + 4) % 3 === 0 ? 1 : 2]);
         put(fx + x0, ty + 2, hairR[3]); put(fx + x1 - 1, ty + 2, hairR[3]);
       }
-      if (H === 5) { for (let dy = 1; dy <= 3; dy++) for (let dx = -1; dx < 1; dx++) put(cx + dx, ty - dy, hairR[dy === 3 ? 1 : 2]); }   // crista do moicano
-      if (H === 7) {
+      if (A === 5) { put(cx - 1, ty - 1, BEANIE[0]); put(cx, ty - 1, BEANIE[1]); put(cx - 1, ty - 2, BEANIE[1]); put(cx, ty - 2, BEANIE[0]); }   // pompom do gorro
+      if (H === 5 && A !== 5) { for (let dy = 1; dy <= 3; dy++) for (let dx = -1; dx < 1; dx++) put(cx + dx, ty - dy, hairR[dy === 3 ? 1 : 2]); }   // crista do moicano
+      if (H === 7 && A !== 5) {
         for (let dx = -5; dx < 5; dx++) { put(cx + dx, ty - 1, hairR[2]); if (Math.abs(dx + 0.5) < 4) put(cx + dx, ty - 2, hairR[(dx + 5) % 2 ? 1 : 2]); }
         for (let dy = 0; dy < 8; dy++) { put(fx + x0 - 1, ty + dy, hairR[3]); put(fx + x1, ty + dy, hairR[3]); }
       }

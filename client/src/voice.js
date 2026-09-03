@@ -3,7 +3,8 @@
 const ICE = [{ urls: "stun:stun.l.google.com:19302" }, { urls: "stun:stun1.l.google.com:19302" }];
 
 export class Voice {
-  constructor(net, myId, { onChange, onSpeaking, onVideo, onAudio, onAudioClose } = {}) {
+  constructor(net, myId, { onChange, onSpeaking, onVideo, onAudio, onAudioClose, iceServers } = {}) {
+    this.ice = Array.isArray(iceServers) && iceServers.length ? iceServers : ICE;
     this.onAudio = onAudio || (() => {});           // (peerId, stream, audioEl) chegou áudio remoto
     this.onAudioClose = onAudioClose || (() => {});  // (peerId)
     this.noise = "normal";                           // supressão de ruído: off | normal | alta
@@ -36,7 +37,11 @@ export class Voice {
       if (ok) { e.stuckSince = null; e.retried = false; continue; }
       e.stuckSince ??= now;
       const t = now - e.stuckSince;
-      if (t > 9000) { console.warn("rtc: recriando conexão com", id); this.close(id); this.open(id); continue; }
+      if (t > 9000) {
+        e.fails = (e.fails || 0) + 1; console.warn("rtc: recriando conexão com", id, "tentativa", e.fails);
+        if (e.fails === 2) this.onLinkTrouble?.(id);
+        const fails = e.fails; this.close(id); this.open(id); this.peers.get(id).fails = fails; continue;
+      }
       if (t > 4000 && !e.retried) {
         e.retried = true;
         const st = e.pc.signalingState;
@@ -194,7 +199,7 @@ export class Voice {
   }
 
   open(peerId) {
-    const pc = new RTCPeerConnection({ iceServers: ICE });
+    const pc = new RTCPeerConnection({ iceServers: this.ice });
     const audio = document.createElement("audio");
     audio.autoplay = true; audio.dataset.peer = peerId;
     this.sink.appendChild(audio);

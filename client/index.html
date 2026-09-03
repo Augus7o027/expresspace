@@ -17,7 +17,7 @@
     <!-- Entrada -->
     <section id="login" class="screen">
       <div class="login-card glass">
-        <div class="meta-row"><span class="mono">©®™</span><span class="mono">v0.12 · beta</span></div>
+        <div class="meta-row"><span class="mono">©®™</span><span class="mono">v0.13 · beta</span></div>
         <h1 class="display">
           <span class="kicker">você é o arquiteto do seu</span>
           <span class="script">Próprio</span>
@@ -27,6 +27,16 @@
         <div class="login-tabs">
           <button type="button" class="tab active" data-login="account">Tenho conta</button>
           <button type="button" class="tab" data-login="guest" id="tab-guest">Visitante</button>
+        </div>
+        <!-- checagem de áudio antes de entrar: pede a permissão do microfone e mostra o nível -->
+        <div id="audio-check" class="audio-check">
+          <div class="ac-row">
+            <span class="mono dim">microfone</span>
+            <span id="ac-status" class="mono">não testado</span>
+            <button type="button" id="ac-btn" class="ac-btn">Liberar e testar</button>
+          </div>
+          <div class="ac-meter"><div id="ac-level"></div></div>
+          <p id="ac-help" class="mono dim ac-help hidden"></p>
         </div>
         <form id="account-form">
           <div id="session-box" class="hidden"><span class="mono dim">logado como</span> <b id="session-name"></b> <button type="button" id="session-logout" class="link">sair</button></div>
@@ -114,6 +124,21 @@
           </div>
         </div>
         <div id="hud-prompt" class="glass hidden"><kbd>E</kbd> <span></span></div>
+        <!-- caixa de som da sala: aparece quando a sala em que você está tem música -->
+        <div id="speaker-widget" class="glass hidden">
+          <div class="sw-head">
+            <span class="sw-icon" id="sw-icon"></span>
+            <div class="sw-info"><div class="sw-title" id="sw-title">—</div><div class="sw-sub mono dim" id="sw-sub"></div></div>
+            <button id="sw-toggle" class="icon-btn" title="Mostrar/ocultar vídeo"></button>
+          </div>
+          <div class="sw-body"><div id="speaker-player"></div></div>
+          <div class="sw-ctl">
+            <button id="sw-play" class="sw-play hidden" type="button">▶ tocar</button>
+            <input id="sw-vol" type="range" min="0" max="100" value="80" title="Volume da música">
+            <button id="sw-mute" class="icon-btn" title="Silenciar música"></button>
+            <button id="sw-open" class="icon-btn" title="Trocar música (E perto da caixa)"></button>
+          </div>
+        </div>
         <div id="toast" class="glass hidden"></div>
         <!-- celular: joystick + barra de ações; painéis laterais viram gavetas -->
         <div id="joy" class="mobile-only"><div id="joy-knob"></div></div>

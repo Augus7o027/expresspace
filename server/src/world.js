@@ -14,7 +14,12 @@ export class World {
   // (Re)carrega o mapa aplicando ajustes do painel (posições de objetos/árvores, bichos, trancas)
   setMap(base, overrides = {}) {
     const map = JSON.parse(JSON.stringify(base));
-    for (const [id, pos] of Object.entries(overrides.objects || {})) { const o = map.objects.find((x) => x.id === id); if (o) Object.assign(o, { x: pos.x, y: pos.y }); }
+    for (const [id, ov] of Object.entries(overrides.objects || {})) {
+      const o = map.objects.find((x) => x.id === id); if (!o) continue;
+      if (Number.isFinite(ov.x) && Number.isFinite(ov.y)) Object.assign(o, { x: ov.x, y: ov.y });
+      if (typeof ov.url === "string") o.url = ov.url;
+      if (typeof ov.label === "string") o.label = ov.label;
+    }
     for (const [i, pos] of Object.entries(overrides.decor || {})) { const d = map.decor[Number(i)]; if (d) Object.assign(d, { x: pos.x, y: pos.y }); }
     if (overrides.npcs) map.npcs = overrides.npcs;
     // colisão = tiles do Tiled (paredes/móveis) + objetos e árvores nas posições atuais

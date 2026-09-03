@@ -10,9 +10,15 @@ import { World } from "./world.js";
 import { WORLD, parseTiled, loadTiled, isBlocked, UPLOADED_MAP } from "./map.js";
 import { accountsRepo, bootstrapAdmin, sessionFromCookie, setSessionCookie, clearSessionCookie, ROLES } from "./auth.js";
 import { agentsRepo, runAgent, startScheduler, chatCompletion, TOOL_NAMES } from "./agents.js";
+import { parseYouTube, videoInfo, searchYouTube, refineQuery, speakersRepo } from "./speaker.js";
 import { libraryRepo, saveUpload, uploadPath, removeUpload, embedUrl, TYPES, TYPE_LABEL } from "./library.js";
 
 const PORT = Number(process.env.PORT || 3000);
+// Servidores ICE: STUN do Google + TURN (TURN_URL="turn:host:3478,turns:host:5349", TURN_USER, TURN_PASS).
+// Sem TURN configurado, usa o relay público gratuito do OpenRelay como quebra-galho (redes fechadas, 4G com CGNAT).
+const ICE_SERVERS = [{ urls: ["stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302"] }];
+if (process.env.TURN_URL) ICE_SERVERS.push({ urls: process.env.TURN_URL.split(",").map((s) => s.trim()).filter(Boolean), username: process.env.TURN_USER || "", credential: process.env.TURN_PASS || "" });
+else ICE_SERVERS.push({ urls: ["turn:openrelay.metered.ca:80", "turn:openrelay.metered.ca:443", "turns:openrelay.metered.ca:443"], username: "openrelayproject", credential: "openrelayproject" });
 const ORIGIN = process.env.CLIENT_ORIGIN || "http://localhost:5173";
 const SECURE = /^https:/.test(ORIGIN);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -21,6 +27,7 @@ const store = await createStore();
 const accounts = accountsRepo(store);
 const agents = agentsRepo(store);
 const library = libraryRepo(store);
+const speakers = speakersRepo(store);
 await bootstrapAdmin(accounts);
 
 // ---------- configurações e ajustes do mundo (persistidos) ----------
@@ -122,7 +129,7 @@ app.put("/api/admin/world", admin, wrap(async (req, res) => {
   const cur = await getOverrides(); const b = req.body || {};
   const next = {
     locked: Array.isArray(b.locked) ? b.locked.filter((id) => world.map.zones.some((z) => z.id === id)) : cur.locked,
-    objects: b.objects && typeof b.objects === "object" ? b.objects : cur.objects,
+    objects: b.objects && typeof b.objects === "object" ? Object.fromEntries(Object.keys({ ...cur.objects, ...b.objects }).map((id) => [id, { ...(cur.objects?.[id] || {}), ...(b.objects[id] || {}) }])) : cur.objects,
     decor: b.decor && typeof b.decor === "object" ? b.decor : cur.decor,
     npcs: Array.isArray(b.npcs) ? b.npcs.filter((n) => ["fox", "hare", "deer", "boar", "grouse", "seller", "customer"].includes(n.kind) && world.map.zones.some((z) => z.id === n.zone)).slice(0, 30) : cur.npcs,
   };
@@ -190,7 +197,7 @@ const socketsByUser = new Map(); // userId -> socket
 const lastVoice = new Map();     // userId -> JSON do último grupo enviado
 const COLORS = ["#ffffff", "#c9c9c9", "#9a9a9a", "#e8e0d0", "#d6d6d6", "#b5b5b5"];
 
-const AVATAR_MAX = { skin: 5, hair: 9, hairColor: 6, shirt: 8, accessory: 4, body: 2 };
+const AVATAR_MAX = { skin: 8, hair: 9, hairColor: 10, shirt: 12, accessory: 8, body: 2, outfit: 4, pants: 8, shoes: 6 };
 function sanitizeAvatar(a) {
   const out = {};
   for (const k of Object.keys(AVATAR_MAX)) out[k] = a && Number.isInteger(a[k]) && a[k] >= 0 && a[k] < AVATAR_MAX[k] ? a[k] : 0;
@@ -234,7 +241,7 @@ io.on("connection", (socket) => {
     const { x, y } = pos || {};
     if (Number.isFinite(x) && Number.isFinite(y) && world.canEnter(p, Math.floor(x), Math.floor(y))) { p.x = x; p.y = y; world.updateZone(p); }
     const channels = await store.channels();
-    ack?.({ user, map: world.map, channels, players: world.snapshot(), locked: [...world.locked], npcs: world.npcSnapshot(), communityName: settings.communityName });
+    ack?.({ user, map: world.map, channels, players: world.snapshot(), locked: [...world.locked], npcs: world.npcSnapshot(), communityName: settings.communityName, iceServers: ICE_SERVERS, speakers: await speakers.all() });
     io.to("world").emit("system", { text: `${user.name} entrou.` });
     pushVoice();
   });
@@ -297,6 +304,64 @@ io.on("connection", (socket) => {
     content = content.slice(0, 20000);
     await store.setBoard(id, content);
     socket.to("world").emit("board:update", { id, content, by: user.name });
+  });
+
+  // ---------- links editáveis (telão, palco, links): admin e professores ----------
+  socket.on("object:set", async ({ id, url, label } = {}, ack) => {
+    if (!user || !["admin", "professor"].includes(user.role)) return ack?.({ error: "só admin e professores editam links" });
+    const o = world.map.objects.find((x) => x.id === id && ["video", "link"].includes(x.kind));
+    if (!o) return ack?.({ error: "objeto não encontrado" });
+    const patch = {};
+    if (typeof url === "string") {
+      let u = url.trim().slice(0, 500);
+      const yt = parseYouTube(u);
+      if (yt) u = `https://www.youtube.com/embed/${yt.videoId}?rel=0` + (yt.list ? `&list=${encodeURIComponent(yt.list)}` : "") + (yt.start ? `&start=${yt.start}` : "");
+      else if (!/^(https?:\/\/|\/)/.test(u)) return ack?.({ error: "link inválido (use http(s)://)" });
+      patch.url = u;
+    }
+    if (typeof label === "string" && label.trim()) patch.label = label.trim().slice(0, 40);
+    if (!Object.keys(patch).length) return ack?.({ error: "nada pra salvar" });
+    const cur = await getOverrides();
+    cur.objects = { ...(cur.objects || {}), [id]: { ...(cur.objects?.[id] || {}), ...patch } };
+    await store.putDoc("world", "overrides", cur);
+    Object.assign(o, patch);
+    io.to("world").emit("object:update", { id, ...patch, by: user.name });
+    ack?.({ ok: true, ...patch });
+  });
+
+  // ---------- caixa de som da sala ----------
+  const speakerObj = (id) => world.map.objects.find((x) => x.id === id && x.kind === "speaker");
+  socket.on("speaker:get", async (_a, ack) => { if (user) ack?.(await speakers.all()); });
+  socket.on("speaker:set", async ({ id, url, title } = {}, ack) => {
+    if (!user) return;
+    const o = speakerObj(id); if (!o) return ack?.({ error: "caixa de som não encontrada" });
+    const yt = parseYouTube(url); if (!yt) return ack?.({ error: "cole um link do YouTube (ou pesquise)" });
+    const info = await videoInfo(yt.videoId);
+    const state = { videoId: yt.videoId, start: yt.start || 0, title: (info.title || String(title || "").slice(0, 120) || "YouTube"), author: info.author, startedAt: Date.now(), by: user.id, byName: user.name };
+    await speakers.set(id, state);
+    io.to("world").emit("speaker:update", { id, state });
+    ack?.({ ok: true, state });
+  });
+  socket.on("speaker:stop", async ({ id } = {}, ack) => {
+    if (!user) return;
+    const cur = await speakers.get(id); if (!cur) return ack?.({ ok: true });
+    if (cur.by !== user.id && !["admin", "professor"].includes(user.role)) return ack?.({ error: "só quem colocou (ou a equipe) pode parar" });
+    await speakers.set(id, null);
+    io.to("world").emit("speaker:update", { id, state: null });
+    ack?.({ ok: true });
+  });
+  let lastSearch = 0;
+  socket.on("speaker:search", async ({ q, ai } = {}, ack) => {
+    if (!user) return;
+    q = String(q || "").trim().slice(0, 200); if (!q) return ack?.({ error: "digite o que quer ouvir" });
+    if (Date.now() - lastSearch < 2500) return ack?.({ error: "calma, uma pesquisa por vez" });
+    lastSearch = Date.now();
+    const direct = parseYouTube(q);
+    if (direct) { const info = await videoInfo(direct.videoId); return ack?.({ query: q, results: [{ videoId: direct.videoId, title: info.title || q, author: info.author, length: "" }] }); }
+    let query = q, aiQuery = null;
+    if (ai !== false) { const prov = (await agents.listProviders())[0]; const r = prov && await refineQuery(prov, q); if (r) { aiQuery = r; query = r; } }
+    try { ack?.({ query: q, aiQuery, results: await searchYouTube(query) }); }
+    catch (e) { ack?.({ error: "a pesquisa no YouTube falhou: " + e.message.slice(0, 80), query: q, aiQuery, results: [] }); }
   });
 
   socket.on("voice:channel", async ({ channelId } = {}) => {

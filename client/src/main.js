@@ -2,6 +2,7 @@ import { io } from "socket.io-client";
 import { createGame } from "./game.js";
 import { Voice } from "./voice.js";
 import { Spatial } from "./spatial.js";
+import { Speaker } from "./speaker.js";
 import { Tiles } from "./tiles.js";
 import { isMobile, isIOS, mountJoystick, drawers } from "./mobile.js";
 import { sounds } from "./sounds.js";
@@ -39,6 +40,50 @@ const showLogin = (which) => {
 };
 document.querySelectorAll(".login-tabs .tab").forEach((b) => b.onclick = () => showLogin(b.dataset.login));
 if (!config.allowGuests) $("#tab-guest").classList.add("hidden");
+
+// ---- checagem de áudio no login: permissão + medidor de nível ----
+(async () => {
+  const st = $("#ac-status"), btn = $("#ac-btn"), lvl = $("#ac-level"), help = $("#ac-help");
+  const setStatus = (text, cls) => { st.textContent = text; st.className = "mono " + (cls || ""); };
+  const explain = () => {
+    const ua = navigator.userAgent, ios = /iPhone|iPad/.test(ua), safari = /Safari/.test(ua) && !/Chrome/.test(ua);
+    help.textContent = ios ? "No iPhone: Ajustes › Safari › Microfone › Permitir, ou toque no ícone \"AA\" na barra de endereço › Ajustes do site." :
+      safari ? "No Safari: menu Safari › Ajustes para este site › Microfone › Permitir." :
+      "Clique no cadeado ao lado do endereço › Permissões do site › Microfone › Permitir, e recarregue.";
+    help.classList.remove("hidden");
+  };
+  try {
+    const perm = await navigator.permissions?.query({ name: "microphone" });
+    if (perm?.state === "granted") setStatus("permitido · toque em testar pra ver o nível", "ok");
+    else if (perm?.state === "denied") { setStatus("bloqueado no navegador", "bad"); explain(); }
+    perm?.addEventListener?.("change", () => { if (perm.state === "denied") { setStatus("bloqueado no navegador", "bad"); explain(); } });
+  } catch {}
+  if (!navigator.mediaDevices?.getUserMedia) { setStatus("sem suporte (precisa de https)", "bad"); btn.disabled = true; return; }
+  btn.onclick = async () => {
+    btn.disabled = true; setStatus("pedindo permissão…");
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const ctx = new (window.AudioContext || window.webkitAudioContext)(); await ctx.resume().catch(() => {});
+      const src = ctx.createMediaStreamSource(stream), an = ctx.createAnalyser(); an.fftSize = 512; src.connect(an);
+      const buf = new Uint8Array(an.frequencyBinCount); let peak = 0; const t0 = performance.now();
+      setStatus("fale alguma coisa…", "ok"); help.classList.add("hidden");
+      const tick = () => {
+        an.getByteTimeDomainData(buf); let sum = 0; for (const v of buf) { const d = (v - 128) / 128; sum += d * d; }
+        const rms = Math.sqrt(sum / buf.length); peak = Math.max(peak, rms); lvl.style.width = Math.min(100, rms * 600) + "%";
+        if (performance.now() - t0 < 4000) requestAnimationFrame(tick);
+        else { stream.getTracks().forEach((t) => t.stop()); ctx.close().catch(() => {}); lvl.style.width = "0";
+          setStatus(peak > 0.01 ? "microfone ok · você entra falando" : "permitido, mas não captou som — confira o microfone escolhido", peak > 0.01 ? "ok" : "");
+          safe(() => localStorage.setItem("sede:mic", "on")); btn.disabled = false; btn.textContent = "Testar de novo"; }
+      };
+      tick();
+    } catch (e) {
+      btn.disabled = false;
+      if (e && (e.name === "NotAllowedError" || e.name === "SecurityError")) { setStatus("permissão negada", "bad"); explain(); }
+      else if (e && e.name === "NotFoundError") setStatus("nenhum microfone encontrado", "bad");
+      else setStatus("erro: " + (e?.message || e), "bad");
+    }
+  };
+})();
 
 // conta
 const isPremium = (u) => !!u && (u.premium || u.role === "admin" || u.role === "professor");
@@ -101,7 +146,7 @@ function start(creds) {
   net.on("kicked", (msg) => { toast(msg); setTimeout(() => location.reload(), 1500); });
 }
 
-function boot(net, { user, map, channels, players, locked = [], npcs = [], communityName }, creds) {
+function boot(net, { user, map, channels, players, locked = [], npcs = [], communityName, iceServers, speakers = {} }, creds) {
   $("#login").classList.add("hidden");
   $("#app").classList.remove("hidden");
   $("#me-name").textContent = user.name;
@@ -115,12 +160,14 @@ function boot(net, { user, map, channels, players, locked = [], npcs = [], commu
     me: user, map, channels, players, zone: null,
     chatMode: "channel", channelId: "geral", voiceChannel: null, group: null,
     presence: "available", nearObject: null, videos: new Map(), unread: {},
+    speakers, // id da caixa de som -> { videoId, title, startedAt, ... } (o que está tocando em cada sala)
   };
+  const isStaff = user.role === "admin" || user.role === "professor";
 
   // --- jogo ---
   const { scene } = createGame("game", {
     map, me: user, net, startZoom: isMobile() && innerWidth < 700 ? 1 : undefined,
-    onZoneChange: (z) => { state.zone = z; renderZone(); if (state.chatMode === "zone") loadHistory(); },
+    onZoneChange: (z) => { state.zone = z; renderZone(); refreshSpeaker(); if (state.chatMode === "zone") loadHistory(); },
     onObjectNear: (o) => { state.nearObject = o; renderPrompt(); },
     locked,
   });
@@ -148,6 +195,7 @@ function boot(net, { user, map, channels, players, locked = [], npcs = [], commu
       if (who === "me") { scene.setMySpeaking(on); net.emit("speaking", on); }
     },
     onVideo: (who, kind, stream) => { const k = who + ":" + kind; if (stream) state.videos.set(k, { who, kind, stream }); else state.videos.delete(k); renderScreens(); },
+    iceServers,
     onAudio: (peerId, stream, el) => getSpatial()?.attachPeer(peerId, stream, el),
     onAudioClose: (peerId) => spatial?.detachPeer(peerId),
   });
@@ -160,6 +208,8 @@ function boot(net, { user, map, channels, players, locked = [], npcs = [], commu
   }, 150);
   const tiles = new Tiles($("#stage"), { nameOf: (who, kind) => who === "me" ? (kind === "camera" ? "você" : "sua tela") : (state.players.find((p) => p.id === who)?.name || "…") + (kind === "screen" ? " · tela" : "") });
   let lastPeerCount = 0, mobileUnread = 0;
+  voice.onLinkTrouble = (peerId) => { const n = state.players.find((p) => p.id === peerId)?.name || "alguém"; toast(`Não consegui fechar a voz com ${n}. Pode ser rede fechada (empresa/4G); estou tentando pelo relay.`); };
+  setInterval(() => { if (voice.peers.size) renderMembers(); }, 2000);
   net.on("voice:group", (g) => {
     state.group = g;
     voice.setCanSpeak(g.canSpeak);
@@ -361,8 +411,9 @@ function boot(net, { user, map, channels, players, locked = [], npcs = [], commu
   function openObject(o) {
     modalBody.innerHTML = "";
     $("#modal-title").textContent = o.label;
-    $("#modal-kind").textContent = { board: "quadro compartilhado", link: "link", video: "vídeo", info: "mural" }[o.kind];
-    if (o.kind === "board") {
+    $("#modal-kind").textContent = { board: "quadro compartilhado", link: "link", video: "vídeo", info: "mural", speaker: "caixa de som · " + (zoneOf(o)?.name || "sala") }[o.kind];
+    if (o.kind === "speaker") { openSpeakerModal(o); }
+    else if (o.kind === "board") {
       const ta = document.createElement("textarea"); ta.placeholder = "Escreva aqui. Todo mundo vê.";
       const foot = document.createElement("div"); foot.className = "modal-foot"; foot.textContent = "salva sozinho · visível para todos";
       const wrap = document.createElement("div"); wrap.style.cssText = "display:flex;flex-direction:column;flex:1;min-height:0";
@@ -379,12 +430,21 @@ function boot(net, { user, map, channels, players, locked = [], npcs = [], commu
       const foot = document.createElement("div"); foot.className = "modal-foot";
       foot.innerHTML = `<a href="${o.url}" target="_blank" rel="noopener" style="color:inherit">abrir em nova aba ↗</a>`;
       modalBody.parentElement.append(foot);
+      if (isStaff) { // admin/professor trocam o link do telão/palco na hora; todo mundo vê
+        const ed = document.createElement("div"); ed.className = "obj-edit modal-foot";
+        const lab = document.createElement("input"); lab.value = o.label; lab.placeholder = "nome"; lab.style.maxWidth = "120px";
+        const inp = document.createElement("input"); inp.value = o.url; inp.placeholder = "https://… (YouTube, Meet, slides, site)";
+        const save = document.createElement("button"); save.className = "sp-btn primary"; save.textContent = "Salvar link";
+        save.onclick = () => net.emit("object:set", { id: o.id, url: inp.value, label: lab.value }, (r) => { if (r?.error) return toast(r.error); toast("Link atualizado pra todo mundo."); f.src = r.url || inp.value; });
+        inp.onkeydown = (e) => { if (e.key === "Enter") save.click(); };
+        ed.append(lab, inp, save); modalBody.parentElement.append(ed);
+      }
     }
     modal.classList.remove("hidden");
     scene.frozen = true;
   }
   function closeModal() {
-    modal.classList.add("hidden"); scene.frozen = false; openBoardId = null;
+    modal.classList.add("hidden"); scene.frozen = false; openBoardId = null; modalOpenId = null;
     modal.querySelectorAll(".modal-card > .modal-foot").forEach((x) => x.remove());
     modalBody.innerHTML = "";
   }
@@ -503,6 +563,7 @@ function boot(net, { user, map, channels, players, locked = [], npcs = [], commu
       li.innerHTML = `<span class="avatar-dot"></span><span class="pdot"></span><span></span><span class="where"></span>`;
       li.querySelector(".avatar-dot").style.background = p.color;
       li.querySelector(".pdot").classList.add(p.presence || "available");
+      const pc = voice.peers.get(p.id)?.pc; if (pc) li.querySelector(".pdot").classList.add(pc.connectionState === "connected" ? "link-ok" : pc.connectionState === "failed" ? "link-bad" : "link-wait");
       li.querySelector("span:nth-child(3)").textContent = p.name + (p.id === user.id ? " (você)" : "");
       if (p.role === "admin" || p.role === "professor") { const b = document.createElement("span"); b.className = "badge-role"; b.textContent = p.role === "admin" ? "admin" : "prof"; li.querySelector("span:nth-child(3)").append(" ", b); }
       li.querySelector(".where").textContent = label[p.presence] || where;
@@ -525,7 +586,7 @@ function boot(net, { user, map, channels, players, locked = [], npcs = [], commu
   function renderPrompt() {
     const el = $("#hud-prompt");
     if (!state.nearObject) { el.classList.add("hidden"); return; }
-    const verb = { board: "Abrir quadro", link: "Abrir", video: "Assistir", info: "Ler", agent: "Conversar com" }[state.nearObject.kind];
+    const verb = { board: "Abrir quadro", link: "Abrir", video: "Assistir", info: "Ler", agent: "Conversar com", speaker: "Escolher música" }[state.nearObject.kind];
     el.querySelector("span").textContent = `${verb} · ${state.nearObject.label}`;
     el.classList.remove("hidden");
   }
@@ -547,6 +608,120 @@ function boot(net, { user, map, channels, players, locked = [], npcs = [], commu
     camBtn.innerHTML = ICON[voice.camera ? "camera" : "cameraOff"];
   }
   function renderScreens() { tiles.sync(state.videos); }
+
+  // ---------- caixa de som da sala (YouTube sincronizado) ----------
+  const zoneOf = (o) => map.zones.find((z) => o.x >= z.x && o.x < z.x + z.w && o.y >= z.y && o.y < z.y + z.h);
+  const sw = $("#speaker-widget"), swTitle = $("#sw-title"), swSub = $("#sw-sub"), swPlay = $("#sw-play"), swIcon = $("#sw-icon");
+  swIcon.innerHTML = ICON.music; $("#sw-toggle").innerHTML = ICON.chevron; $("#sw-open").innerHTML = ICON.edit;
+  const swMute = $("#sw-mute"), swVol = $("#sw-vol");
+  const speaker = new Speaker($("#speaker-player"), { onState: (st) => {
+    swPlay.classList.toggle("hidden", st !== "bloqueado");
+    swIcon.classList.toggle("on", st === "tocando");
+    if (st === "bloqueado") swSub.textContent = "toque em ▶ pra ouvir";
+    else if (st === "erro") swSub.textContent = "esse vídeo não pode tocar aqui";
+    else if (st === "acabou") swSub.textContent = "acabou · escolha outra (E na caixa)";
+    else if (st) paintSpeakerSub();
+  } });
+  let activeSpeakerId = null;
+  const activeSpeakerObj = () => map.objects.find((o) => o.id === activeSpeakerId);
+  function paintSpeakerSub() {
+    const st = activeSpeakerId && state.speakers[activeSpeakerId]; if (!st) return;
+    swSub.textContent = (st.author ? st.author + " · " : "") + (st.byName ? "por " + st.byName : "");
+  }
+  // qual caixa toca pra mim: a da sala em que estou (se tiver música)
+  function refreshSpeaker() {
+    const z = state.zone;
+    const o = z && map.objects.find((x) => x.kind === "speaker" && state.speakers[x.id] && zoneOf(x)?.id === z.id);
+    if (!o) {
+      if (activeSpeakerId) { activeSpeakerId = null; speaker.stop(); sw.classList.add("hidden"); spatial?.muteKind("radio", false); }
+      return;
+    }
+    const st = state.speakers[o.id];
+    if (activeSpeakerId !== o.id || speaker.current?.state !== st) {
+      activeSpeakerId = o.id;
+      swTitle.textContent = st.title || "YouTube"; paintSpeakerSub();
+      sw.classList.remove("hidden");
+      speaker.play(o.id, st);
+      spatial?.muteKind("radio", true);
+    }
+  }
+  swVol.value = safe(() => localStorage.getItem("sede:music") ?? "80", "80");
+  speaker.setVolume(Number(swVol.value) / 100);
+  swVol.oninput = () => { speaker.setVolume(Number(swVol.value) / 100); safe(() => localStorage.setItem("sede:music", swVol.value)); };
+  const paintMute = () => { swMute.innerHTML = ICON[speaker.muted ? "volumeOff" : "volume"]; swMute.classList.toggle("off", speaker.muted); };
+  paintMute();
+  swMute.onclick = () => { speaker.setMuted(!speaker.muted); paintMute(); };
+  swPlay.onclick = () => { speaker.resume(); swPlay.classList.add("hidden"); };
+  $("#sw-toggle").onclick = () => { sw.classList.toggle("collapsed"); safe(() => localStorage.setItem("sede:music:collapsed", sw.classList.contains("collapsed") ? "1" : "0")); };
+  if (safe(() => localStorage.getItem("sede:music:collapsed") === "1", false)) sw.classList.add("collapsed");
+  $("#sw-open").onclick = () => { const o = activeSpeakerObj(); if (o) openObject(o); };
+  net.on("speaker:update", ({ id, state: st }) => {
+    if (st) state.speakers[id] = st; else delete state.speakers[id];
+    const o = map.objects.find((x) => x.id === id);
+    if (o && state.zone && zoneOf(o)?.id === state.zone.id) toast(st ? `♪ ${st.byName} colocou "${st.title}"` : "A música da sala parou.");
+    refreshSpeaker();
+    if (modalOpenId === id) openSpeakerModal(o);
+  });
+  net.on("object:update", ({ id, url, label, by }) => {
+    const o = map.objects.find((x) => x.id === id); if (!o) return;
+    if (url) o.url = url; if (label) o.label = label;
+    scene.updateObjectLabel?.(id, o.label);
+    if (state.nearObject?.id === id) renderPrompt();
+    toast(`${by} atualizou o link de "${o.label}".`);
+  });
+  // volume pela distância até a caixa (dentro da sala nunca fica mudo de todo)
+  setInterval(() => {
+    const o = activeSpeakerObj(); if (!o || !scene.pos) return;
+    const d = Math.hypot(o.x + o.w / 2 - scene.pos.x, o.y + o.h / 2 - scene.pos.y), R = 14;
+    speaker.setDistance(0.35 + 0.65 * (1 - Math.min(d, R) / R));
+  }, 300);
+  let modalOpenId = null;
+  function openSpeakerModal(o) {
+    modalOpenId = o.id; modalBody.innerHTML = "";
+    const st = state.speakers[o.id];
+    const form = document.createElement("div"); form.className = "sp-form";
+    if (st) {
+      const now = document.createElement("div"); now.className = "sp-now";
+      now.innerHTML = `<img src="https://i.ytimg.com/vi/${st.videoId}/mqdefault.jpg" alt=""><div class="t"><div></div><small></small></div>`;
+      now.querySelector(".t div").textContent = "♪ " + (st.title || "YouTube");
+      now.querySelector("small").textContent = (st.author ? st.author + " · " : "") + "colocada por " + (st.byName || "alguém");
+      const stop = document.createElement("button"); stop.className = "sp-btn"; stop.textContent = "Parar";
+      stop.onclick = () => net.emit("speaker:stop", { id: o.id }, (r) => { if (r?.error) toast(r.error); });
+      now.append(stop); form.append(now);
+    } else {
+      const h = document.createElement("div"); h.className = "sp-hint"; h.textContent = "nada tocando nesta sala"; form.append(h);
+    }
+    const row = document.createElement("div"); row.className = "sp-row";
+    const inp = document.createElement("input"); inp.placeholder = "Cole um link do YouTube ou descreva o que quer ouvir (ex.: lo-fi pra focar)";
+    const go = document.createElement("button"); go.className = "sp-btn primary"; go.textContent = "Pesquisar / tocar";
+    row.append(inp, go); form.append(row);
+    const hint = document.createElement("div"); hint.className = "sp-hint"; hint.textContent = "a música toca pra todo mundo que estiver nesta sala · volume cai com a distância da caixa"; form.append(hint);
+    const ai = document.createElement("div"); ai.className = "sp-ai hidden"; form.append(ai);
+    const res = document.createElement("div"); res.className = "sp-results"; form.append(res);
+    const play = (videoId, title) => net.emit("speaker:set", { id: o.id, url: videoId, title }, (r) => { if (r?.error) return toast(r.error); toast("Tocando pra sala inteira."); });
+    go.onclick = () => {
+      const q = inp.value.trim(); if (!q) return inp.focus();
+      go.disabled = true; go.textContent = "…"; res.innerHTML = ""; ai.classList.add("hidden");
+      net.emit("speaker:search", { q }, (r) => {
+        go.disabled = false; go.textContent = "Pesquisar / tocar";
+        if (!r) return; if (r.error) toast(r.error);
+        if (r.aiQuery) { ai.textContent = `ia sugeriu buscar: "${r.aiQuery}"`; ai.classList.remove("hidden"); }
+        if (r.results?.length === 1 && /^([\w-]{11}|https?:)/.test(q) && !r.aiQuery) return play(r.results[0].videoId, r.results[0].title);
+        for (const v of r.results || []) {
+          const b = document.createElement("button"); b.type = "button"; b.className = "sp-res";
+          b.innerHTML = `<img loading="lazy" src="https://i.ytimg.com/vi/${v.videoId}/mqdefault.jpg" alt=""><div class="t"><div></div><small></small></div>`;
+          b.querySelector(".t div").textContent = v.title || v.videoId; b.querySelector("small").textContent = [v.author, v.length].filter(Boolean).join(" · ");
+          b.onclick = () => play(v.videoId, v.title);
+          res.append(b);
+        }
+        if (!r.results?.length && !r.error) { const n = document.createElement("div"); n.className = "sp-hint"; n.textContent = "nada encontrado"; res.append(n); }
+      });
+    };
+    inp.onkeydown = (e) => { if (e.key === "Enter") go.click(); };
+    modalBody.append(form);
+    setTimeout(() => inp.focus(), 50);
+  }
+  refreshSpeaker();
   scene.onWalking = (on) => tiles.walking(on);
 
   renderMembers(); renderZone(); loadHistory(); renderVoice();

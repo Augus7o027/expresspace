@@ -82,6 +82,11 @@ export const ICON = {
   user:     S('<circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-7 8-7s8 3 8 7"/>'),
   expand:   S('<path d="M4 9V4h5M20 15v5h-5M20 4l-6 6M4 20l6-6"/>'),
   noise:    S('<path d="M3 12h2l2-5 3 10 3-8 2 5 2-2h4"/>'),
+  music:    S('<path d="M9 18V6l10-2v12"/><circle cx="6.5" cy="18" r="2.5"/><circle cx="16.5" cy="16" r="2.5"/>'),
+  chevron:  S('<path d="M6 9l6 6 6-6"/>'),
+  edit:     S('<path d="M4 20h4l10-10-4-4L4 16v4z"/><path d="M12.5 7.5l4 4"/>'),
+  volume:   S('<path d="M4 10v4h4l5 4V6L8 10H4z"/><path d="M16 9a4 4 0 0 1 0 6"/>'),
+  volumeOff:S('<path d="M4 10v4h4l5 4V6L8 10H4z"/><path d="M17 9l4 6M21 9l-4 6"/>'),
   run:      S('<circle cx="15" cy="4.5" r="1.8"/><path d="M9 20l2.5-5.5L9 12l3-4 3 3h4M11 8l-4 3 1.5 3M14 14l2 2-1 4"/>'),
 };
 

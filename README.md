@@ -2,7 +2,14 @@
 
 Ambiente 2D próprio da comunidade. Híbrido entre Gather e Discord: um mapa onde o avatar anda, entra em salas e cai em calls, mais canais de texto e voz que funcionam sem depender da posição no mapa.
 
-## O que já funciona (v0.12)
+## O que já funciona (v0.13)
+
+- **Andar sem travar**: telão saiu da porta da Reunião 2 (a sala estava inacessível); quando o personagem esbarra num canto de mesa/parede, ele desliza pro lado livre em vez de travar; todos os tiles do mapa são alcançáveis (verificado por script)
+- **Microfone antes de entrar**: a tela de login já checa a permissão do microfone, mostra o status (permitido / bloqueado / pendente), tem o botão **Liberar e testar** com medidor de nível e instruções por navegador pra destravar quando está bloqueado. Entrando, o mic já fica ligado e a voz por proximidade funciona na hora
+- **Voz mais confiável em rede fechada**: servidores ICE configuráveis (`TURN_URL`, `TURN_USER`, `TURN_PASS`; sem eles usa STUN do Google + relay público OpenRelay); a lista de membros mostra um ponto de estado da conexão de voz com cada pessoa; se uma conexão falha duas vezes, avisa e tenta pelo relay
+- **Caixa de som por sala** (Café, Lounge, Auditório, Terraço, Jardim): chega perto e aperta E; cola um link do YouTube **ou descreve o que quer ouvir** ("lo-fi pra focar", "samba pra sexta") — com um provedor de LLM configurado no painel, a IA transforma o pedido numa busca boa; a pesquisa no YouTube não precisa de chave de API. A música toca **sincronizada pra todo mundo naquela sala**, com volume caindo pela distância da caixa; widget no canto com volume, mudo e vídeo recolhível; quem colocou (ou a equipe) pode parar. O rádio sintetizado do Café cala quando tem música de verdade
+- **Links editáveis no palco e no telão**: admin e professores abrem o objeto (E) e trocam o link e o nome na hora — YouTube (qualquer formato de link vira embed), Meet, slides, site; todo mundo vê a mudança sem recarregar e fica salvo. Novo objeto **Palco · link** no canto do palco
+- **Personalização do avatar ampliada**: 8 tons de pele, 10 cores de cabelo (inclui ruivo, azul, rosa, verde), roupa em 4 modelos (camiseta, regata, jaqueta, social) e 12 cores, **calça** (8 cores) e **sapato** (6 cores), acessórios novos (barba, gorro com pompom, bandana, máscara) e botão "aleatório"
 
 - **Celular**: o mapa ocupa a tela inteira; canais/salas e chat viram gavetas laterais (botões na barra de baixo, badge de não lidas); joystick virtual no canto (empurrando mais longe, corre) além do toque no mapa pra andar; barra com microfone, câmera, correr e zoom (1x/2x); o "E" vira um botão tocável; HUD compacto no topo; áreas seguras do iPhone respeitadas; sem zoom acidental no teclado. Voz, câmera e chat funcionam; compartilhar tela não existe em navegador de celular (botão some). Painel e biblioteca também se adaptam
 - **Traço coeso**: o mapa inteiro passou a 16px ampliados 2x, a mesma densidade de pixel do personagem. Pisos, paredes (reboco + pedra com rodapé, janelas), grama, calçada e cerca vêm dos packs CraftPix (Main Characters Home, Glassblower's Workshop, Dungeon); mesas de trabalho com monitor, cadeiras, sofás, telão etc. redesenhados em 16px
@@ -133,7 +140,7 @@ Cada professor pode ter conta com cargo `professor`: entra em `/admin`, vê só 
 
 WebSocket passa pelo proxy do Coolify sem configuração extra. Se preferir subir app e banco juntos, use `docker-compose.yml` como recurso "Docker Compose" e defina `POSTGRES_PASSWORD` e `CLIENT_ORIGIN`.
 
-Se alguém da comunidade estiver em rede muito fechada (empresa, 4G com CGNAT) e a voz não conectar, o próximo passo é um TURN (coturn) na mesma VPS; hoje só tem STUN público.
+Voz em rede fechada (empresa, 4G com CGNAT): sem configuração, o app usa STUN do Google e o relay público OpenRelay (gratuito, sem garantia). Pra um relay próprio, suba um coturn na VPS e defina no Coolify `TURN_URL` (ex.: `turn:turn.seu-dominio.com:3478` — pode listar vários separados por vírgula, inclusive `turns:…:5349`), `TURN_USER` e `TURN_PASS`. O cliente recebe a lista ao entrar; a bolinha ao lado de cada nome na lista de membros mostra se a conexão de voz com a pessoa está fechada (verde), tentando (amarela) ou falhou (vermelha).
 
 ## Estrutura
 
@@ -208,4 +215,4 @@ Objetos interativos ficam em `objects`: `board` (quadro de texto compartilhado, 
 - SFU (LiveKit ou mediasoup) quando as salas passarem de ~6 pessoas: mesh não escala além disso
 - Moderação: cargos, silenciar, expulsar
 - Editor de mapa dentro do app
-- TURN server próprio (coturn) para redes restritas
+- TURN server próprio (coturn) para redes restritas (já suportado por env; falta só subir o coturn)

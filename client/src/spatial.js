@@ -143,10 +143,12 @@ export class Spatial {
     }
     for (const em of this.emitters) {
       const dx = em.x - lx, dy = em.y - ly, d = Math.hypot(dx, dy);
-      const g = !this.enabled || d > em.reach ? 0 : em.vol * Math.pow(1 - d / em.reach, 1.6);
+      const g = !this.enabled || em.muted || d > em.reach ? 0 : em.vol * Math.pow(1 - d / em.reach, 1.6);
       em.gain.gain.setTargetAtTime(g, t, 0.15);
       em.pan.pan.setTargetAtTime(Math.max(-0.8, Math.min(0.8, dx / em.reach)), t, 0.15);
     }
   }
   setEnabled(v) { this.enabled = v; }
+  // silencia um tipo de emissor (ex.: o "rádio" sintetizado quando a caixa de som real está tocando)
+  muteKind(kind, on) { for (const em of this.emitters) if (em.kind === kind) em.muted = !!on; }
 }
