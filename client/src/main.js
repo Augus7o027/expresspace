@@ -1,5 +1,4 @@
 import { io } from "socket.io-client";
-import { createGame } from "./game.js";
 import { Voice } from "./voice.js";
 import { Spatial } from "./spatial.js";
 import { Speaker } from "./speaker.js";
@@ -8,6 +7,9 @@ import { isMobile, isIOS, mountJoystick, drawers } from "./mobile.js";
 import { sounds } from "./sounds.js";
 import { EMOJI, EMOJI_ORDER, renderEmoji, ICON, icon } from "./icons.js";
 import { mountAvatarEditor } from "./avatar-editor.js";
+import { startTour } from "./tour.js";
+import { openSettings, loadDevices } from "./settings.js";
+import { pushClient } from "./push.js";
 import { SHIRTS, DEFAULT_AVATAR, normalizeAvatar, loadBase } from "./sprites.js";
 
 const $ = (s) => document.querySelector(s);
@@ -23,6 +25,14 @@ function uuid() {
   return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
 }
 
+// Phaser é o grosso do bundle: só carrega quando precisa (e começa a baixar em segundo plano na tela de login)
+let gameMod = null;
+const loadGame = () => (gameMod ??= import("./game.js"));
+if ("requestIdleCallback" in window) requestIdleCallback(() => loadGame(), { timeout: 4000 }); else setTimeout(loadGame, 1500);
+const loadingEl = $("#loading");
+const showLoading = (text, pct) => { loadingEl.classList.remove("hidden"); if (text) $("#loading-text").textContent = text; if (pct !== undefined) $("#loading-bar").style.width = Math.round(pct * 100) + "%"; };
+const hideLoading = () => loadingEl.classList.add("hidden");
+
 // ---------- login ----------
 const saved = safe(() => JSON.parse(localStorage.getItem("sede:me") || "{}"), {});
 let avatar = normalizeAvatar(saved.avatar || DEFAULT_AVATAR);
@@ -31,6 +41,9 @@ const params = new URLSearchParams(location.search);
 const apiJson = async (method, url, body) => { const r = await fetch(url, { method, headers: body ? { "content-type": "application/json" } : {}, body: body ? JSON.stringify(body) : undefined, credentials: "same-origin" }); const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.error || r.statusText); return j; };
 const config = await apiJson("GET", "/api/auth/config").catch(() => ({ allowGuests: true }));
 let session = (await apiJson("GET", "/api/auth/me").catch(() => ({}))).user || null;
+
+// aviso guardado antes de um reload (expulso/banido)
+{ const n = safe(() => sessionStorage.getItem("sede:notice"), null); if (n) { safe(() => sessionStorage.removeItem("sede:notice")); const el = $("#login-notice"); el.textContent = n; el.classList.remove("hidden"); } }
 
 // abas: conta x visitante
 const showLogin = (which) => {
@@ -132,21 +145,29 @@ if (params.get("name") && params.get("auto")) $("#login-form").requestSubmit();
 
 // ---------- app ----------
 function start(creds) {
+  showLoading("conectando…", 0.05);
   const net = io({ transports: ["websocket"], reconnectionDelay: 800, reconnectionDelayMax: 5000 });
-  let app = null;
-  net.on("connect", () => {
+  let app = null, booting = false;
+  const gameReady = loadGame(); // Phaser precisa estar em mãos antes do join: o servidor manda o grupo de voz logo depois do ack
+  net.on("connect", async () => {
     if (!app) {
-      net.emit("join", creds, (res) => { if (res?.error) { toast(res.error); net.disconnect(); return; } if (res) app = boot(net, res, creds); });
+      if (booting) return;
+      await gameReady;
+      net.emit("join", creds, (res) => {
+        if (res?.error) { hideLoading(); toast(res.error); net.disconnect(); return; }
+        if (res) { booting = true; showLoading("carregando o espaço…", 0.15); boot(net, res, creds).then((a) => { app = a; }).catch((e) => { console.error(e); showLoading("falha ao carregar: " + e.message); }); }
+      });
     } else {
       // reconectou: entra de novo no mesmo lugar, sem recarregar
       net.emit("join", { ...creds, pos: app.pos() }, (res) => { if (res) app.rejoined(res); });
     }
   });
   net.on("disconnect", () => { if (app) app.disconnected(); });
-  net.on("kicked", (msg) => { toast(msg); setTimeout(() => location.reload(), 1500); });
+  net.on("kicked", (msg) => { if (app) app.kicked = true; toast(msg); safe(() => sessionStorage.setItem("sede:notice", msg)); setTimeout(() => location.reload(), 1800); });
 }
 
-function boot(net, { user, map, channels, players, locked = [], npcs = [], communityName, iceServers, speakers = {} }, creds) {
+async function boot(net, { user, map, channels, players, locked = [], npcs = [], communityName, iceServers, speakers = {}, events = [], pushKey, mutedUntil = 0 }, creds) {
+  const { createGame } = await loadGame();
   $("#login").classList.add("hidden");
   $("#app").classList.remove("hidden");
   $("#me-name").textContent = user.name;
@@ -167,6 +188,8 @@ function boot(net, { user, map, channels, players, locked = [], npcs = [], commu
   // --- jogo ---
   const { scene } = createGame("game", {
     map, me: user, net, startZoom: isMobile() && innerWidth < 700 ? 1 : undefined,
+    onProgress: (v) => showLoading("carregando o mapa…", 0.15 + v * 0.8),
+    onReady: () => { showLoading("pronto", 1); setTimeout(hideLoading, 250); onSceneReady(); },
     onZoneChange: (z) => { state.zone = z; renderZone(); refreshSpeaker(); if (state.chatMode === "zone") loadHistory(); },
     onObjectNear: (o) => { state.nearObject = o; renderPrompt(); },
     locked,
@@ -208,6 +231,11 @@ function boot(net, { user, map, channels, players, locked = [], npcs = [], commu
   }, 150);
   const tiles = new Tiles($("#stage"), { nameOf: (who, kind) => who === "me" ? (kind === "camera" ? "você" : "sua tela") : (state.players.find((p) => p.id === who)?.name || "…") + (kind === "screen" ? " · tela" : "") });
   let lastPeerCount = 0, mobileUnread = 0;
+  // dispositivos escolhidos nas configurações + push + "aba visível?" (menção só vira push quando você não está olhando)
+  voice.devices = loadDevices(); if (voice.devices.out) voice.setOutputDevice(voice.devices.out);
+  const push = pushClient({ userId: user.id, apiJson });
+  document.addEventListener("visibilitychange", () => net.emit("visibility", !document.hidden));
+  let eventsMeta = { mail: false, remindMin: 15 };
   voice.onLinkTrouble = (peerId) => { const n = state.players.find((p) => p.id === peerId)?.name || "alguém"; toast(`Não consegui fechar a voz com ${n}. Pode ser rede fechada (empresa/4G); estou tentando pelo relay.`); };
   setInterval(() => { if (voice.peers.size) renderMembers(); }, 2000);
   net.on("voice:group", (g) => {
@@ -234,6 +262,7 @@ function boot(net, { user, map, channels, players, locked = [], npcs = [], commu
   paintNoise();
   noiseBtn.onclick = () => { const n = NOISE[(NOISE.indexOf(voice.noise) + 1) % NOISE.length]; voice.setNoise(n); safe(() => localStorage.setItem("sede:noise", n)); paintNoise(); toast(NOISE_LABEL[n]); };
   async function toggleMic() {
+    if (forcedMuted() && (voice.muted || !voice.stream)) { toast(`Você está silenciado pela equipe por mais ${Math.ceil((mutedUntilTs - Date.now()) / 60000)} min.`); return; }
     if (!voice.stream) {
       const ok = await voice.enableMic();
       if (!ok) { toast("Sem acesso ao microfone. Confere a permissão do navegador."); return; }
@@ -273,6 +302,27 @@ function boot(net, { user, map, channels, players, locked = [], npcs = [], commu
     modalBody.append(wrap);
     modal.classList.remove("hidden"); scene.frozen = true;
   };
+
+  // configurações (dispositivos, notificações, tour)
+  $("#btn-settings").innerHTML = ICON.gear;
+  $("#btn-settings").onclick = () => {
+    $("#modal-title").textContent = "Configurações"; $("#modal-kind").textContent = "áudio · vídeo · notificações";
+    openSettings(modalBody, {
+      voice, push, toast,
+      prefs: { reminders: user.reminders, account: !!user.accountId, mailEnabled: eventsMeta.mail, setReminders: (v) => { user.reminders = v; apiJson("PUT", "/api/auth/prefs", { reminders: v }).then(() => toast(v ? "lembretes por e-mail ligados" : "lembretes por e-mail desligados")).catch((e) => toast(e.message)); } },
+      onTour: () => { closeModal(); runTour(true); },
+    });
+    modal.classList.remove("hidden"); scene.frozen = true;
+  };
+
+  // --- silêncio forçado pela equipe ---
+  let mutedUntilTs = mutedUntil || 0;
+  const forcedMuted = () => mutedUntilTs > Date.now();
+  net.on("mod:muted", ({ until, by, reason }) => {
+    mutedUntilTs = until || 0;
+    if (forcedMuted()) { voice.setMuted(true); paintMic(); toast(`${by} silenciou você por ${Math.round((until - Date.now()) / 60000)} min${reason ? ": " + reason : "."}`); }
+    else toast(`${by} liberou seu microfone.`);
+  });
 
   // --- presença ---
   const presenceSel = $("#presence");
@@ -568,6 +618,10 @@ function boot(net, { user, map, channels, players, locked = [], npcs = [], commu
       if (p.role === "admin" || p.role === "professor") { const b = document.createElement("span"); b.className = "badge-role"; b.textContent = p.role === "admin" ? "admin" : "prof"; li.querySelector("span:nth-child(3)").append(" ", b); }
       li.querySelector(".where").textContent = label[p.presence] || where;
       li.title = p.status || "";
+      if (isStaff && p.id !== user.id && p.role !== "admin" && !(p.role === "professor" && user.role !== "admin")) {
+        const b = document.createElement("button"); b.className = "mod-btn"; b.title = "moderar"; b.textContent = "⋯"; b.onclick = (e) => { e.stopPropagation(); openModMenu(p, b); };
+        li.append(b);
+      }
       ul.appendChild(li);
     }
     renderChannels();
@@ -724,6 +778,64 @@ function boot(net, { user, map, channels, players, locked = [], npcs = [], commu
   refreshSpeaker();
   scene.onWalking = (on) => tiles.walking(on);
 
+  // ---------- tour de primeira vez ----------
+  let tour = null;
+  function runTour(force = false) {
+    if (tour) tour.finish();
+    const seen = user.tourDone || safe(() => localStorage.getItem("sede:tour") === "done", false);
+    if (!force && (seen || new URLSearchParams(location.search).has("notour"))) return;
+    tour = startTour({ scene, map, state, hasMic: () => !!voice.stream && !voice.muted, onDone: () => {
+      tour = null; safe(() => localStorage.setItem("sede:tour", "done"));
+      if (user.accountId) apiJson("PUT", "/api/auth/prefs", { tourDone: true }).catch(() => {});
+    } });
+  }
+  function onSceneReady() { setTimeout(() => runTour(false), 600); }
+
+  // ---------- agenda ----------
+  const evBox = $("#events-box"), evList = $("#events");
+  let evItems = events;
+  const fmtWhen = (iso) => { const d = new Date(iso), diff = d.getTime() - Date.now(), m = Math.round(diff / 60000);
+    if (diff <= 0) return "ao vivo"; if (m < 1) return "já já"; if (m < 60) return `em ${m} min`; if (m < 24 * 60) return `hoje ${d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}`;
+    return d.toLocaleDateString("pt-BR", { weekday: "short", day: "2-digit", month: "2-digit" }) + " " + d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }); };
+  function renderEvents() {
+    evList.innerHTML = "";
+    const now = Date.now();
+    const items = evItems.filter((e) => new Date(e.startsAt).getTime() + e.durationMin * 60000 > now).slice(0, 5);
+    evBox.classList.toggle("hidden", !items.length);
+    for (const e of items) {
+      const live = new Date(e.startsAt).getTime() <= now;
+      const li = document.createElement("li"); li.className = live ? "live" : "";
+      li.innerHTML = `<span class="ev-when mono"></span><span class="ev-title"></span>`;
+      li.querySelector(".ev-when").textContent = fmtWhen(e.startsAt); li.querySelector(".ev-title").textContent = e.title;
+      li.title = (e.description || "") + (live ? " · ao vivo agora, clique pra ir" : " · clique pra ir pro palco");
+      li.onclick = () => { const z = map.zones.find((x) => x.id === e.zone) || map.zones.find((x) => x.kind === "stage"); if (z) scene.teleportTo(z); };
+      evList.append(li);
+    }
+  }
+  const loadEvents = () => apiJson("GET", "/api/events").then((r) => { evItems = r.events || []; eventsMeta = { mail: !!r.mail, remindMin: r.remindMin || 15 }; renderEvents(); }).catch(() => {});
+  renderEvents(); loadEvents(); setInterval(renderEvents, 30000);
+  net.on("events:changed", loadEvents);
+  net.on("event:soon", ({ event: e, minutes }) => toast(`"${e.title}" começa em ${minutes} min no palco.`, { action: "ir pro palco", onAction: () => { const z = map.zones.find((x) => x.id === e.zone); if (z) scene.teleportTo(z); } }));
+  net.on("event:started", ({ event: e }) => { sounds.mention(); toast(`Começou: ${e.title}`, { action: "ir pro palco", onAction: () => { const z = map.zones.find((x) => x.id === e.zone); if (z) scene.teleportTo(z); } }); });
+
+  // ---------- moderação (equipe) ----------
+  const modMenu = $("#mod-menu");
+  function openModMenu(p, anchor) {
+    modMenu.innerHTML = "";
+    const h = document.createElement("div"); h.className = "mono dim"; h.textContent = p.name; modMenu.append(h);
+    const act = (label, action, minutes) => { const b = document.createElement("button"); b.type = "button"; b.textContent = label; b.onclick = () => {
+      modMenu.classList.add("hidden");
+      const reason = action === "kick" || action === "ban" ? (prompt(`Motivo (${action === "ban" ? "banir" : "expulsar"} ${p.name}):`, "") ?? null) : "";
+      if (reason === null) return;
+      net.emit("mod:action", { targetId: p.id, action, minutes, reason }, (r) => toast(r?.error || { mute: `${p.name} silenciado por ${minutes} min`, unmute: `${p.name} liberado`, kick: `${p.name} expulso`, ban: `${p.name} banido` }[action]));
+    }; modMenu.append(b); };
+    act("silenciar 5 min", "mute", 5); act("silenciar 30 min", "mute", 30); act("liberar microfone", "unmute"); act("expulsar", "kick"); act("banir", "ban");
+    const r = anchor.getBoundingClientRect();
+    modMenu.style.left = Math.min(innerWidth - 190, r.left) + "px"; modMenu.style.top = Math.min(innerHeight - 200, r.bottom + 4) + "px";
+    modMenu.classList.remove("hidden");
+  }
+  document.addEventListener("click", (e) => { if (!modMenu.contains(e.target) && !e.target.closest(".mod-btn")) modMenu.classList.add("hidden"); });
+
   renderMembers(); renderZone(); loadHistory(); renderVoice();
 
   // ---- celular: gavetas, barra e joystick ----
@@ -759,7 +871,7 @@ function boot(net, { user, map, channels, players, locked = [], npcs = [], commu
 
   return {
     pos: () => ({ x: scene.pos.x, y: scene.pos.y }),
-    disconnected: () => { toast("Conexão caiu. Reconectando…"); voice.closeAll(); },
+    disconnected() { if (!this.kicked) toast("Conexão caiu. Reconectando…"); voice.closeAll(); },
     rejoined: (res) => {
       toast("Reconectado.");
       state.players = res.players;
@@ -770,7 +882,9 @@ function boot(net, { user, map, channels, players, locked = [], npcs = [], commu
   };
 }
 
-function toast(text) {
+// toast simples; com { action, onAction } vira um aviso com botão (fica mais tempo)
+function toast(text, opts = {}) {
   const t = $("#toast"); t.textContent = text; t.classList.remove("hidden");
-  clearTimeout(toast.h); toast.h = setTimeout(() => t.classList.add("hidden"), 3000);
+  if (opts.action) { const b = document.createElement("button"); b.className = "toast-btn"; b.textContent = opts.action; b.onclick = () => { t.classList.add("hidden"); opts.onAction?.(); }; t.append(b); }
+  clearTimeout(toast.h); toast.h = setTimeout(() => t.classList.add("hidden"), opts.action ? 9000 : 3000);
 }

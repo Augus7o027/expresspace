@@ -2,7 +2,15 @@
 
 Ambiente 2D próprio da comunidade. Híbrido entre Gather e Discord: um mapa onde o avatar anda, entra em salas e cai em calls, mais canais de texto e voz que funcionam sem depender da posição no mapa.
 
-## O que já funciona (v0.13)
+## O que já funciona (v0.14)
+
+- **Abre em um segundo**: o motor do mapa (Phaser, 1,5 MB) saiu do bundle principal (agora 120 KB) e só é baixado depois, em segundo plano, enquanto a pessoa está na tela de login. Tela de carregamento com progresso entre o "Entrar" e o mapa pronto
+- **Tour de boas-vindas** (~20 s, só na primeira vez): andar → seguir o marcador até o Mural → apertar E → como falar e escrever. Cada passo espera a ação de verdade; dá pra pular e pra refazer nas configurações. Fica marcado na conta (ou no navegador, pra visitante)
+- **Configurações** (engrenagem no rodapé): escolher **microfone, saída de áudio e câmera** (a voz troca sem derrubar as conexões), medidor de nível ao vivo, **teste de eco** (grava 3 s e toca de volta na saída escolhida), notificações e e-mail. Dispositivos ficam salvos
+- **Moderação**: admin e professores passam o mouse em alguém na lista "Quem está aqui" e clicam em ⋯: silenciar 5/30 min (a pessoa não consegue religar o mic), liberar, expulsar, banir (conta ou visitante). Quem foi banido cai no login com o motivo e não entra mais. Aba **Moderação** no painel com registro e lista de banidos (desbanir)
+- **Agenda**: aba no painel pra marcar aulas/eventos no palco (título, data e hora, duração, link do telão, descrição). Na barra lateral aparece "Agenda" com contagem regressiva e clique pra ir. **15 min antes**: push pra quem ativou notificações e e-mail pra todas as contas (se `SMTP_URL` estiver configurado). **Na hora**: o link entra no telão sozinho e todo mundo no espaço recebe "Começou: … · ir pro palco"
+- **PWA**: instalável no celular e no computador (manifest, ícones, service worker com cache leve dos assets). **Push** de menção (quando a aba está fechada ou escondida) e de aula começando; chaves VAPID geradas sozinhas na primeira subida. No iPhone, push só funciona com o app instalado na tela de início
+- Velocidade do personagem passou a ser independente do fps (janela sem foco ou máquina lenta não deixam o boneco lento)
 
 - **Andar sem travar**: telão saiu da porta da Reunião 2 (a sala estava inacessível); quando o personagem esbarra num canto de mesa/parede, ele desliza pro lado livre em vez de travar; todos os tiles do mapa são alcançáveis (verificado por script)
 - **Microfone antes de entrar**: a tela de login já checa a permissão do microfone, mostra o status (permitido / bloqueado / pendente), tem o botão **Liberar e testar** com medidor de nível e instruções por navegador pra destravar quando está bloqueado. Entrando, o mic já fica ligado e a voz por proximidade funciona na hora
@@ -139,6 +147,8 @@ Cada professor pode ter conta com cargo `professor`: entra em `/admin`, vê só 
 6. Deploy. O schema do banco é aplicado na primeira subida, sem passo manual.
 
 WebSocket passa pelo proxy do Coolify sem configuração extra. Se preferir subir app e banco juntos, use `docker-compose.yml` como recurso "Docker Compose" e defina `POSTGRES_PASSWORD` e `CLIENT_ORIGIN`.
+
+E-mail de lembrete das aulas: defina `SMTP_URL` (ex.: `smtps://usuario:senha@smtp.gmail.com:465` com senha de app, ou o SMTP da Hostinger/Resend/Brevo) e `MAIL_FROM`. Sem isso, os lembretes vão só por push e pelo aviso dentro do espaço. Push não precisa de nada: as chaves VAPID são geradas e guardadas no banco na primeira subida (fixe com `VAPID_PUBLIC`/`VAPID_PRIVATE` se quiser).
 
 Voz em rede fechada (empresa, 4G com CGNAT): sem configuração, o app usa STUN do Google e o relay público OpenRelay (gratuito, sem garantia). Pra um relay próprio, suba um coturn na VPS e defina no Coolify `TURN_URL` (ex.: `turn:turn.seu-dominio.com:3478` — pode listar vários separados por vírgula, inclusive `turns:…:5349`), `TURN_USER` e `TURN_PASS`. O cliente recebe a lista ao entrar; a bolinha ao lado de cada nome na lista de membros mostra se a conexão de voz com a pessoa está fechada (verde), tentando (amarela) ou falhou (vermelha).
 

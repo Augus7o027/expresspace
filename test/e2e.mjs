@@ -44,8 +44,8 @@ const A = await ctxA.newPage(), B = await ctxB.newPage();
 const errors = [];
 for (const p of [A, B]) { p.on("pageerror", (e) => errors.push(e.message)); p.on("console", (m) => { if (/rtc|offer|mic/i.test(m.text())) console.log("console:", m.text().slice(0, 200)); }); }
 
-await A.goto(base + "/?name=Ana&auto=1&canvas=1", { waitUntil: "domcontentloaded" });
-await B.goto(base + "/?name=Bruno&auto=1&canvas=1", { waitUntil: "domcontentloaded" });
+await A.goto(base + "/?name=Ana&auto=1&canvas=1&notour=1", { waitUntil: "domcontentloaded" });
+await B.goto(base + "/?name=Bruno&auto=1&canvas=1&notour=1", { waitUntil: "domcontentloaded" });
 await A.waitForSelector("#app:not(.hidden)");
 await B.waitForSelector("#app:not(.hidden)");
 await A.waitForTimeout(1200);
@@ -146,6 +146,28 @@ await B.waitForTimeout(300);
 const board = await A.evaluate(() => new Promise((r) => window.__sede.net.emit("board:get", { id: "quadro-open" }, r)));
 console.log("quadro:", board);
 
+// v0.14: tour de primeira vez (página própria) + configurações + service worker
+{
+  const ctxT = await browser.newContext({ viewport: { width: 1440, height: 900 }, permissions: ["microphone"] });
+  const T = await ctxT.newPage(); await T.goto(base + "/?name=Tati&auto=1&canvas=1", { waitUntil: "domcontentloaded" });
+  await T.waitForSelector("#app:not(.hidden)"); await T.waitForSelector("#tour:not(.hidden)", { timeout: 15000 });
+  console.log("tour passo 1:", await T.textContent("#tour-step"), "|", await T.textContent("#tour-title"), "| loading escondido:", await T.evaluate(() => document.querySelector("#loading").classList.contains("hidden")));
+  await T.screenshot({ path: "test/shots/18-tour.png" });
+  await T.keyboard.down("d"); await T.waitForTimeout(2600); await T.keyboard.up("d"); await T.waitForTimeout(500);
+  console.log("tour passo 2:", await T.textContent("#tour-step"), "| marcador:", await T.evaluate(() => !!window.__sede.scene.marker));
+  await T.evaluate(() => { const s = window.__sede.scene; s.pos.x = 10.5; s.pos.y = 3.6; }); await T.waitForTimeout(700);
+  console.log("tour passo 3:", await T.textContent("#tour-step"), "| perto do mural:", await T.evaluate(() => window.__sede.state.nearObject?.id));
+  await T.keyboard.press("e"); await T.waitForTimeout(500); await T.keyboard.press("Escape"); await T.waitForTimeout(600);
+  console.log("tour passo 4:", await T.textContent("#tour-step")); await T.click("#tour-next"); await T.waitForTimeout(300);
+  console.log("tour concluído:", await T.evaluate(() => document.querySelector("#tour").classList.contains("hidden") && localStorage.getItem("sede:tour")));
+  await T.click("#btn-settings"); await T.waitForTimeout(800);
+  console.log("configurações: mics", await T.$$eval("#set-mic option", (o) => o.length), "| saídas", await T.$$eval("#set-out option", (o) => o.length), "| câmeras", await T.$$eval("#set-cam option", (o) => o.length), "| eco:", await T.textContent("#set-echo"));
+  await T.screenshot({ path: "test/shots/19-configuracoes.png" });
+  await T.keyboard.press("Escape");
+  console.log("service worker registrado:", await T.evaluate(async () => !!(await navigator.serviceWorker?.getRegistration())), "| manifest:", (await fetch(base + "/manifest.webmanifest")).status, "| chave push:", (await (await fetch(base + "/api/push/key")).json()).key?.length);
+  await T.close(); await ctxT.close();
+}
+
 // v0.13: caixa de som do Lounge — B escolhe, A (na mesma sala) recebe e vê o widget
 await A.click("#zones li:nth-child(4)"); await B.click("#zones li:nth-child(4)"); await A.waitForTimeout(900);
 const spk = await B.evaluate(() => new Promise((r) => window.__sede.net.emit("speaker:set", { id: "som-lounge", url: "https://www.youtube.com/watch?v=jfKfPfyJRdk&t=10" }, r)));
@@ -206,7 +228,7 @@ await AD.screenshot({ path: "test/shots/12-admin-agentes.png" });
 await AD.click("#tabs button[data-tab='world']"); await AD.waitForTimeout(800);
 await AD.screenshot({ path: "test/shots/13-admin-mundo.png" });
 // v0.13: admin no mundo edita o link do telão; A recebe object:update
-const W = await ctxA.newPage(); await W.goto(base + "/?canvas=1", { waitUntil: "domcontentloaded" }); await W.waitForTimeout(800);
+const W = await ctxA.newPage(); await W.goto(base + "/?canvas=1&notour=1", { waitUntil: "domcontentloaded" }); await W.waitForTimeout(800);
 await W.click(".login-tabs .tab[data-login='account']"); await W.click("#account-form .btn-primary"); await W.waitForSelector("#app:not(.hidden)"); await W.waitForTimeout(800);
 await W.screenshot({ path: "test/shots/17-avatar-editor.png" }).catch(() => {});
 const oset = await W.evaluate(() => new Promise((r) => window.__sede.net.emit("object:set", { id: "telao", url: "https://youtu.be/jfKfPfyJRdk", label: "Telão · aula" }, r)));
@@ -214,6 +236,28 @@ console.log("admin editou telão:", oset?.url, oset?.label, "| erro:", oset?.err
 await A.waitForTimeout(500);
 console.log("A viu novo link do telão:", await A.evaluate(() => { const o = window.__sede.state.map.objects.find((x) => x.id === "telao"); return o.url + " / " + o.label; }));
 console.log("link persistido no mapa do servidor:", (await (await fetch(base + "/api/map")).json()).objects.find((o) => o.id === "telao").label);
+// v0.14: agenda — evento começando em 20s: lembrete + link no telão + aviso
+const ev = await adminApi("POST", "/api/admin/events", { title: "Aula ao vivo: funis", startsAt: new Date(Date.now() + 20000).toISOString(), durationMin: 30, url: "https://youtu.be/jfKfPfyJRdk", description: "teste" });
+await A.waitForTimeout(800);
+console.log("agenda na barra lateral:", await A.evaluate(() => document.querySelector("#events-box").classList.contains("hidden") ? "escondida" : document.querySelector("#events").textContent));
+await A.waitForTimeout(33000);
+console.log("evento começou → telão:", await A.evaluate(() => window.__sede.state.map.objects.find((x) => x.id === "telao").url), "| toast:", (await A.textContent("#toast")).slice(0, 60), "| ao vivo:", await A.evaluate(() => document.querySelector("#events li.live")?.textContent));
+console.log("estado do evento:", (await adminApi("GET", "/api/admin/events")).find((e) => e.id === ev.id)?.startedAt ? "iniciado" : "não iniciado");
+// v0.14: moderação — admin silencia e depois bane Bruno
+const mute = await W.evaluate((id) => new Promise((r) => window.__sede.net.emit("mod:action", { targetId: id, action: "mute", minutes: 5 }, r)), (await B.evaluate(() => window.__sede.state.me.id)));
+await B.waitForTimeout(500);
+console.log("silenciado:", mute?.ok, "| B mudo:", await B.evaluate(() => window.__sede.voice.muted), "| toast B:", (await B.textContent("#toast")).slice(0, 50));
+await B.keyboard.press("m"); await B.waitForTimeout(300);
+console.log("B tentou ligar o mic:", await B.evaluate(() => window.__sede.voice.muted) ? "continua mudo ✓" : "ligou ✗");
+const ban = await W.evaluate((id) => new Promise((r) => window.__sede.net.emit("mod:action", { targetId: id, action: "ban", reason: "teste" }, r)), (await B.evaluate(() => window.__sede.state.me.id)));
+await B.waitForTimeout(900);
+console.log("banido:", ban?.ok, "| toast B:", (await B.textContent("#toast")).slice(0, 60));
+await B.waitForTimeout(10000);
+console.log("B depois do reload (deve estar no login com aviso):", await B.evaluate(() => document.querySelector("#login").classList.contains("hidden") ? "no app ✗" : "login ✓ · " + document.querySelector("#login-notice").textContent.slice(0, 50)));
+const modv = await adminApi("GET", "/api/admin/moderation");
+console.log("moderação: banidos", modv.bans.length, "| log", modv.log.map((l) => l.action).join(","));
+await AD.click("#tabs button[data-tab='moderation']"); await AD.waitForTimeout(600); await AD.screenshot({ path: "test/shots/20-admin-moderacao.png" });
+await AD.click("#tabs button[data-tab='events']"); await AD.waitForTimeout(600); await AD.screenshot({ path: "test/shots/21-admin-agenda.png" });
 await W.close();
 
 // ---- biblioteca: conteúdo via API (com upload), depois como membro no navegador

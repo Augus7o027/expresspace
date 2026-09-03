@@ -5,6 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no" />
     <meta name="theme-color" content="#070707" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="icon" href="/icons/icon-192.png" />
+    <link rel="apple-touch-icon" href="/icons/icon-192.png" />
     <title>ExpresSpace</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -14,17 +18,28 @@
   <body>
     <div id="grain"></div>
 
+    <!-- carregando (entre o login e o mapa pronto) -->
+    <div id="loading" class="hidden">
+      <div class="loading-card">
+        <div class="script">ExpresSpace</div>
+        <div class="loading-track"><div id="loading-bar"></div></div>
+        <div id="loading-text" class="mono dim">conectando…</div>
+      </div>
+    </div>
+
+
     <!-- Entrada -->
     <section id="login" class="screen">
       <div class="login-card glass">
-        <div class="meta-row"><span class="mono">©®™</span><span class="mono">v0.13 · beta</span></div>
+        <div class="meta-row"><span class="mono">©®™</span><span class="mono">v0.14 · beta</span></div>
         <h1 class="display">
           <span class="kicker">você é o arquiteto do seu</span>
           <span class="script">Próprio</span>
           <span class="serif">Espaço</span>
         </h1>
         <p class="sub mono">ExpresSpace. Um lugar só nosso. Entre, caminhe, converse.</p>
-        <div class="login-tabs">
+        <div id="login-notice" class="login-notice hidden"></div>
+      <div class="login-tabs">
           <button type="button" class="tab active" data-login="account">Tenho conta</button>
           <button type="button" class="tab" data-login="guest" id="tab-guest">Visitante</button>
         </div>
@@ -79,6 +94,11 @@
           <ul id="zones"></ul>
         </nav>
 
+        <div class="events hidden" id="events-box">
+          <div class="group-label mono">Agenda</div>
+          <ul id="events"></ul>
+        </div>
+
         <div class="members">
           <div class="group-label mono">Quem está aqui</div>
           <ul id="members"></ul>
@@ -104,6 +124,7 @@
             <button id="btn-sound" class="icon-btn" title="Sons de notificação"></button>
             <button id="btn-noise" class="icon-btn" title="Supressão de ruído"></button>
             <button id="btn-avatar" class="icon-btn" title="Editar avatar"></button>
+            <button id="btn-settings" class="icon-btn" title="Configurações: microfone, saída, câmera, notificações"></button>
           </div>
           <div class="me-actions">
             <input id="status-text" class="status-text" maxlength="40" placeholder="frase de status" />
@@ -140,6 +161,13 @@
           </div>
         </div>
         <div id="toast" class="glass hidden"></div>
+            <!-- tour de primeira vez -->
+        <div id="tour" class="glass hidden">
+          <div class="tour-step mono dim" id="tour-step">1 / 4</div>
+          <div class="tour-title" id="tour-title"></div>
+          <div class="tour-text" id="tour-text"></div>
+          <div class="tour-actions"><button id="tour-skip" class="sp-btn" type="button">pular</button><button id="tour-next" class="sp-btn primary hidden" type="button">próximo</button></div>
+        </div>
         <!-- celular: joystick + barra de ações; painéis laterais viram gavetas -->
         <div id="joy" class="mobile-only"><div id="joy-knob"></div></div>
         <nav id="mbar" class="glass mobile-only">
@@ -204,6 +232,7 @@
     </div>
 
     <div id="audio-sink"></div>
+    <div id="mod-menu" class="glass hidden"></div>
     <script type="module" src="/src/main.js"></script>
   </body>
 </html>

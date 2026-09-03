@@ -62,3 +62,9 @@ td input, td select { padding: 5px 8px; font-size: 12px; }
   .grid { grid-template-columns: 1fr; }
   input, select, textarea, button { font-size: 16px; }
 }
+/* v0.14: agenda e moderação */
+.stack { display: grid; gap: 8px; }
+.stack textarea { width: 100%; box-sizing: border-box; background: rgba(255,255,255,0.05); border: 1px solid var(--line); color: var(--ink); border-radius: 8px; padding: 8px 10px; font: inherit; font-size: 13px; }
+details.item { display: block; }
+details.item summary { cursor: pointer; }
+details.item .stack { margin-top: 10px; }

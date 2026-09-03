@@ -11,6 +11,8 @@ import { WORLD, parseTiled, loadTiled, isBlocked, UPLOADED_MAP } from "./map.js"
 import { accountsRepo, bootstrapAdmin, sessionFromCookie, setSessionCookie, clearSessionCookie, ROLES } from "./auth.js";
 import { agentsRepo, runAgent, startScheduler, chatCompletion, TOOL_NAMES } from "./agents.js";
 import { parseYouTube, videoInfo, searchYouTube, refineQuery, speakersRepo } from "./speaker.js";
+import { notifyRepo } from "./notify.js";
+import { eventsRepo, startEventClock, REMIND_MIN } from "./events.js";
 import { libraryRepo, saveUpload, uploadPath, removeUpload, embedUrl, TYPES, TYPE_LABEL } from "./library.js";
 
 const PORT = Number(process.env.PORT || 3000);
@@ -28,6 +30,11 @@ const accounts = accountsRepo(store);
 const agents = agentsRepo(store);
 const library = libraryRepo(store);
 const speakers = speakersRepo(store);
+const notify = await notifyRepo(store, { subject: "mailto:" + (process.env.ADMIN_EMAIL || "admin@expresspace.local") });
+const events = eventsRepo(store);
+// moderação: banidos (contas e visitantes) + log
+const bans = { list: async () => store.listDocs("bans"), get: (id) => store.getDoc("bans", id), add: (id, data) => store.putDoc("bans", id, data), remove: (id) => store.delDoc("bans", id) };
+const modlog = async (entry) => { const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 6); await store.putDoc("modlog", id, { ...entry, at: new Date().toISOString() }); };
 await bootstrapAdmin(accounts);
 
 // ---------- configurações e ajustes do mundo (persistidos) ----------
@@ -48,6 +55,7 @@ const sessionUser = async (req) => { const s = sessionFromCookie(req.headers.coo
 const requireRole = (...roles) => async (req, res, next) => {
   const u = await sessionUser(req);
   if (!u || !roles.includes(u.role)) return res.status(401).json({ error: "sem permissão" });
+  if (u.role !== "admin" && await bans.get(u.id)) return res.status(403).json({ error: "conta banida" });
   req.user = u; next();
 };
 const admin = requireRole("admin");
@@ -61,6 +69,24 @@ app.get("/api/channels", async (_req, res) => res.json(await store.channels()));
 app.get("/api/health", (_req, res) => res.json({ ok: true, online: world.players.size }));
 app.get("/api/auth/config", wrap(async (_req, res) => { const s = await getSettings(); res.json({ communityName: s.communityName, allowGuests: s.allowGuests, allowRegister: s.allowRegister }); }));
 app.get("/api/auth/me", wrap(async (req, res) => res.json({ user: await sessionUser(req) })));
+// preferências da própria conta (lembretes por e-mail, tour feito)
+app.put("/api/auth/prefs", wrap(async (req, res) => {
+  const u = await sessionUser(req); if (!u) return res.status(401).json({ error: "faça login" });
+  const b = req.body || {}; const patch = {};
+  if (typeof b.reminders === "boolean") patch.reminders = b.reminders;
+  if (typeof b.tourDone === "boolean") patch.tourDone = b.tourDone;
+  res.json({ user: await accounts.update(u.id, patch) });
+}));
+// agenda (todo mundo lê; equipe edita)
+app.get("/api/events", wrap(async (_req, res) => res.json({ events: await events.upcoming(), remindMin: REMIND_MIN, mail: notify.mailEnabled })));
+// push: chave pública + assinatura (conta ou visitante)
+app.get("/api/push/key", (_req, res) => res.json({ key: notify.publicKey }));
+app.post("/api/push/subscribe", wrap(async (req, res) => {
+  const u = await sessionUser(req); const uid = u?.id || (typeof req.body?.userId === "string" && /^[a-z0-9-]{8,40}$/.test(req.body.userId) ? req.body.userId : null);
+  if (!uid) return res.status(401).json({ error: "sem identidade" });
+  res.json({ ok: true, id: await notify.subscribe(uid, req.body?.subscription, req.headers["user-agent"]) });
+}));
+app.post("/api/push/unsubscribe", wrap(async (req, res) => { await notify.unsubscribe(String(req.body?.endpoint || "")); res.json({ ok: true }); }));
 app.post("/api/auth/login", wrap(async (req, res) => {
   const u = await accounts.login(req.body?.email, req.body?.password);
   if (!u) return res.status(401).json({ error: "e-mail ou senha inválidos" });
@@ -90,6 +116,14 @@ app.put("/api/admin/settings", admin, wrap(async (req, res) => {
 }));
 
 // usuários
+app.get("/api/admin/events", staff, wrap(async (_req, res) => res.json(await events.list())));
+app.post("/api/admin/events", staff, wrap(async (req, res) => { const e = await events.put(req.body || {}, req.user.id); io.to("world").emit("events:changed"); res.json(e); }));
+app.delete("/api/admin/events/:id", staff, wrap(async (req, res) => { await events.remove(req.params.id); io.to("world").emit("events:changed"); res.json({ ok: true }); }));
+app.get("/api/admin/moderation", staff, wrap(async (_req, res) => {
+  const log = (await store.listDocs("modlog")).sort((a, b) => b.at.localeCompare(a.at)).slice(0, 200);
+  res.json({ log, bans: await bans.list(), mailEnabled: notify.mailEnabled, remindMin: REMIND_MIN });
+}));
+app.delete("/api/admin/bans/:id", staff, wrap(async (req, res) => { await bans.remove(req.params.id); await modlog({ action: "unban", by: req.user.id, byName: req.user.name, targetId: req.params.id }); res.json({ ok: true }); }));
 app.get("/api/admin/users", admin, wrap(async (_req, res) => res.json(await accounts.list())));
 app.post("/api/admin/users", admin, wrap(async (req, res) => res.json(await accounts.create(req.body || {}))));
 app.put("/api/admin/users/:id", admin, wrap(async (req, res) => res.json(await accounts.update(req.params.id, req.body || {}))));
@@ -194,6 +228,7 @@ const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: [ORIGIN, /localhost/], credentials: true } });
 
 const socketsByUser = new Map(); // userId -> socket
+const mutes = new Map();         // userId -> timestamp até quando está silenciado pela equipe
 const lastVoice = new Map();     // userId -> JSON do último grupo enviado
 const COLORS = ["#ffffff", "#c9c9c9", "#9a9a9a", "#e8e0d0", "#d6d6d6", "#b5b5b5"];
 
@@ -225,12 +260,14 @@ io.on("connection", (socket) => {
     const acc = sess ? accounts.pub(await accounts.get(sess.uid)) : null;
     if (!acc && !settings.allowGuests) return ack?.({ error: "Entrada só com conta. Faça login." });
     const id = acc ? acc.id : (typeof userId === "string" && /^[a-z0-9-]{8,40}$/.test(userId)) ? userId : crypto.randomUUID();
+    const ban = await bans.get(id); if (ban && acc?.role !== "admin") return ack?.({ error: "Você foi removido deste espaço" + (ban.reason ? ": " + ban.reason : ".") });
     const prev = socketsByUser.get(id);
     if (prev && prev.id !== socket.id) { prev.emit("kicked", "Você entrou em outra aba."); prev.disconnect(true); }
     const premium = !!acc && (acc.premium || acc.role !== "member");
     user = {
       id, name: acc ? acc.name : sanitizeName(name), color: /^#[0-9a-f]{6}$/i.test(color || "") ? color : COLORS[0],
       avatar: sanitizeAvatar(avatar || acc?.avatar), role: acc ? acc.role : "guest", accountId: acc?.id || null, premium,
+      tourDone: !!acc?.tourDone, reminders: acc ? acc.reminders !== false : false,
     };
     if (user.avatar.body === 1 && !premium) user.avatar.body = 0; // corpo orc é skin premium
     if (acc && avatar) accounts.update(acc.id, { avatar: user.avatar }).catch(() => {});
@@ -241,7 +278,7 @@ io.on("connection", (socket) => {
     const { x, y } = pos || {};
     if (Number.isFinite(x) && Number.isFinite(y) && world.canEnter(p, Math.floor(x), Math.floor(y))) { p.x = x; p.y = y; world.updateZone(p); }
     const channels = await store.channels();
-    ack?.({ user, map: world.map, channels, players: world.snapshot(), locked: [...world.locked], npcs: world.npcSnapshot(), communityName: settings.communityName, iceServers: ICE_SERVERS, speakers: await speakers.all() });
+    ack?.({ user, map: world.map, channels, players: world.snapshot(), locked: [...world.locked], npcs: world.npcSnapshot(), communityName: settings.communityName, iceServers: ICE_SERVERS, speakers: await speakers.all(), events: await events.upcoming(), pushKey: notify.publicKey, mutedUntil: mutes.get(id) || 0 });
     io.to("world").emit("system", { text: `${user.name} entrou.` });
     pushVoice();
   });
@@ -267,7 +304,7 @@ io.on("connection", (socket) => {
     if (!p) return;
     if (avatar) { const a = sanitizeAvatar(avatar); if (a.body === 1 && !user.premium) a.body = 0; p.avatar = user.avatar = a; if (user.accountId) accounts.update(user.accountId, { avatar: p.avatar }).catch(() => {}); }
     if (typeof status === "string") p.status = status.slice(0, 40);
-    if (typeof muted === "boolean") p.muted = muted;
+    if (typeof muted === "boolean") p.muted = muted || (mutes.get(user.id) || 0) > Date.now();
     if (["available", "busy", "focus"].includes(presence)) { p.presence = presence; pushVoice(); }
   });
 
@@ -393,6 +430,46 @@ io.on("connection", (socket) => {
     if (channelId.startsWith("zone:")) {
       for (const q of world.players.values()) if ("zone:" + q.zone === channelId) socketsByUser.get(q.id)?.emit("chat:message", msg);
     } else io.to("world").emit("chat:message", msg);
+    // menção: push pra quem está fora do espaço (ou com a aba escondida); @todos só a equipe
+    const names = [...body.matchAll(/@([\p{L}\p{N}_.\-]+)/gu)].map((m) => m[1].toLowerCase());
+    if (names.length) {
+      const all = names.includes("todos") && ["admin", "professor"].includes(user.role);
+      const targets = (await accounts.list()).filter((u) => u.id !== user.id && (all || names.includes(u.name.toLowerCase())));
+      for (const u of targets) {
+        const sock = socketsByUser.get(u.id);
+        if (sock && sock.visible !== false) continue;
+        notify.push(u.id, { title: `${user.name} mencionou você`, body: body.slice(0, 120), url: "/", tag: "mention:" + user.id }).catch(() => {});
+      }
+    }
+  });
+  socket.on("visibility", (v) => { socket.visible = v !== false; });
+
+  // ---------- moderação (admin e professores) ----------
+  socket.on("mod:action", async ({ targetId, action, minutes, reason } = {}, ack) => {
+    if (!user || !["admin", "professor"].includes(user.role)) return ack?.({ error: "sem permissão" });
+    const t = world.players.get(targetId); const tSock = socketsByUser.get(targetId);
+    if (!t) return ack?.({ error: "pessoa não está aqui" });
+    if (t.id === user.id) return ack?.({ error: "isso é com você mesmo" });
+    if (t.role === "admin" || (t.role === "professor" && user.role !== "admin")) return ack?.({ error: "não dá pra moderar a equipe" });
+    reason = String(reason || "").slice(0, 140);
+    const entry = { action, by: user.id, byName: user.name, targetId, targetName: t.name, reason };
+    if (action === "mute") {
+      const min = Math.min(720, Math.max(1, parseInt(minutes, 10) || 10));
+      const until = Date.now() + min * 60000; mutes.set(targetId, until); t.muted = true;
+      tSock?.emit("mod:muted", { until, by: user.name, reason });
+      await modlog({ ...entry, minutes: min });
+      return ack?.({ ok: true });
+    }
+    if (action === "unmute") { mutes.delete(targetId); tSock?.emit("mod:muted", { until: 0, by: user.name }); await modlog(entry); return ack?.({ ok: true }); }
+    if (action === "kick" || action === "ban") {
+      if (action === "ban") await bans.add(targetId, { name: t.name, role: t.role, reason, by: user.name, at: new Date().toISOString() });
+      await modlog(entry);
+      tSock?.emit("kicked", (action === "ban" ? "Você foi removido deste espaço" : "Você foi expulso por " + user.name) + (reason ? ": " + reason : "."));
+      setTimeout(() => tSock?.disconnect(true), 300);
+      io.to("world").emit("system", { text: `${t.name} foi ${action === "ban" ? "banido" : "expulso"} por ${user.name}.` });
+      return ack?.({ ok: true });
+    }
+    ack?.({ error: "ação desconhecida" });
   });
 
   socket.on("bubble", ({ text } = {}) => {
@@ -434,4 +511,24 @@ function pushVoice() {
 }
 
 startScheduler(agents, postAsAgent);
+// relógio da agenda: lembra 15 min antes, coloca o link no telão e anuncia na hora
+startEventClock({
+  events, accounts, notify,
+  onRemind: (e) => io.to("world").emit("event:soon", { event: e, minutes: REMIND_MIN }),
+  onStart: async (e) => {
+    if (e.url) {
+      const o = world.map.objects.find((x) => x.id === e.objectId && ["video", "link"].includes(x.kind));
+      if (o) {
+        let u = e.url; const yt = parseYouTube(u);
+        if (yt) u = `https://www.youtube.com/embed/${yt.videoId}?rel=0&autoplay=1` + (yt.list ? `&list=${encodeURIComponent(yt.list)}` : "");
+        const cur = await getOverrides(); cur.objects = { ...(cur.objects || {}), [o.id]: { ...(cur.objects?.[o.id] || {}), url: u } };
+        await store.putDoc("world", "overrides", cur); o.url = u;
+        io.to("world").emit("object:update", { id: o.id, url: u, by: "agenda" });
+      }
+    }
+    io.to("world").emit("event:started", { event: e });
+    io.to("world").emit("events:changed");
+    for (const u of await accounts.list()) if (u.reminders !== false && !socketsByUser.has(u.id)) notify.push(u.id, { title: `Começou: ${e.title}`, body: "Ao vivo agora no palco. Entre no espaço.", url: "/", tag: "event:" + e.id }).catch(() => {});
+  },
+});
 server.listen(PORT, () => console.log(`[server] http://localhost:${PORT}`));

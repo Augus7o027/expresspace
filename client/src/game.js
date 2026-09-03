@@ -18,9 +18,9 @@ const FLAT_TILES = /^(floor|rug|grass|path|door|flowers|stage_light|plant_small)
 const D = { LABEL: 20, DIM: 22, TITLE: 24, BUBBLE: 30 };
 
 export class WorldScene extends Phaser.Scene {
-  constructor({ map, me, net, onZoneChange, onObjectNear, locked = [], startZoom }) {
+  constructor({ map, me, net, onZoneChange, onObjectNear, locked = [], startZoom, onProgress, onReady }) {
     super("world");
-    this.startZoom = startZoom;
+    this.startZoom = startZoom; this.onProgress = onProgress; this.onReady = onReady;
     this.map = map;
     this.locked = new Set(locked);
     this.lockMarks = new Map();
@@ -37,6 +37,7 @@ export class WorldScene extends Phaser.Scene {
   }
 
   preload() {
+    this.load.on("progress", (v) => this.onProgress?.(v));
     this.load.tilemapTiledJSON("sede", `/maps/${this.map.tiledFile || "sede.json"}${V}`);
     this.load.image("tiles", "/assets/tiles/office.png" + V);
     this.load.spritesheet("tilesheet", "/assets/tiles/office.png" + V, { frameWidth: TILE, frameHeight: TILE });
@@ -104,7 +105,22 @@ export class WorldScene extends Phaser.Scene {
 
     this.scale.on("resize", () => this.cameras.main.setSize(this.scale.width, this.scale.height));
     this.updateZone(true);
+    this.onReady?.();
   }
+
+  // marcador do tour: anel pulsando num tile + seta; some com clearMarker()
+  setMarker(tx, ty) {
+    this.clearMarker();
+    const x = (tx + 0.5) * TILE, y = (ty + 0.5) * TILE;
+    const g = this.add.graphics().setDepth(D.LABEL - 2);
+    g.lineStyle(2, 0x9ad0ff, 0.9); g.strokeCircle(0, 0, 14); g.lineStyle(1, 0xffffff, 0.5); g.strokeCircle(0, 0, 8);
+    g.setPosition(x, y);
+    const arrow = this.add.text(x, y - 26, "▼", { fontFamily: "JetBrains Mono", fontSize: "12px", color: "#9ad0ff" }).setOrigin(0.5, 1).setDepth(D.LABEL - 2);
+    this.tweens.add({ targets: g, scale: { from: 0.8, to: 1.25 }, alpha: { from: 1, to: 0.4 }, duration: 900, yoyo: true, repeat: -1 });
+    this.tweens.add({ targets: arrow, y: y - 32, duration: 500, yoyo: true, repeat: -1 });
+    this.marker = { g, arrow, tx, ty };
+  }
+  clearMarker() { if (this.marker) { this.marker.g.destroy(); this.marker.arrow.destroy(); this.marker = null; } }
 
   // --------- desenho do mundo (Tiled) ---------
   drawTilemap() {
@@ -621,6 +637,7 @@ export function createGame(parent, opts) {
     backgroundColor: "#070707",
     scale: { mode: Phaser.Scale.RESIZE, width: "100%", height: "100%" },
     render: { antialias: false, pixelArt: true, roundPixels: true },
+    fps: { smoothStep: false }, // delta real (o update já limita a 100ms): velocidade igual em qualquer fps, mesmo com a janela sem foco
     scene: [scene],
   });
   return { game, scene };

@@ -22,7 +22,7 @@ const input = (attrs) => el("input", { type: "text", ...attrs });
 
 let me = null, overview = null;
 const STAFF = ["admin", "professor"];
-const PROFESSOR_TABS = ["content"];
+const PROFESSOR_TABS = ["content", "events", "moderation"];
 
 // ---------- login ----------
 $("#login-form").addEventListener("submit", async (e) => {
@@ -43,7 +43,7 @@ async function boot() {
   document.querySelectorAll("#tabs button").forEach((b) => { b.onclick = () => showTab(b.dataset.tab); if (me.role !== "admin") b.classList.toggle("hidden", !PROFESSOR_TABS.includes(b.dataset.tab)); });
   showTab(me.role === "admin" ? "overview" : "content");
 }
-const RENDER = { overview: renderOverview, content: renderContent, agents: renderAgents, providers: renderProviders, world: renderWorld, users: renderUsers, settings: renderSettings };
+const RENDER = { overview: renderOverview, content: renderContent, events: renderEvents, moderation: renderModeration, agents: renderAgents, providers: renderProviders, world: renderWorld, users: renderUsers, settings: renderSettings };
 async function showTab(name) {
   document.querySelectorAll("#tabs button").forEach((b) => b.classList.toggle("active", b.dataset.tab === name));
   document.querySelectorAll(".tab").forEach((t) => t.classList.toggle("hidden", t.id !== "tab-" + name));
@@ -348,4 +348,41 @@ async function renderContent(root) {
       )));
     editor.scrollIntoView({ behavior: "smooth" });
   }
+}
+
+
+// ---------- agenda (aulas ao vivo no palco) ----------
+const toLocalInput = (iso) => { const d = iso ? new Date(iso) : new Date(Date.now() + 3600000); const p = (n) => String(n).padStart(2, "0"); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`; };
+async function renderEvents(root) {
+  const items = await api("GET", "/api/admin/events");
+  const mod = await api("GET", "/api/admin/moderation").catch(() => ({}));
+  const form = (e = {}) => {
+    const title = input({ value: e.title || "", placeholder: "título da aula/evento" }), when = input({ type: "datetime-local", value: toLocalInput(e.startsAt) });
+    const dur = input({ type: "number", value: e.durationMin || 60, min: 5, max: 600, style: "width:90px" }), url = input({ value: e.url || "", placeholder: "link do telão (YouTube ao vivo, Meet, slides…)" });
+    const desc = el("textarea", { rows: 2, placeholder: "descrição curta (aparece no lembrete)" }); desc.value = e.description || "";
+    const save = el("button", { class: "btn primary", onclick: async () => { try { await api("POST", "/api/admin/events", { id: e.id, title: title.value, startsAt: new Date(when.value).toISOString(), durationMin: dur.value, url: url.value, description: desc.value }); toast(e.id ? "evento salvo" : "evento criado"); showTab("events"); } catch (err) { toast(err.message, false); } } }, e.id ? "Salvar" : "Criar evento");
+    return el("div", { class: "stack" }, el("div", { class: "row" }, title, when, field("min", dur)), url, desc, el("div", { class: "row" }, save, e.id ? el("button", { class: "btn small danger", onclick: async () => { if (!confirm("apagar este evento?")) return; await api("DELETE", `/api/admin/events/${e.id}`); showTab("events"); } }, "apagar") : ""));
+  };
+  const now = Date.now();
+  root.append(el("div", { class: "card glass" }, el("h2", {}, "Agenda"),
+    el("p", { class: "lead" }, `Na hora marcada o link vai pro telão do Auditório sozinho e todo mundo no espaço recebe um aviso com "ir pro palco". ${mod.remindMin || 15} min antes: push pra quem ativou notificações` + (mod.mailEnabled ? " e e-mail pra todas as contas (quem não quiser desliga nas configurações)." : ". E-mail está desligado no servidor (defina SMTP_URL no Coolify pra ligar).")),
+    el("h3", {}, "Novo evento"), form()));
+  const up = items.filter((e) => new Date(e.startsAt).getTime() + e.durationMin * 60000 > now), past = items.filter((e) => new Date(e.startsAt).getTime() + e.durationMin * 60000 <= now).slice(-10).reverse();
+  root.append(el("div", { class: "card glass" }, el("h3", {}, `Próximos (${up.length})`), ...(up.length ? up.map((e) => el("details", { class: "item" }, el("summary", {}, el("b", {}, e.title), " · ", new Date(e.startsAt).toLocaleString("pt-BR"), ` · ${e.durationMin} min`, e.startedAt ? " · ao vivo/iniciado" : e.remindedAt ? " · lembrete enviado" : ""), form(e))) : [el("p", { class: "lead" }, "nada marcado.")])));
+  if (past.length) root.append(el("div", { class: "card glass" }, el("h3", {}, "Passados"), ...past.map((e) => el("div", { class: "item" }, el("b", {}, e.title), " · ", new Date(e.startsAt).toLocaleString("pt-BR"), " ", el("button", { class: "btn small danger", onclick: async () => { await api("DELETE", `/api/admin/events/${e.id}`); showTab("events"); } }, "apagar")))));
+}
+
+// ---------- moderação ----------
+async function renderModeration(root) {
+  const { log, bans } = await api("GET", "/api/admin/moderation");
+  const LABEL = { mute: "silenciou", unmute: "liberou o mic de", kick: "expulsou", ban: "baniu", unban: "desbaniu" };
+  root.append(el("div", { class: "card glass" }, el("h2", {}, "Moderação"),
+    el("p", { class: "lead" }, "Dentro do espaço, passe o mouse sobre alguém na lista \"Quem está aqui\" e clique em ⋯ pra silenciar, expulsar ou banir. Tudo fica registrado aqui."),
+    el("h3", {}, `Banidos (${bans.length})`),
+    ...(bans.length ? [el("table", {}, el("tr", {}, el("th", {}, "quem"), el("th", {}, "motivo"), el("th", {}, "por"), el("th", {}, "quando"), el("th", {}, "")),
+      ...bans.map((b) => el("tr", {}, el("td", {}, el("b", {}, b.name), el("div", { class: "sub" }, b.role === "guest" ? "visitante" : "conta")), el("td", {}, b.reason || "—"), el("td", {}, b.by), el("td", {}, new Date(b.at).toLocaleString("pt-BR")),
+        el("td", {}, el("button", { class: "btn small", onclick: async () => { await api("DELETE", `/api/admin/bans/${b.id}`); toast("desbanido"); showTab("moderation"); } }, "desbanir")))))] : [el("p", { class: "lead" }, "ninguém banido.")])));
+  root.append(el("div", { class: "card glass" }, el("h3", {}, "Registro"),
+    ...(log.length ? [el("table", {}, el("tr", {}, el("th", {}, "quando"), el("th", {}, "ação"), el("th", {}, "motivo")),
+      ...log.map((l) => el("tr", {}, el("td", {}, new Date(l.at).toLocaleString("pt-BR")), el("td", {}, `${l.byName} ${LABEL[l.action] || l.action} ${l.targetName || l.targetId}${l.minutes ? ` por ${l.minutes} min` : ""}`), el("td", {}, l.reason || "—"))))] : [el("p", { class: "lead" }, "nada ainda.")])));
 }

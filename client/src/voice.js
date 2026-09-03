@@ -96,10 +96,12 @@ export class Voice {
     for (const [id, p] of this.peers) if (p.analyser) check(id, p.analyser, false);
   }
 
+  // dispositivos escolhidos nas configurações: { mic, cam, out } (deviceId ou "")
+  micConstraints() { return { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1, ...(this.devices?.mic ? { deviceId: { exact: this.devices.mic } } : {}) }; }
   async enableMic() {
     if (this.stream) return true;
     try {
-      this.raw = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 }, video: false });
+      this.raw = await navigator.mediaDevices.getUserMedia({ audio: this.micConstraints(), video: false }).catch((e) => { if (this.devices?.mic) { this.devices.mic = ""; return navigator.mediaDevices.getUserMedia({ audio: this.micConstraints(), video: false }); } throw e; });
       this.myAnalyser = this.analyserFor(this.raw);
       this.stream = this.processMic(this.raw) || this.raw;
       this.applyMute();
@@ -113,8 +115,8 @@ export class Voice {
   processMic(raw) {
     try {
       const ctx = this.audioCtx();
-      const src = ctx.createMediaStreamSource(raw);
-      const hp = ctx.createBiquadFilter(); hp.type = "highpass"; hp.frequency.value = 90;
+      const src = ctx.createMediaStreamSource(raw); this.micSrc = src; this.micHp = null;
+      const hp = ctx.createBiquadFilter(); hp.type = "highpass"; hp.frequency.value = 90; this.micHp = hp;
       const gate = ctx.createGain(); gate.gain.value = 1;
       const dest = ctx.createMediaStreamDestination();
       src.connect(hp).connect(gate).connect(dest);
@@ -132,6 +134,27 @@ export class Voice {
     if (open !== this.gateOpen) { this.gateOpen = open; this.gate.gain.setTargetAtTime(open ? 1 : 0, this.ctx.currentTime, open ? 0.015 : 0.08); }
   }
 
+  // troca o microfone em uso sem derrubar as conexões: religa a fonte no grafo (ou substitui a trilha)
+  async setMicDevice(id) {
+    this.devices ??= {}; this.devices.mic = id || "";
+    if (!this.stream) return true;
+    try {
+      const raw = await navigator.mediaDevices.getUserMedia({ audio: this.micConstraints(), video: false });
+      const old = this.raw; this.raw = raw; this.myAnalyser = this.analyserFor(raw);
+      if (this.micSrc && this.micHp) { try { this.micSrc.disconnect(); } catch {} this.micSrc = this.ctx.createMediaStreamSource(raw); this.micSrc.connect(this.micHp); }
+      else { const t = raw.getAudioTracks()[0]; for (const p of this.peers.values()) for (const sn of p.pc.getSenders()) if (sn.track?.kind === "audio") sn.replaceTrack(t).catch(() => {}); this.stream = raw; this.applyMute(); }
+      old?.getTracks().forEach((t) => t.stop());
+      return true;
+    } catch (e) { console.warn("troca de mic", e); return false; }
+  }
+  async setCamDevice(id) { this.devices ??= {}; this.devices.cam = id || ""; if (this.camera) { this.stopCamera(); return this.startCamera(); } return true; }
+  // saída de áudio: elementos <audio> dos peers + o AudioContext (voz roteada pelo áudio espacial)
+  async setOutputDevice(id) {
+    this.devices ??= {}; this.devices.out = id || "";
+    try { if (this.ctx?.setSinkId) await this.ctx.setSinkId(id || ""); } catch (e) { console.warn("sinkId ctx", e); }
+    for (const p of this.peers.values()) { try { await p.audio.setSinkId?.(id || ""); } catch {} }
+    return true;
+  }
   setMuted(m) { this.muted = m; this.applyMute(); this.onChange(); }
   setCanSpeak(c) { this.canSpeak = c; this.applyMute(); }
   applyMute() {
@@ -165,7 +188,7 @@ export class Voice {
   async startCamera() {
     if (this.camera) return true;
     try {
-      this.camera = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480, frameRate: 24, facingMode: "user" }, audio: false });
+      this.camera = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480, frameRate: 24, ...(this.devices?.cam ? { deviceId: { exact: this.devices.cam } } : { facingMode: "user" }) }, audio: false });
       this.camera.getVideoTracks()[0].onended = () => this.stopCamera();
       this.announceAll();
       for (const p of this.peers.values()) if (p.ready) this.addTracks(p.pc, this.camera);
@@ -202,6 +225,7 @@ export class Voice {
     const pc = new RTCPeerConnection({ iceServers: this.ice });
     const audio = document.createElement("audio");
     audio.autoplay = true; audio.dataset.peer = peerId;
+    if (this.devices?.out && audio.setSinkId) audio.setSinkId(this.devices.out).catch(() => {});
     this.sink.appendChild(audio);
     // O lado "impolite" (id menor) inicia a negociação; o outro só adiciona as próprias
     // trilhas depois de responder à primeira oferta. Evita colisão na abertura, que no Chrome

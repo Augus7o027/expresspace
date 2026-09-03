@@ -281,6 +281,49 @@ h1 .serif { font-size: 92px; }
 
 .avatar-opt.locked { opacity: 0.45; cursor: not-allowed; }
 
+/* ---------- v0.14: carregamento, tour, agenda, moderação, configurações ---------- */
+#loading { position: fixed; inset: 0; z-index: 200; background: #070707; display: grid; place-items: center; }
+#loading.hidden { display: none; }
+.loading-card { width: min(360px, 80vw); text-align: center; display: grid; gap: 14px; }
+.loading-card .script { font-family: var(--script); font-size: 44px; color: var(--ink); }
+.loading-track { height: 4px; background: rgba(255,255,255,0.08); border-radius: 3px; overflow: hidden; }
+#loading-bar { height: 100%; width: 0; background: var(--ink); transition: width 0.25s ease; }
+#tour { position: absolute; left: 14px; bottom: 84px; width: 300px; padding: 14px 16px; border-radius: 12px; z-index: 7; display: grid; gap: 6px; animation: tourin 0.3s ease; }
+@keyframes tourin { from { transform: translateY(8px); opacity: 0; } to { transform: none; opacity: 1; } }
+.tour-title { font-family: var(--serif); font-size: 20px; line-height: 1.15; }
+.tour-text { font-size: 13px; color: var(--ink-dim); line-height: 1.45; }
+.tour-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 4px; }
+.events ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.events li { display: flex; gap: 8px; align-items: baseline; padding: 6px 8px; border-radius: 8px; cursor: pointer; font-size: 12px; }
+.events li:hover { background: rgba(255,255,255,0.06); }
+.events li.live .ev-when { color: #6ef0a3; }
+.events li.live .ev-when::before { content: "●"; margin-right: 4px; animation: swpulse 1.2s ease-in-out infinite; }
+.ev-when { font-size: 10px; color: #9ad0ff; white-space: nowrap; flex: none; min-width: 52px; }
+.ev-title { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.members li { position: relative; }
+.mod-btn { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); background: transparent; border: 0; color: var(--ink-faint); font-size: 14px; cursor: pointer; padding: 2px 6px; border-radius: 6px; opacity: 0; }
+.members li:hover .mod-btn { opacity: 1; }
+.mod-btn:hover { background: rgba(255,255,255,0.1); color: var(--ink); }
+#mod-menu { position: fixed; z-index: 120; width: 180px; padding: 8px; border-radius: 10px; display: grid; gap: 2px; }
+#mod-menu .mono { padding: 4px 8px 6px; font-size: 10px; }
+#mod-menu button { background: transparent; border: 0; color: var(--ink); text-align: left; padding: 7px 8px; border-radius: 6px; cursor: pointer; font-size: 13px; }
+#mod-menu button:hover { background: rgba(255,255,255,0.1); }
+#mod-menu button:nth-last-child(-n+2) { color: #f0a0a0; }
+.settings .set-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 13px; padding: 6px 0; cursor: pointer; }
+.settings .set-row.dim { opacity: 0.5; }
+.settings .set-row > span { flex: 1; }
+.set-sel { max-width: 55%; background: rgba(255,255,255,0.06); border: 1px solid var(--line); color: var(--ink); border-radius: 8px; padding: 7px 10px; font-size: 12px; }
+.set-meter .ac-level { height: 100%; width: 0; background: #6ef0a3; transition: width 0.08s linear; }
+.set-meter-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-top: 8px; font-size: 11px; }
+.settings input[type=checkbox] { width: 18px; height: 18px; accent-color: #9ad0ff; }
+.toast-btn { margin-left: 12px; background: var(--ink); color: #000; border: 0; border-radius: 7px; padding: 4px 10px; font-weight: 600; font-size: 12px; cursor: pointer; }
+#toast { pointer-events: auto; }
+@media (max-width: 820px) {
+  #tour { left: 10px; right: 10px; width: auto; bottom: calc(150px + env(safe-area-inset-bottom)); }
+  #speaker-widget { bottom: calc(150px + env(safe-area-inset-bottom)); }
+}
+
+.login-notice { background: rgba(240,110,110,0.12); border: 1px solid rgba(240,110,110,0.4); color: #f0a0a0; border-radius: 10px; padding: 10px 14px; font-size: 13px; margin-bottom: 12px; }
 /* editor de avatar: botão aleatório */
 .avatar-random { justify-self: start; background: rgba(255,255,255,0.08); border: 1px solid var(--line); color: var(--ink); border-radius: 8px; padding: 6px 10px; font-size: 12px; cursor: pointer; margin-top: 4px; }
 .avatar-random:hover { background: rgba(255,255,255,0.16); }
