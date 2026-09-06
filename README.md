@@ -2,7 +2,16 @@
 
 Ambiente 2D próprio da comunidade. Híbrido entre Gather e Discord: um mapa onde o avatar anda, entra em salas e cai em calls, mais canais de texto e voz que funcionam sem depender da posição no mapa.
 
-## O que já funciona (v0.14)
+Documentação completa em [`docs/`](docs/README.md) (arquitetura, dados, segurança, infraestrutura, operação, desenvolvimento, changelog). Contexto operacional em [`CLAUDE.md`](CLAUDE.md).
+
+## O que já funciona (v0.15)
+
+- **Blindagem do servidor** (`server/src/security.js`): CSP, HSTS, nosniff, X-Frame, Permissions-Policy; rate limit por IP na API (600/min), no login (12 por 10 min) e por evento no socket; checagem de origem em toda escrita (CSRF); corpo limitado a 1 MB; validadores centrais de entrada; ferramentas dos agentes só acessam endereços públicos (SSRF)
+- **Contas mais duras**: senha mínima de 8 sem senhas óbvias; trocar senha ou cargo derruba as sessões antigas; conta banida não loga
+- **Uploads**: só imagem, vídeo, áudio e PDF abrem no navegador, o resto baixa como anexo (um `.html` enviado nunca roda como página do app); path traversal bloqueado
+- Push só pra contas; links de objetos montados por DOM; Express 5 e `npm audit` sem vulnerabilidades
+- A suíte e2e passou a verificar cabeçalhos, violações de CSP, CSRF, força bruta, senha fraca, uploads e sessões antigas
+- Documentação em `docs/` com o caminho de infraestrutura por estágio e o runbook de operação
 
 - **Abre em um segundo**: o motor do mapa (Phaser, 1,5 MB) saiu do bundle principal (agora 120 KB) e só é baixado depois, em segundo plano, enquanto a pessoa está na tela de login. Tela de carregamento com progresso entre o "Entrar" e o mapa pronto
 - **Tour de boas-vindas** (~20 s, só na primeira vez): andar → seguir o marcador até o Mural → apertar E → como falar e escrever. Cada passo espera a ação de verdade; dá pra pular e pra refazer nas configurações. Fica marcado na conta (ou no navegador, pra visitante)

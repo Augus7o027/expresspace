@@ -6,3 +6,4 @@ tools/src/*
 !tools/src/README.md
 data/
 *.tgz
+_to_delete/

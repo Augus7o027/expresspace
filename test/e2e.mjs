@@ -21,7 +21,7 @@ const fake = http.createServer((req, res) => {
 }).listen(LLM_PORT);
 
 rmSync("/tmp/sede-e2e", { recursive: true, force: true });
-const server = spawn("node", ["server/src/index.js"], { env: { ...process.env, PORT: String(PORT), DATA_DIR: "/tmp/sede-e2e", ADMIN_EMAIL: "admin@teste.com", ADMIN_PASSWORD: "segredo1", SESSION_SECRET: "x" }, stdio: "inherit" });
+const server = spawn("node", ["server/src/index.js"], { env: { ...process.env, PORT: String(PORT), DATA_DIR: "/tmp/sede-e2e", ADMIN_EMAIL: "admin@teste.com", ADMIN_PASSWORD: "segredo1", SESSION_SECRET: "x", AGENT_ALLOW_LOCAL: "1" }, stdio: "inherit" });
 await new Promise((r) => setTimeout(r, 1500));
 const base = `http://localhost:${PORT}`;
 
@@ -33,7 +33,7 @@ const prov = await adminApi("POST", "/api/admin/providers", { name: "fake", base
 const ag = await adminApi("POST", "/api/admin/agents", { name: "Téo", role: "mentor tech", providerId: prov.id, model: "fake-1", tools: ["fetch_url"], zone: "recepcao", x: 6, y: 8, systemPrompt: "teste" });
 await adminApi("PUT", "/api/admin/world", { locked: ["foco"] });
 console.log("admin ok: provedor", !!prov.id, "agente", ag.name, "| teste do agente:", (await adminApi("POST", `/api/admin/agents/${ag.id}/test`, { message: "oi" })).content);
-const users = await adminApi("POST", "/api/admin/users", { email: "membro@teste.com", name: "Membro", password: "senha123", role: "member" });
+const users = await adminApi("POST", "/api/admin/users", { email: "membro@teste.com", name: "Membro", password: "senha-forte-1", role: "member" });
 console.log("conta criada:", users.email);
 
 setTimeout(() => { console.log("TIMEOUT global"); process.exit(2); }, 420000);
@@ -42,7 +42,8 @@ const ctxA = await browser.newContext({ viewport: { width: 1440, height: 900 }, 
 const ctxB = await browser.newContext({ viewport: { width: 1440, height: 900 }, permissions: ["microphone", "camera"] });
 const A = await ctxA.newPage(), B = await ctxB.newPage();
 const errors = [];
-for (const p of [A, B]) { p.on("pageerror", (e) => errors.push(e.message)); p.on("console", (m) => { if (/rtc|offer|mic/i.test(m.text())) console.log("console:", m.text().slice(0, 200)); }); }
+const csp = [];
+for (const p of [A, B]) { p.on("pageerror", (e) => errors.push(e.message)); p.on("console", (m) => { if (/Content Security Policy|Refused to/i.test(m.text())) csp.push(m.text().slice(0, 160)); if (/rtc|offer|mic/i.test(m.text())) console.log("console:", m.text().slice(0, 200)); }); }
 
 await A.goto(base + "/?name=Ana&auto=1&canvas=1&notour=1", { waitUntil: "domcontentloaded" });
 await B.goto(base + "/?name=Bruno&auto=1&canvas=1&notour=1", { waitUntil: "domcontentloaded" });
@@ -215,7 +216,7 @@ await A.screenshot({ path: "test/shots/04-canal-voz.png" });
 console.log("erros de página:", errors);
 // Login com conta no navegador
 const L2 = await ctxA.newPage(); await L2.goto(base, { waitUntil: "domcontentloaded" }); await L2.waitForTimeout(800);
-await L2.click(".login-tabs .tab[data-login='account']"); await L2.fill("#email", "membro@teste.com"); await L2.fill("#password", "senha123");
+await L2.click(".login-tabs .tab[data-login='account']"); await L2.fill("#email", "membro@teste.com"); await L2.fill("#password", "senha-forte-1");
 await L2.click("#account-form .btn-primary"); await L2.waitForSelector("#app:not(.hidden)"); await L2.waitForTimeout(800);
 console.log("login por conta:", await L2.textContent("#me-name"));
 await L2.close();
@@ -270,11 +271,13 @@ const c4 = await adminApi("POST", "/api/admin/content", { type: "skill", title: 
 await AD.click("#tabs button[data-tab='content']"); await AD.waitForTimeout(800);
 await AD.screenshot({ path: "test/shots/14-admin-conteudos.png" });
 await AD.close();
+const memberLogin = await fetch(base + "/api/auth/login", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ email: "membro@teste.com", password: "senha-forte-1" }) });
+const memberCookie = memberLogin.headers.get("set-cookie").split(";")[0];
 // arquivo sem login não abre
 console.log("arquivo sem login:", (await fetch(base + up.url)).status, "| com login:", (await fetch(base + up.url, { headers: { cookie } })).status);
 const ctxM = await browser.newContext({ viewport: { width: 1440, height: 900 } });
 const M = await ctxM.newPage(); await M.goto(base + "/membros", { waitUntil: "domcontentloaded" }); await M.waitForTimeout(600);
-await M.fill("#email", "membro@teste.com"); await M.fill("#password", "senha123"); await M.click("#login-form .btn-primary"); await M.waitForSelector("#app:not(.hidden)"); await M.waitForTimeout(600);
+await M.fill("#email", "membro@teste.com"); await M.fill("#password", "senha-forte-1"); await M.click("#login-form .btn-primary"); await M.waitForSelector("#app:not(.hidden)"); await M.waitForTimeout(600);
 const titles = await M.$$eval(".card-item h3", (els) => els.map((e) => e.textContent));
 console.log("biblioteca (membro) vê:", titles.join(" | "), "| oculto ok:", !titles.includes("Rascunho oculto") && !titles.includes("Só pra professores"));
 await M.screenshot({ path: "test/shots/15-biblioteca.png" });
@@ -287,12 +290,37 @@ await M.click("#item .it-head .btn.small"); await M.waitForTimeout(300);
 console.log("progresso:", (await M.textContent(".prog-num")).replace(/\s+/g, " "));
 await M.close();
 // professor entra no painel só com conteúdos
-await adminApi("POST", "/api/admin/users", { email: "prof@teste.com", name: "Prof", password: "senha123", role: "professor" });
+await adminApi("POST", "/api/admin/users", { email: "prof@teste.com", name: "Prof", password: "senha-forte-1", role: "professor" });
 const ctxP = await browser.newContext({ viewport: { width: 1440, height: 900 } });
 const PR = await ctxP.newPage(); await PR.goto(base + "/admin", { waitUntil: "domcontentloaded" }); await PR.waitForTimeout(500);
-await PR.fill("#email", "prof@teste.com"); await PR.fill("#password", "senha123"); await PR.click("#login-form .btn-primary"); await PR.waitForTimeout(1000);
+await PR.fill("#email", "prof@teste.com"); await PR.fill("#password", "senha-forte-1"); await PR.click("#login-form .btn-primary"); await PR.waitForTimeout(1000);
 console.log("professor no painel, abas visíveis:", await PR.$$eval("#tabs button:not(.hidden)", (b) => b.map((x) => x.textContent).join(",")), "| conteúdos listados:", await PR.$$eval("#tab-content .item", (i) => i.length));
 await PR.close();
+
+// v0.15: blindagem
+{
+  const h = await fetch(base + "/"); const hd = (k) => h.headers.get(k);
+  console.log("cabeçalhos: CSP", !!hd("content-security-policy"), "| nosniff", hd("x-content-type-options"), "| frame", hd("x-frame-options"), "| permissions", !!hd("permissions-policy"), "| x-powered-by", hd("x-powered-by"));
+  console.log("violações de CSP no navegador:", csp.length, csp.slice(0, 3));
+  const forged = await fetch(base + "/api/auth/login", { method: "POST", headers: { "content-type": "application/json", origin: "https://malicioso.example" }, body: "{}" });
+  console.log("POST de outra origem:", forged.status);
+  const weak = await adminApi("POST", "/api/admin/users", { email: "fraco@teste.com", name: "F", password: "12345678", role: "member" }).catch((e) => e.message);
+  console.log("senha fraca recusada:", weak);
+  const bad = await fetch(base + "/api/auth/login", { method: "POST", headers: { "content-type": "application/json" }, body: "{not json" });
+  console.log("JSON quebrado:", bad.status, (await bad.json()).error);
+  let last = 0; for (let i = 0; i < 14; i++) { const r = await fetch(base + "/api/auth/login", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ email: "x@x.com", password: "errada123" }) }); last = r.status; }
+  console.log("força bruta no login (14ª tentativa):", last);
+  const html = await fetch(base + "/api/admin/uploads?name=pagina.html", { method: "POST", headers: { "content-type": "application/octet-stream", cookie }, body: "<script>alert(1)</script>" }).then((r) => r.json());
+  const served = await fetch(base + html.url, { headers: { cookie } });
+  console.log("html enviado serve como:", served.headers.get("content-disposition")?.split(";")[0], "| csv:", (await fetch(base + up.url, { headers: { cookie } })).headers.get("content-disposition")?.split(";")[0]);
+  const trav = await fetch(base + "/files/..%2F..%2Fpackage.json", { headers: { cookie } });
+  console.log("path traversal em /files:", trav.status);
+  const guestPush = await fetch(base + "/api/push/subscribe", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ userId: "abcdefgh-1234", subscription: { endpoint: "https://x", keys: { p256dh: "a", auth: "b" } } }) });
+  console.log("push sem conta:", guestPush.status);
+  const pw = await adminApi("PUT", `/api/admin/users/${users.id}`, { password: "outra-senha-9" });
+  const oldSess = await fetch(base + "/api/library", { headers: { cookie: memberCookie } });
+  console.log("sessão antiga após troca de senha:", oldSess.status);
+}
 
 await browser.close();
 fake.close();

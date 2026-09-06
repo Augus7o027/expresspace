@@ -12,6 +12,7 @@ import { accountsRepo, bootstrapAdmin, sessionFromCookie, setSessionCookie, clea
 import { agentsRepo, runAgent, startScheduler, chatCompletion, TOOL_NAMES } from "./agents.js";
 import { parseYouTube, videoInfo, searchYouTube, refineQuery, speakersRepo } from "./speaker.js";
 import { notifyRepo } from "./notify.js";
+import { securityHeaders, rateLimiter, socketLimiter, originCheck, v } from "./security.js";
 import { eventsRepo, startEventClock, REMIND_MIN } from "./events.js";
 import { libraryRepo, saveUpload, uploadPath, removeUpload, embedUrl, TYPES, TYPE_LABEL } from "./library.js";
 
@@ -47,11 +48,19 @@ world.setMap(WORLD, await getOverrides());
 world.setAgents(await agents.list());
 
 const app = express();
-app.use(express.json({ limit: "10mb" }));
 app.set("trust proxy", 1);
+// ---------- blindagem básica ----------
+app.use(securityHeaders({ secure: SECURE }));
+app.use(originCheck([ORIGIN]));                       // POST/PUT/DELETE só da própria origem (CSRF)
+app.use("/api", rateLimiter({ windowMs: 60000, max: 600 }));  // teto geral por IP
+const authLimiter = rateLimiter({ windowMs: 10 * 60000, max: 12, message: "muitas tentativas de login; aguarde 10 minutos" });
+const writeLimiter = rateLimiter({ windowMs: 60000, max: 60, message: "calma: muitas alterações por minuto" });
+app.use(express.json({ limit: "1mb" }));              // o mapa do Tiled tem limite próprio na rota dele
+app.use((err, _req, res, next) => { if (err?.type === "entity.parse.failed" || err?.type === "entity.too.large") return res.status(400).json({ error: "corpo inválido ou grande demais" }); next(err); });
 
 // ---------- helpers ----------
-const sessionUser = async (req) => { const s = sessionFromCookie(req.headers.cookie); return s ? accounts.pub(await accounts.get(s.uid)) : null; };
+// sessão válida = cookie assinado + mesma "versão" da conta (troca de senha/ban invalida sessões antigas)
+const sessionUser = async (req) => { const s = sessionFromCookie(req.headers.cookie); if (!s) return null; const raw = await accounts.get(s.uid); if (!raw || (raw.sv || 0) !== (s.sv || 0)) return null; return accounts.pub(raw); };
 const requireRole = (...roles) => async (req, res, next) => {
   const u = await sessionUser(req);
   if (!u || !roles.includes(u.role)) return res.status(401).json({ error: "sem permissão" });
@@ -81,19 +90,20 @@ app.put("/api/auth/prefs", wrap(async (req, res) => {
 app.get("/api/events", wrap(async (_req, res) => res.json({ events: await events.upcoming(), remindMin: REMIND_MIN, mail: notify.mailEnabled })));
 // push: chave pública + assinatura (conta ou visitante)
 app.get("/api/push/key", (_req, res) => res.json({ key: notify.publicKey }));
-app.post("/api/push/subscribe", wrap(async (req, res) => {
-  const u = await sessionUser(req); const uid = u?.id || (typeof req.body?.userId === "string" && /^[a-z0-9-]{8,40}$/.test(req.body.userId) ? req.body.userId : null);
-  if (!uid) return res.status(401).json({ error: "sem identidade" });
-  res.json({ ok: true, id: await notify.subscribe(uid, req.body?.subscription, req.headers["user-agent"]) });
+app.post("/api/push/subscribe", writeLimiter, wrap(async (req, res) => {
+  const u = await sessionUser(req); // só contas: visitante não assina push (o id de visitante é público no estado do mapa)
+  if (!u) return res.status(401).json({ error: "notificações push são só pra quem tem conta" });
+  res.json({ ok: true, id: await notify.subscribe(u.id, req.body?.subscription, req.headers["user-agent"]) });
 }));
 app.post("/api/push/unsubscribe", wrap(async (req, res) => { await notify.unsubscribe(String(req.body?.endpoint || "")); res.json({ ok: true }); }));
-app.post("/api/auth/login", wrap(async (req, res) => {
-  const u = await accounts.login(req.body?.email, req.body?.password);
+app.post("/api/auth/login", authLimiter, wrap(async (req, res) => {
+  const u = await accounts.login(v.str(req.body?.email, 254), v.str(req.body?.password, 200));
   if (!u) return res.status(401).json({ error: "e-mail ou senha inválidos" });
+  if (u.role !== "admin" && await bans.get(u.id)) return res.status(403).json({ error: "esta conta foi removida do espaço" });
   setSessionCookie(res, u, SECURE); res.json({ user: u });
 }));
 app.post("/api/auth/logout", (_req, res) => { clearSessionCookie(res); res.json({ ok: true }); });
-app.post("/api/auth/register", wrap(async (req, res) => {
+app.post("/api/auth/register", authLimiter, wrap(async (req, res) => {
   if (!(await getSettings()).allowRegister) return res.status(403).json({ error: "cadastro fechado. Peça acesso a um admin." });
   const u = await accounts.create({ email: req.body?.email, name: req.body?.name, password: req.body?.password, role: "member" });
   setSessionCookie(res, u, SECURE); res.json({ user: u });
@@ -173,7 +183,7 @@ app.put("/api/admin/world", admin, wrap(async (req, res) => {
   io.to("world").emit("world:changed", { locked: [...world.locked], reload: !!(b.objects || b.decor) });
   res.json({ ok: true, locked: [...world.locked] });
 }));
-app.post("/api/admin/map", admin, wrap(async (req, res) => {
+app.post("/api/admin/map", admin, express.json({ limit: "8mb" }), wrap(async (req, res) => {
   const t = req.body;
   if (!t || t.type !== "map" || !Array.isArray(t.layers)) throw new Error("envie o JSON exportado do Tiled");
   const parsed = parseTiled(t, "sede.json"); // valida
@@ -200,6 +210,10 @@ app.post("/api/library/:id/done", member, wrap(async (req, res) => {
 // arquivos hospedados: só quem tem conta
 app.get("/files/:name", member, (req, res) => {
   const p = uploadPath(req.params.name); if (!p) return res.status(404).json({ error: "arquivo não existe" });
+  // só imagem/vídeo/áudio/pdf abrem no navegador; o resto baixa (um .html ou .svg enviado nunca roda como página do app)
+  const inline = /\.(png|jpe?g|gif|webp|mp4|webm|mp3|m4a|ogg|wav|pdf)$/i.test(p);
+  res.setHeader("Content-Disposition", (inline ? "inline" : "attachment") + `; filename="${path.basename(p).replace(/[^\w.-]/g, "_")}"`);
+  res.setHeader("X-Content-Type-Options", "nosniff");
   res.sendFile(p);
 });
 // gestão: admin e professores
@@ -283,8 +297,9 @@ io.on("connection", (socket) => {
     pushVoice();
   });
 
+  const lim = { move: socketLimiter(40, 1000), chat: socketLimiter(5, 3000), bubble: socketLimiter(3, 3000), signal: socketLimiter(120, 10000), agent: socketLimiter(6, 60000), misc: socketLimiter(30, 10000) };
   socket.on("move", ({ x, y, dir, moving, running } = {}) => {
-    if (!user) return;
+    if (!user || !lim.move()) return;
     if (world.move(user.id, x, y, dir, moving, running)) pushVoice();
   });
 
@@ -299,7 +314,7 @@ io.on("connection", (socket) => {
   });
 
   socket.on("profile", ({ status, muted, presence, avatar } = {}) => {
-    if (!user) return;
+    if (!user || !lim.misc()) return;
     const p = world.players.get(user.id);
     if (!p) return;
     if (avatar) { const a = sanitizeAvatar(avatar); if (a.body === 1 && !user.premium) a.body = 0; p.avatar = user.avatar = a; if (user.accountId) accounts.update(user.accountId, { avatar: p.avatar }).catch(() => {}); }
@@ -313,6 +328,7 @@ io.on("connection", (socket) => {
   // Conversa com um agente (precisa estar perto dele no mapa)
   socket.on("agent:chat", async ({ agentId, text } = {}, ack) => {
     if (!user) return;
+    if (!lim.agent()) return ack?.({ error: "muitas perguntas seguidas; espere um minuto" });
     const p = world.players.get(user.id);
     const near = world.agents.find((a) => a.id === agentId);
     if (!p || !near) return ack?.({ error: "agente não está aqui" });
@@ -336,7 +352,7 @@ io.on("connection", (socket) => {
 
   socket.on("board:get", async ({ id } = {}, ack) => { if (!user || typeof id !== "string") return; ack?.(await store.getBoard(id)); });
   socket.on("board:set", async ({ id, content } = {}) => {
-    if (!user || typeof id !== "string" || typeof content !== "string") return;
+    if (!user || typeof id !== "string" || typeof content !== "string" || !lim.misc()) return;
     if (!world.map.objects.some((o) => o.id === id && o.kind === "board")) return;
     content = content.slice(0, 20000);
     await store.setBoard(id, content);
@@ -370,7 +386,7 @@ io.on("connection", (socket) => {
   const speakerObj = (id) => world.map.objects.find((x) => x.id === id && x.kind === "speaker");
   socket.on("speaker:get", async (_a, ack) => { if (user) ack?.(await speakers.all()); });
   socket.on("speaker:set", async ({ id, url, title } = {}, ack) => {
-    if (!user) return;
+    if (!user) return; if (!lim.misc()) return ack?.({ error: "calma, muitas trocas seguidas" });
     const o = speakerObj(id); if (!o) return ack?.({ error: "caixa de som não encontrada" });
     const yt = parseYouTube(url); if (!yt) return ack?.({ error: "cole um link do YouTube (ou pesquise)" });
     const info = await videoInfo(yt.videoId);
@@ -417,6 +433,7 @@ io.on("connection", (socket) => {
 
   socket.on("chat:send", async ({ channelId, body } = {}) => {
     if (!user) return;
+    if (!lim.chat()) return socket.emit("toast", "Calma, muitas mensagens seguidas.");
     body = String(body || "").trim().slice(0, 1000);
     if (!body || typeof channelId !== "string") return;
     const p = world.players.get(user.id);
@@ -473,13 +490,13 @@ io.on("connection", (socket) => {
   });
 
   socket.on("bubble", ({ text } = {}) => {
-    if (!user) return;
+    if (!user || !lim.bubble()) return;
     text = String(text || "").trim().slice(0, 120);
     if (text) io.to("world").emit("bubble", { userId: user.id, text });
   });
 
   socket.on("rtc:signal", ({ to, data } = {}) => {
-    if (!user || typeof to !== "string") return;
+    if (!user || typeof to !== "string" || !data || typeof data !== "object" || !lim.signal()) return;
     socketsByUser.get(to)?.emit("rtc:signal", { from: user.id, data });
   });
 

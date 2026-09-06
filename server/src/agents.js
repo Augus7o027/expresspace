@@ -21,7 +21,9 @@ export const TOOL_NAMES = Object.keys(TOOL_DEFS);
 
 const strip = (html) => String(html).replace(/<script[\s\S]*?<\/script>/gi, " ").replace(/<style[\s\S]*?<\/style>/gi, " ").replace(/<[^>]+>/g, " ").replace(/&nbsp;/g, " ").replace(/&amp;/g, "&").replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/\s+/g, " ").trim();
 
+import { assertPublicUrl } from "./security.js";
 async function fetchText(url, ms = 12000) {
+  url = assertPublicUrl(url); // agentes só buscam endereços públicos (nada de localhost, rede interna, metadata da VPS)
   const ctrl = new AbortController(); const t = setTimeout(() => ctrl.abort(), ms);
   try {
     const r = await fetch(url, { signal: ctrl.signal, headers: { "user-agent": "Mozilla/5.0 (compatible; ExpresSpaceBot/1.0)", accept: "text/html,application/xml,application/rss+xml,*/*" }, redirect: "follow" });

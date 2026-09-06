@@ -49,7 +49,7 @@ export function parseCookies(header) {
 
 export function sessionFromCookie(header) { return verify(parseCookies(header)[COOKIE]); }
 export function setSessionCookie(res, user, secure) {
-  const token = sign({ uid: user.id, role: user.role, exp: Math.floor(Date.now() / 1000) + TTL });
+  const token = sign({ uid: user.id, role: user.role, sv: user.sv || 0, exp: Math.floor(Date.now() / 1000) + TTL });
   res.setHeader("Set-Cookie", `${COOKIE}=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${TTL}${secure ? "; Secure" : ""}`);
 }
 export function clearSessionCookie(res) { res.setHeader("Set-Cookie", `${COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`); }
@@ -70,7 +70,8 @@ export async function bootstrapAdmin(accounts) {
 // Repositório de contas em cima do store de documentos
 export function accountsRepo(store) {
   const C = "accounts";
-  const pub = (u) => u && { id: u.id, email: u.email, name: u.name, role: u.role, avatar: u.avatar || null, premium: !!u.premium, reminders: u.reminders !== false, tourDone: !!u.tourDone, created_at: u.created_at, last_login: u.last_login };
+  const pub = (u) => u && { id: u.id, email: u.email, name: u.name, role: u.role, avatar: u.avatar || null, premium: !!u.premium, reminders: u.reminders !== false, tourDone: !!u.tourDone, sv: u.sv || 0, created_at: u.created_at, last_login: u.last_login };
+  const checkPassword = (pw) => { const p = String(pw || ""); if (p.length < 8) throw new Error("senha precisa de 8+ caracteres"); if (/^(.)\1+$/.test(p) || ["12345678", "password", "senha123", "qwertyui"].includes(p.toLowerCase())) throw new Error("senha fraca demais"); };
   return {
     pub,
     list: async () => (await store.listDocs(C)).map(pub),
@@ -79,7 +80,7 @@ export function accountsRepo(store) {
     create: async ({ email, name, password, role = "member", avatar = null }) => {
       email = normEmail(email);
       if (!validEmail(email)) throw new Error("e-mail inválido");
-      if (String(password || "").length < 6) throw new Error("senha precisa de 6+ caracteres");
+      checkPassword(password);
       if (!ROLES.includes(role)) throw new Error("cargo inválido");
       if ((await store.listDocs(C)).some((u) => u.email === email)) throw new Error("e-mail já cadastrado");
       const id = crypto.randomUUID();
@@ -95,7 +96,8 @@ export function accountsRepo(store) {
       if (patch.premium !== undefined) u.premium = !!patch.premium;
       if (patch.reminders !== undefined) u.reminders = !!patch.reminders;
       if (patch.tourDone !== undefined) u.tourDone = !!patch.tourDone;
-      if (patch.password) { if (String(patch.password).length < 6) throw new Error("senha precisa de 6+ caracteres"); u.pass = hashPassword(patch.password); }
+      if (patch.password) { checkPassword(patch.password); u.pass = hashPassword(patch.password); u.sv = (u.sv || 0) + 1; } // derruba sessões antigas
+      if (patch.role !== undefined && patch.role !== u.role) u.sv = (u.sv || 0) + 1;
       if (patch.last_login) u.last_login = patch.last_login;
       await store.putDoc(C, id, u);
       return pub(u);

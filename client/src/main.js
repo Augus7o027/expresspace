@@ -478,7 +478,7 @@ async function boot(net, { user, map, channels, players, locked = [], npcs = [],
       const f = document.createElement("iframe"); f.src = o.url; f.allow = "autoplay; fullscreen; clipboard-write"; f.referrerPolicy = "no-referrer";
       modalBody.append(f);
       const foot = document.createElement("div"); foot.className = "modal-foot";
-      foot.innerHTML = `<a href="${o.url}" target="_blank" rel="noopener" style="color:inherit">abrir em nova aba ↗</a>`;
+      const a = document.createElement("a"); a.href = o.url; a.target = "_blank"; a.rel = "noopener"; a.style.color = "inherit"; a.textContent = "abrir em nova aba ↗"; foot.append(a);
       modalBody.parentElement.append(foot);
       if (isStaff) { // admin/professor trocam o link do telão/palco na hora; todo mundo vê
         const ed = document.createElement("div"); ed.className = "obj-edit modal-foot";
