@@ -321,7 +321,7 @@ async function boot(net, { user, map, channels, players, locked = [], npcs = [],
 
   // editor do espaço (admin, só no computador)
   if (user.role === "admin" && !isMobile()) {
-    const eb = $("#btn-editor"); eb.classList.remove("hidden"); eb.innerHTML = ICON.edit;
+    const eb = $("#btn-editor"); eb.classList.remove("hidden"); eb.innerHTML = ICON.grid + " Montar o espaço";
     let ed = null;
     eb.onclick = async () => {
       if (ed) return;
