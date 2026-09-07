@@ -4,7 +4,15 @@ Ambiente 2D próprio da comunidade. Híbrido entre Gather e Discord: um mapa ond
 
 Documentação completa em [`docs/`](docs/README.md) (arquitetura, dados, segurança, infraestrutura, operação, desenvolvimento, changelog). Contexto operacional em [`CLAUDE.md`](CLAUDE.md).
 
-## O que já funciona (v0.18)
+## O que já funciona (v0.19)
+
+- **Importar packs de sprites** (painel → aba Packs): sobe um zip como vem da CraftPix ou do itch.io e o servidor recorta cada PNG em peças. Objeto solto vira móvel ou decoração (base que bloqueia, imagem que sobrepõe), folha de tiles vira peça de chão que não bloqueia. Por peça: nome, tipo, tamanho da base, **interação** e ligada/desligada; por folha: recortar de novo em grade de 16 ou 32 px ou por objetos soltos. Os arquivos ficam em `DATA_DIR/packs/` (o volume do Coolify), sem deploy
+- **As peças entram no editor** na aba Decoração, agrupadas por pack, com busca. E entram no mapa gerado: a mesma peça pode ir em quantos espaços quiser
+- **Objetos que interagem com o avatar** (antes só a cadeira): **sentar** (agora também nos sofás e bancos embutidos: parou em cima, sentou virado pro lado certo, todo mundo vê), **deitar** (cama, rede, espreguiçadeira: o personagem deita de verdade), **usar** (luminária, TV, rádio: E liga e desliga pra todo mundo, com imagem alternativa ou brilho, e o estado fica salvo), **portal** (pisou, apareceu no destino marcado no mapa, com clarão), **placa** (E abre um texto) e **estação de trabalho** (sentou, entrou em foco; levantou, voltou). A interação pode vir do pack ou ser escolhida por peça colocada no editor, com direção (de frente, de costas, esquerda, direita)
+- Servidor confere tudo: onde dá pra sentar não bloqueia, quem usa uma luminária precisa estar perto, o portal respeita sala trancada
+- O que fica pra próxima rodada do editor: desenhar salas novas, paredes, portas e pintar piso; portais entre mapas diferentes (multi-cenário)
+
+## v0.18
 
 - **Editor do espaço dentro do app** (admin, botão de lápis no rodapé): a câmera fica livre, o mapa vira uma prancheta. Paleta com **móveis** (mesas de trabalho com cadeira, mesas de reunião com cadeiras em volta, sofás, balcões, bancos, estantes, cafeteira, bebedouro, postes), **decoração** dos packs (plantas, tapetes, estantes, caixotes, barris, arbustos, pedras), **árvores** animadas e fogueira, **objetos** (quadro, mural, telão, link, caixa de som, ponto de entrada) e **gente parada**. Clica na peça, clica no mapa; arrasta pra mover; Delete apaga; Ctrl+Z desfaz; duplicar; propriedades (tamanho, nome, link, texto). Aba **Salas** troca nome, tipo (proximidade, reunião, palco, silêncio) e piso; aba **Bichos** escolhe quais animais andam em cada sala
 - **O que você vê é o que sai**: enquanto edita, o app esconde os móveis atuais e desenha o layout ao vivo com os mesmos tiles e sprites do jogo

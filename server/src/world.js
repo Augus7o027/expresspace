@@ -21,10 +21,13 @@ export class World {
       if (typeof ov.label === "string") o.label = ov.label;
     }
     for (const [i, pos] of Object.entries(overrides.decor || {})) { const d = map.decor[Number(i)]; if (d) Object.assign(d, { x: pos.x, y: pos.y }); }
+    // estado ligado/desligado de props "usar" (luminária, tv…), persistido no painel de ajustes
+    for (const [i, on] of Object.entries(overrides.decorState || {})) { const d = map.decor[Number(i)]; if (d && d.interact === "use") d.on = !!on; }
     if (overrides.npcs) map.npcs = overrides.npcs;
     // colisão = tiles do Tiled (paredes/móveis) + objetos e árvores nas posições atuais
     const grid = map.tiledGrid.map((row) => row.split(""));
     for (const o of [...map.objects, ...map.decor]) {
+      if (["sit", "lie", "work", "portal"].includes(o.interact)) continue;
       const bx = o.bx ?? o.x, by = o.by ?? o.y, bw = o.bw ?? o.w, bh = o.bh ?? o.h;
       for (let y = by; y < by + bh; y++) for (let x = bx; x < bx + bw; x++) if (grid[y]?.[x] !== undefined) grid[y][x] = "1";
     }

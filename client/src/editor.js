@@ -29,6 +29,7 @@ function objectTiles(o) {
   else if (o.kind === "speaker") out.push([o.x, o.y, "radio"]);
   return out;
 }
+const INTER_LABEL = { sit: "sentar", lie: "deitar", use: "ligar/desligar", portal: "portal", sign: "placa", work: "trabalho" };
 const OBJ_DEFAULT = { board: { w: 1, h: 2, label: "Quadro" }, info: { w: 3, h: 1, label: "Mural", text: "Escreva aqui o texto do mural." }, video: { w: 5, h: 1, label: "Telão", url: "https://www.youtube.com/embed/jfKfPfyJRdk" }, link: { w: 2, h: 1, label: "Link", url: "/membros" }, speaker: { w: 1, h: 1, label: "Caixa de som" } };
 
 export async function openEditor({ scene, apiJson, toast, onClose }) {
@@ -63,7 +64,13 @@ export async function openEditor({ scene, apiJson, toast, onClose }) {
       for (const [x, y, name] of objectTiles(o)) img(x, y, name, 10 + ((y + 1) * TILE - 4) / 10000);
       const t = scene.add.text(o.x * TILE + o.w * TILE / 2, o.y * TILE + o.h * TILE + 1, o.label, { fontFamily: "JetBrains Mono", fontSize: "8px", color: "#f2efe9", backgroundColor: "rgba(0,0,0,0.5)", padding: { x: 3, y: 1 }, resolution: 2 }).setOrigin(0.5, 0).setDepth(21); drawn.push(t);
     }
-    for (const p of L.props) { const key = "prop:" + p.sprite; if (ensureTex(key, () => scene.load.image(key, `/assets/props/${p.sprite}.png`))) { const d = pi(p.sprite); const o = scene.add.image(p.x * TILE, p.y * TILE, key).setOrigin(0).setDepth((d?.bh ?? 1) === 0 ? 2 : 10 + ((p.y + (d?.h || 1)) * TILE - 4) / 10000); drawn.push(o); } }
+    for (const p of L.props) {
+      const key = "prop:" + p.sprite, d = pi(p.sprite);
+      if (ensureTex(key, () => scene.load.image(key, d?.url || `/assets/props/${p.sprite}.png`))) { const o = scene.add.image(p.x * TILE, p.y * TILE, key).setOrigin(0).setDepth((d?.bh ?? 1) === 0 ? 2 : 10 + ((p.y + (d?.h || 1)) * TILE - 4) / 10000); drawn.push(o); }
+      const inter = p.interact || d?.interact;
+      if (inter && inter !== "none") { const t = scene.add.text(p.x * TILE + (d?.w || 1) * TILE / 2, p.y * TILE + (d?.h || 1) * TILE + 1, INTER_LABEL[inter] || inter, { fontFamily: "JetBrains Mono", fontSize: "8px", color: "#9ad0ff", backgroundColor: "rgba(0,0,0,0.5)", padding: { x: 3, y: 1 }, resolution: 2 }).setOrigin(0.5, 0).setDepth(21); drawn.push(t); }
+      if (inter === "portal" && p.to) { const t = scene.add.text((p.to.x + 0.5) * TILE, (p.to.y + 0.5) * TILE, "◎ destino", { fontFamily: "JetBrains Mono", fontSize: "8px", color: "#9ad0ff", backgroundColor: "rgba(0,0,0,0.6)", padding: { x: 3, y: 1 }, resolution: 2 }).setOrigin(0.5).setDepth(21); drawn.push(t); }
+    }
     for (const t of L.trees) { const key = "tree2:" + t.sprite; if (ensureTex(key, () => scene.load.spritesheet(key, `/assets/trees2/${t.sprite}.png`, { frameWidth: 128, frameHeight: 160 }))) { const o = scene.add.image(t.x * TILE, t.y * TILE, key, 0).setOrigin(0).setDepth(10 + ((t.y + 5) * TILE - 4) / 10000); drawn.push(o); } }
     for (const f of L.fires) { if (ensureTex("fx:campfire", () => scene.load.spritesheet("fx:campfire", "/assets/fx/campfire.png", { frameWidth: 88, frameHeight: 96 }))) { const o = scene.add.image(f.x * TILE, f.y * TILE, "fx:campfire", 0).setOrigin(0).setDepth(10 + ((f.y + 3) * TILE - 4) / 10000); drawn.push(o); } }
     for (const n of L.staticNpcs) { const t = scene.add.text(n.x * TILE, n.y * TILE, "☺ " + n.kind, { fontFamily: "JetBrains Mono", fontSize: "9px", color: "#9ad0ff", backgroundColor: "rgba(0,0,0,0.6)", padding: { x: 3, y: 1 }, resolution: 2 }).setOrigin(0.5).setDepth(21); drawn.push(t); }
@@ -127,6 +134,7 @@ export async function openEditor({ scene, apiJson, toast, onClose }) {
     else if (tool.type === "objects") { const d = OBJ_DEFAULT[tool.kind]; const n = L.objects.filter((o) => o.kind === tool.kind).length + 1; L.objects.push({ id: `${tool.kind}-${Date.now().toString(36)}`, kind: tool.kind, x: t.x, y: t.y, w: d.w, h: d.h, label: d.label + (n > 1 ? " " + n : ""), url: d.url, text: d.text }); sel = { list: "objects", index: L.objects.length - 1 }; }
     else if (tool.type === "staticNpcs") { L.staticNpcs.push({ kind: tool.kind, x: t.x + 0.5, y: t.y + 0.7, zone: zoneAt(t)?.id || L.zones[0]?.id }); sel = { list: "staticNpcs", index: L.staticNpcs.length - 1 }; }
     else if (tool.type === "spawn") { L.spawn = { x: t.x, y: t.y }; tool = null; paintPalette(); }
+    else if (tool.type === "portalTo") { const it = L.props[tool.index]; if (it) { it.to = { x: t.x, y: t.y }; sel = { list: "props", index: tool.index }; } tool = null; paintPalette(); }
     render(); paintProps();
   }
   const zoneAt = (t) => L.zones.find((z) => t.x >= z.x && t.x < z.x + z.w && t.y >= z.y && t.y < z.y + z.h);
@@ -144,7 +152,7 @@ export async function openEditor({ scene, apiJson, toast, onClose }) {
   const hint = el("div", { class: "sp-hint", text: "clique numa peça da paleta e depois no mapa · arraste pra mover · Delete apaga · botão direito ou Esc cancela · arraste o fundo pra rolar · roda do mouse dá zoom · setas movem a câmera" });
   root.append(head, status, tabs, pal, props, hint, foot);
   const TABS = { furniture: "Móveis", props: "Decoração", trees: "Árvores", objects: "Objetos", zones: "Salas", npcs: "Bichos" };
-  let tab = "furniture";
+  let tab = "furniture", propQuery = "";
   const paintTabs = () => { tabs.innerHTML = ""; for (const [k, v] of Object.entries(TABS)) tabs.append(el("button", { class: k === tab ? "active" : "", onclick: () => { tab = k; paintTabs(); paintPalette(); } }, v)); };
   const thumbTile = (name) => { const id = cat.tiles[name]; const d = el("div", { class: "ed-thumb" }); if (id !== undefined) { d.style.backgroundImage = "url(/assets/tiles/office.png)"; d.style.backgroundPosition = `-${(id % cat.columns) * TILE}px -${Math.floor(id / cat.columns) * TILE}px`; } return d; };
   const item = (label, thumb, active, onclick) => el("button", { class: "ed-item" + (active ? " active" : ""), onclick, title: label }, thumb, el("span", { text: label }));
@@ -154,7 +162,18 @@ export async function openEditor({ scene, apiJson, toast, onClose }) {
     if (tab === "furniture") {
       for (const [kind, d] of Object.entries(cat.furniture)) { const first = { desk: "desk_l", table: "table_l", sofa: "sofa_l", counter: "counter_l" }[kind] || kind; pal.append(item(d.label, thumbTile(first), isTool("furniture", kind), () => { tool = { type: "furniture", kind, w: Math.max(d.w[0], Math.min(d.w[1], kind === "table" ? 4 : kind === "desk" ? 2 : kind === "sofa" ? 3 : d.w[0])), h: kind === "table" ? 2 : d.h[0] }; sel = null; paintPalette(); paintProps(); })); }
     } else if (tab === "props") {
-      for (const sprite of Object.keys(cat.props).sort()) { const t = el("div", { class: "ed-thumb" }); t.style.backgroundImage = `url(/assets/props/${sprite}.png)`; t.style.backgroundSize = "contain"; pal.append(item(sprite.replace(/_/g, " "), t, isTool("props", sprite), () => { tool = { type: "props", sprite }; sel = null; paintPalette(); paintProps(); })); }
+      // embutidas primeiro, depois um grupo por pack importado (painel → Packs); busca filtra pelo nome
+      const q = el("input", { class: "ed-search", placeholder: "buscar peça…", value: propQuery }); q.oninput = () => { propQuery = q.value.toLowerCase(); paintPalette(); q.focus(); };
+      pal.append(q);
+      const groups = new Map([["embutidas", []]]);
+      for (const [sprite, d] of Object.entries(cat.props)) { const g = d.pack || "embutidas"; if (!groups.has(g)) groups.set(g, []); groups.get(g).push([sprite, d]); }
+      for (const [g, items] of groups) {
+        const list = items.filter(([sprite, d]) => !propQuery || (d.name || sprite).toLowerCase().includes(propQuery) || (d.interact && d.interact !== "none" && INTER_LABEL[d.interact]?.includes(propQuery))).sort((a, b) => (a[1].name || a[0]).localeCompare(b[1].name || b[0]));
+        if (!list.length) continue;
+        pal.append(el("div", { class: "ed-group mono dim", text: `${g} · ${list.length}` }));
+        for (const [sprite, d] of list) { const t = el("div", { class: "ed-thumb" }); t.style.backgroundImage = `url(${d.url || `/assets/props/${sprite}.png`})`; t.style.backgroundSize = "contain"; const name = (d.name || sprite).replace(/_/g, " "); pal.append(item(d.interact && d.interact !== "none" ? `${name} · ${INTER_LABEL[d.interact]}` : name, t, isTool("props", sprite), () => { tool = { type: "props", sprite }; sel = null; paintPalette(); paintProps(); })); }
+      }
+      if (groups.size === 1) pal.append(el("div", { class: "sp-hint", text: "importe packs de sprites (zip) no painel, aba Packs: as peças aparecem aqui" }));
     } else if (tab === "trees") {
       for (const sprite of cat.trees) { const t = el("div", { class: "ed-thumb tall" }); t.style.backgroundImage = `url(/assets/trees2/${sprite}.png)`; t.style.backgroundSize = "auto 100%"; pal.append(item(sprite.replace(/_/g, " "), t, isTool("trees", sprite), () => { tool = { type: "trees", sprite }; sel = null; paintPalette(); paintProps(); })); }
       const f = el("div", { class: "ed-thumb" }); f.style.backgroundImage = "url(/assets/fx/campfire.png)"; f.style.backgroundSize = "auto 100%"; pal.append(item("fogueira (luz + som)", f, tool?.type === "fires", () => { tool = { type: "fires" }; sel = null; paintPalette(); paintProps(); }));
@@ -190,9 +209,24 @@ export async function openEditor({ scene, apiJson, toast, onClose }) {
     const field = (label, input) => el("label", { class: "ed-field" }, el("span", { class: "mono dim", text: label }), input);
     const num = (key, min, max) => { const i = el("input", { type: "number", min, max, value: it[key] }); i.onchange = () => { snap(); it[key] = Math.max(min, Math.min(max, parseInt(i.value, 10) || min)); render(); }; return i; };
     const text = (key, max, placeholder = "") => { const i = el("input", { value: it[key] || "", placeholder, maxlength: max }); i.oninput = () => { it[key] = i.value.slice(0, max); dirty = true; paintStatus(); render(); }; return i; };
-    const title = { furniture: cat.furniture[it.kind]?.label, props: it.sprite, trees: "árvore " + it.sprite, fires: "fogueira", objects: cat.objectKinds[it.kind], staticNpcs: it.kind }[sel.list];
+    const title = { furniture: cat.furniture[it.kind]?.label, props: pi(it.sprite)?.name || it.sprite, trees: "árvore " + it.sprite, fires: "fogueira", objects: cat.objectKinds[it.kind], staticNpcs: it.kind }[sel.list];
     props.append(el("div", { class: "ed-sel-title", text: title || sel.list }));
     if (sel.list === "furniture") { const d = cat.furniture[it.kind]; if (d.w[1] > 1) props.append(field("largura", num("w", d.w[0], d.w[1]))); if (d.h[1] > 1) props.append(field("altura", num("h", d.h[0], d.h[1]))); }
+    if (sel.list === "props") {
+      const d = pi(it.sprite) || {}, base = d.interact || "none";
+      const opts = { none: "nenhuma", sit: "sentar", work: "sentar e trabalhar (foco)", lie: "deitar", use: "ligar/desligar", portal: "portal", sign: "placa (texto)" };
+      const inter = el("select", { onchange: () => { snap(); it.interact = inter.value === base ? undefined : inter.value; if (inter.value === "none") it.interact = base === "none" ? undefined : "none"; render(); paintProps(); } }, ...Object.entries(opts).map(([k, v]) => { const o = el("option", { value: k, text: v + (k === base && base !== "none" ? " (do pack)" : "") }); if ((it.interact || base) === k) o.selected = true; return o; }));
+      props.append(field("interação", inter));
+      const cur = it.interact || base;
+      if (cur === "sit" || cur === "work" || cur === "lie") { const dir = el("select", { onchange: () => { snap(); it.dir = dir.value; } }, ...[["down", "de frente"], ["up", "de costas"], ["left", "esquerda"], ["right", "direita"]].map(([k, v]) => { const o = el("option", { value: k, text: v }); if ((it.dir || d.dir || "down") === k) o.selected = true; return o; })); props.append(field(cur === "lie" ? "cabeça pra" : "olhando pra", dir)); }
+      if (cur === "sign" || cur === "use") props.append(field("nome", text("label", 40, d.name || "")));
+      if (cur === "sign") { const ta = el("textarea", { rows: 4 }); ta.value = it.text || ""; ta.oninput = () => { it.text = ta.value.slice(0, 500); dirty = true; paintStatus(); }; props.append(field("texto", ta)); }
+      if (cur === "portal") {
+        props.append(el("div", { class: "sp-hint", text: it.to ? `destino: ${it.to.x}, ${it.to.y}` : "sem destino: ninguém vai pra lugar nenhum" }));
+        props.append(el("button", { class: "sp-btn primary", onclick: () => { tool = { type: "portalTo", index: sel.index }; props.append(el("div", { class: "sp-hint", text: "clique no mapa onde a pessoa vai aparecer" })); } }, "marcar destino no mapa"));
+      }
+      if (d.bw === 0) props.append(el("div", { class: "sp-hint", text: "peça de chão: não bloqueia" }));
+    }
     if (sel.list === "objects") {
       props.append(field("nome", text("label", 40)));
       if (it.kind !== "speaker") { props.append(field("largura", num("w", 1, 12))); if (it.kind === "board") props.append(field("altura", num("h", 1, 4))); }

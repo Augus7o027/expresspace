@@ -34,14 +34,17 @@ export function parseTiled(t, fileName = "sede.json") {
   };
 
   // tiles que colidem (por gid)
-  const collides = new Set();
+  const collides = new Set(), seatTiles = new Map(); // assentos feitos de tile: sofá (senta olhando pra baixo), bancos
+  const SEAT_DIR = { sofa_l: "down", sofa_m: "down", sofa_r: "down", bench: "up", bench_park: "down" };
   for (const ts of t.tilesets) for (const tile of ts.tiles || []) {
+    if (SEAT_DIR[tile.type]) { seatTiles.set(ts.firstgid + tile.id, SEAT_DIR[tile.type]); continue; } // dá pra sentar: não bloqueia
     if ((tile.properties || []).some((p) => p.name === "collides" && p.value)) collides.add(ts.firstgid + tile.id);
   }
   const grid = new Uint8Array(W * H);
+  world.seats = [];
   for (const L of t.layers) {
     if (L.type !== "tilelayer") continue;
-    L.data.forEach((g, i) => { if (g && collides.has(g & 0x1fffffff)) grid[i] = 1; });
+    L.data.forEach((g, i) => { const id = g & 0x1fffffff; if (g && collides.has(id)) grid[i] = 1; if (g && seatTiles.has(id)) world.seats.push({ x: i % W, y: Math.floor(i / W), dir: seatTiles.get(id) }); });
   }
   // borda do mapa sempre bloqueia
   for (let x = 0; x < W; x++) { grid[x] = 1; grid[(H - 1) * W + x] = 1; }
@@ -62,7 +65,11 @@ export function parseTiled(t, fileName = "sede.json") {
         // props dos packs, árvores animadas e fogueira: a imagem ocupa r, mas só a base (bw x bh, centrada embaixo) bloqueia
         case "prop": case "tree2": case "fire": {
           const bw = p.bw ?? r.w, bh = p.bh ?? 1;
-          world.decor.push({ kind: o.type, sprite: p.sprite || o.name, ...r, bw, bh, bx: r.x + Math.floor((r.w - bw) / 2), by: r.y + r.h - bh });
+          const d = { kind: o.type, sprite: p.sprite || o.name, ...r, bw, bh, bx: r.x + Math.floor((r.w - bw) / 2), by: r.y + r.h - bh };
+          // peças de packs importados: imagem própria e interação (sentar, deitar, usar, portal, placa, trabalho)
+          if (p.url) d.url = p.url;
+          if (p.interact && p.interact !== "none") { d.interact = p.interact; d.dir = p.dir || "down"; if (p.alt) d.alt = p.alt; if (p.text) d.text = p.text; if (p.label) d.label = p.label; if (Number.isFinite(p.toX)) d.to = { x: p.toX, y: p.toY }; }
+          world.decor.push(d);
           break;
         }
         case "graffiti": world.graffiti.push({ sprite: p.sprite || o.name, x: Math.floor(o.x / TILE), y: Math.floor(o.y / TILE), scale: p.scale || 1 }); break;
@@ -76,6 +83,7 @@ export function parseTiled(t, fileName = "sede.json") {
   world.tiledGrid = [];
   for (let y = 0; y < H; y++) world.tiledGrid.push(Array.from(grid.subarray(y * W, (y + 1) * W)).join(""));
   for (const o of [...world.objects, ...world.decor]) {
+    if (["sit", "lie", "work", "portal"].includes(o.interact)) continue; // a base é onde a pessoa pisa/senta
     const bx = o.bx ?? o.x, by = o.by ?? o.y, bw = o.bw ?? o.w, bh = o.bh ?? o.h;
     for (let y = by; y < by + bh; y++) for (let x = bx; x < bx + bw; x++) if (x >= 0 && y >= 0 && x < W && y < H) grid[y * W + x] = 1;
   }

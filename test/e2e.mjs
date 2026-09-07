@@ -4,6 +4,8 @@ import { chromium } from "playwright";
 
 import http from "node:http";
 import { rmSync } from "node:fs";
+import AdmZip from "adm-zip";
+import { PNG } from "pngjs";
 
 const PORT = 3100, LLM_PORT = 3199;
 // LLM falso (OpenAI-compatível): pede a ferramenta fetch_url e depois responde com o que leu
@@ -227,13 +229,15 @@ await A.screenshot({ path: "test/shots/04-canal-voz.png" });
 
 console.log("erros de página:", errors);
 // Login com conta no navegador
-const L2 = await ctxA.newPage(); await L2.goto(base, { waitUntil: "domcontentloaded" }); await L2.waitForTimeout(800);
+// contas (membro e admin) num contexto próprio: cookie de sessão no contexto de A faria a Ana virar admin ao recarregar
+const ctxW = await newCtx({ viewport: { width: 1440, height: 900 }, permissions: ["microphone", "camera"] });
+const L2 = await ctxW.newPage(); await L2.goto(base, { waitUntil: "domcontentloaded" }); await L2.waitForTimeout(800);
 await L2.click(".login-tabs .tab[data-login='account']"); await L2.fill("#email", "membro@teste.com"); await L2.fill("#password", "senha-forte-1");
 await L2.click("#account-form .btn-primary"); await L2.waitForSelector("#app:not(.hidden)"); await L2.waitForTimeout(800);
 console.log("login por conta:", await L2.textContent("#me-name"));
 await L2.close();
 // Painel admin no navegador
-const AD = await ctxA.newPage(); await AD.goto(base + "/admin", { waitUntil: "domcontentloaded" }); await AD.waitForTimeout(600);
+const AD = await ctxW.newPage(); await AD.goto(base + "/admin", { waitUntil: "domcontentloaded" }); await AD.waitForTimeout(600);
 await AD.fill("#email", "admin@teste.com"); await AD.fill("#password", "segredo1"); await AD.click("#login-form .btn-primary"); await AD.waitForTimeout(1200);
 console.log("painel:", (await AD.textContent("#tab-overview")).replace(/\s+/g, " ").slice(0, 90));
 await AD.click("#tabs button[data-tab='agents']"); await AD.waitForTimeout(800);
@@ -241,7 +245,7 @@ await AD.screenshot({ path: "test/shots/12-admin-agentes.png" });
 await AD.click("#tabs button[data-tab='world']"); await AD.waitForTimeout(800);
 await AD.screenshot({ path: "test/shots/13-admin-mundo.png" });
 // v0.13: admin no mundo edita o link do telão; A recebe object:update
-const W = await ctxA.newPage(); await W.goto(base + "/?canvas=1&notour=1", { waitUntil: "domcontentloaded" }); await W.waitForTimeout(800);
+const W = await ctxW.newPage(); await W.goto(base + "/?canvas=1&notour=1", { waitUntil: "domcontentloaded" }); await W.waitForTimeout(800);
 await W.click(".login-tabs .tab[data-login='account']"); await W.click("#account-form .btn-primary"); await W.waitForSelector("#app:not(.hidden)"); await W.waitForTimeout(800);
 await W.screenshot({ path: "test/shots/17-avatar-editor.png" }).catch(() => {});
 const oset = await W.evaluate(() => new Promise((r) => window.__sede.net.emit("object:set", { id: "telao", url: "https://youtu.be/jfKfPfyJRdk", label: "Telão · aula" }, r)));
@@ -260,9 +264,11 @@ console.log("editor depois de colocar:", await W.textContent(".ed-status"));
 await W.screenshot({ path: "test/shots/22-editor.png" });
 const objsBefore = (await (await fetch(base + "/api/map")).json()).objects.length;
 W.once("dialog", (d) => d.accept());
+await A.evaluate(() => { window.__old = 1; }); await B.evaluate(() => { window.__old = 1; }); // marca as páginas atuais: a recarga de verdade limpa isso
 await W.click(".ed-foot .primary"); await W.waitForTimeout(4000);
 const mapAfter = await (await fetch(base + "/api/map")).json();
-await A.waitForSelector("#app:not(.hidden)", { timeout: 20000 }); await B.waitForSelector("#app:not(.hidden)", { timeout: 20000 }); await A.waitForTimeout(1500);
+for (const P of [A, B]) await P.waitForFunction(() => !window.__old && !!window.__sede?.scene?.player, null, { timeout: 40000 });
+await A.waitForTimeout(1500);
 console.log("layout salvo:", (await adminApi("GET", "/api/admin/layout")).saved, "| objetos no mapa:", objsBefore, "→", mapAfter.objects.length, "| A e B recarregaram e voltaram:", await A.evaluate(() => !document.querySelector("#app").classList.contains("hidden")), await B.evaluate(() => !document.querySelector("#app").classList.contains("hidden")));
 // o admin (W) também recarregou: entra de novo com a conta (o formulário só fica ativo depois que a sessão carrega)
 const ensureW = async () => {
@@ -272,6 +278,58 @@ const ensureW = async () => {
 };
 await ensureW();
 console.log("admin de volta no espaço:", await W.evaluate(() => window.__sede.state.me.name));
+
+// v0.19: pack importado + interações — zip sintético com 4 peças; sofá embutido vira assento; portal, placa, ligar/desligar
+const png = (w, h, rgb) => { const im = new PNG({ width: w, height: h }); for (let i = 0; i < w * h; i++) { im.data[i * 4] = rgb[0]; im.data[i * 4 + 1] = rgb[1]; im.data[i * 4 + 2] = rgb[2]; im.data[i * 4 + 3] = 255; } return PNG.sync.write(im); };
+const zip = new AdmZip();
+zip.addFile("PNG/Objects_separately/bench.png", png(32, 16, [140, 90, 40])); zip.addFile("PNG/Objects_separately/portal.png", png(16, 16, [90, 160, 255])); zip.addFile("PNG/Objects_separately/sign.png", png(16, 16, [200, 200, 120])); zip.addFile("PNG/Objects_separately/lamp.png", png(16, 16, [90, 90, 90])); zip.addFile("PNG/Objects_separately/lamp_on.png", png(16, 16, [255, 230, 120]));
+const impR = await fetch(base + "/api/admin/packs?name=teste.zip", { method: "POST", headers: { "content-type": "application/zip", cookie }, body: zip.toBuffer() });
+const { pack } = await impR.json();
+const piece = (n) => pack.pieces.find((p) => p.name.toLowerCase() === n);
+console.log("pack importado:", impR.status, pack?.pieces.length, "peças |", pack?.pieces.map((p) => `${p.name} ${p.w}x${p.h} ${p.kind}`).join(", "));
+await adminApi("PUT", `/api/admin/packs/${pack.id}`, { name: "Teste", pieces: [{ id: piece("bench").id, interact: "sit", dir: "down" }, { id: piece("portal").id, interact: "portal" }, { id: piece("sign").id, interact: "sign" }, { id: piece("lamp").id, interact: "use", alt: piece("lamp_on").id }, { id: piece("lamp_on").id, enabled: false }] });
+const lay19 = await adminApi("GET", "/api/admin/layout");
+console.log("catálogo com pack:", Object.keys(lay19.catalog.props).filter((k) => k.startsWith("pk:")).length, "peças |", lay19.catalog.packs.map((p) => p.name).join(","));
+const L19 = lay19.layout, m19 = await (await fetch(base + "/api/map")).json();
+const inRect = (x, y, r, w = r.w || 1, h = r.h || 1) => x >= r.x && x < r.x + w && y >= r.y && y < r.y + h;
+const pSize = (p) => lay19.catalog.props[p.sprite] || { w: 1, h: 1 };
+const free = (x, y) => m19.grid[y]?.[x] === "0" && !L19.props.some((p) => inRect(x, y, p, pSize(p).w, pSize(p).h)) && !L19.furniture.some((f) => inRect(x, y, f)) && !L19.objects.some((o) => inRect(x, y, o)) && !m19.seats.some((sx) => sx.x === x && sx.y === y);
+const rec = L19.zones.find((z) => z.id === "recepcao"), spots = [];
+for (const z of [rec, ...L19.zones.filter((z) => z.id !== "recepcao" && z.id !== "foco")]) for (let y = z.y + 1; y < z.y + z.h - 1 && spots.length < 3; y++) for (let x = z.x + 1; x < z.x + z.w - 1 && spots.length < 3; x++) if (free(x, y) && free(x, y + 1) && free(x, y - 1) && !spots.some((s) => Math.abs(s.x - x) < 3 && Math.abs(s.y - y) < 3)) spots.push({ x, y });
+console.log("lugares livres pras peças:", JSON.stringify(spots));
+const far = L19.zones.find((z) => z.id === "openspace"); let dest = null;
+for (let y = far.y + 1; y < far.y + far.h - 1 && !dest; y++) for (let x = far.x + 1; x < far.x + far.w - 1 && !dest; x++) if (free(x, y)) dest = { x, y };
+const pk = (n) => `pk:${pack.id}/${piece(n).id}`;
+L19.props.push({ sprite: pk("portal"), x: spots[0].x, y: spots[0].y, to: dest }, { sprite: pk("sign"), x: spots[1].x, y: spots[1].y, text: "Bem-vindo ao teste", label: "Placa" }, { sprite: pk("lamp"), x: spots[2].x, y: spots[2].y, label: "Luminária" });
+const sofa19 = L19.furniture.find((f) => f.kind === "sofa");
+// marca as páginas atuais: "pronto" é só depois que a recarga do world:changed aconteceu de fato
+await A.evaluate(() => { window.__old = 1; }); await B.evaluate(() => { window.__old = 1; });
+await adminApi("PUT", "/api/admin/layout", { layout: L19, force: true });
+const ready = (P) => P.waitForFunction(() => !window.__old && !!window.__sede?.scene?.player && !!window.__sede.scene.chairs, null, { timeout: 40000 });
+await ready(A); await ready(B); await A.waitForTimeout(1500); await ensureW();
+console.log("A e B prontos depois do reload:", await A.evaluate(() => !!window.__sede), await B.evaluate(() => !!window.__sede));
+const m19b = await (await fetch(base + "/api/map")).json();
+console.log("mapa: peças com url:", m19b.decor.filter((d) => d.url).map((d) => d.interact).join(","), "| assentos de tile:", m19b.seats.length, "| sofá anda por cima:", m19b.grid[sofa19.y][sofa19.x] === "0");
+// A senta no sofá (tile de móvel): vira pra frente, B vê sentado
+const goto = (P, x, y) => P.evaluate(([x, y]) => { const s = window.__sede.scene; s.pos = { x: x + 0.5, y: y + 0.5 }; s.player.setPosition(s.pos.x * 32, s.pos.y * 32); s.clickTarget = null; window.__sede.net.emit("teleport", { x: s.pos.x, y: s.pos.y }); s.updateZone(); s.checkObjects(); }, [x, y]);
+await goto(A, sofa19.x + 1, sofa19.y); await A.waitForTimeout(1200);
+console.log("A sentou no sofá:", await A.evaluate(() => { const s = window.__sede.scene; return `${s.player.seatKey} dir=${s.dir} chairs=${s.chairs.size}`; }), "| B vê A sentado:", await B.evaluate((id) => { const s = window.__sede.scene, p = window.__sede.state.players.find((p) => p.id === id); return `${!!s.remote.get(id)?.container.seatKey} (A no servidor em ${p && Math.floor(p.x) + "," + Math.floor(p.y)}, assento conhecido: ${s.chairs.has(p && Math.floor(p.x) + "," + Math.floor(p.y))})`; }, await A.evaluate(() => window.__sede.state.me.id)));
+// placa: perto dela o prompt oferece "Ler"; E abre o texto
+await goto(A, spots[1].x, spots[1].y + 1); await A.waitForTimeout(500);
+console.log("perto da placa:", await A.textContent("#hud-prompt"));
+await A.keyboard.press("e"); await A.waitForTimeout(400);
+console.log("placa aberta:", await A.evaluate(() => document.querySelector("#modal-body .info")?.textContent)); await A.keyboard.press("Escape"); await A.click("#modal-close").catch(() => {}); await A.waitForTimeout(300);
+// luminária: liga pelo prompt, B recebe o estado e a textura troca
+await goto(A, spots[2].x, spots[2].y + 1); await A.waitForTimeout(500);
+console.log("perto da luminária:", await A.textContent("#hud-prompt"));
+await A.keyboard.press("e"); await A.waitForTimeout(700);
+const lampIdx = m19b.decor.findIndex((d) => d.interact === "use");
+console.log("ligou:", await A.textContent("#hud-prompt"), "| B viu:", await B.evaluate((i) => window.__sede.scene.map.decor[i].on, lampIdx), "| textura alternativa:", await A.evaluate((i) => window.__sede.scene.props.get(i)?.img.texture.key, lampIdx), "| persistido:", !!(await adminApi("GET", "/api/admin/overview")) && (await (await fetch(base + "/api/map")).json()).decor[lampIdx].on);
+// portal: pisar nele leva pro destino
+await goto(A, spots[0].x, spots[0].y + 1); await A.evaluate(() => { const s = window.__sede.scene; s.pos.y -= 1; s.player.setPosition(s.pos.x * 32, s.pos.y * 32); s.checkPortal(); }); await A.waitForTimeout(1200);
+console.log("portal levou A pra:", await A.evaluate(() => `${Math.floor(window.__sede.scene.pos.x)},${Math.floor(window.__sede.scene.pos.y)} zona=${document.querySelector("#hud-zone").textContent}`), "| esperado:", `${dest.x},${dest.y}`, "| servidor:", await B.evaluate((id) => { const p = window.__sede.state.players.find((p) => p.id === id); return p && `${Math.floor(p.x)},${Math.floor(p.y)}`; }, await A.evaluate(() => window.__sede.state.me.id)));
+await A.screenshot({ path: "test/shots/23-interacoes.png" });
+await goto(A, rec.x + 2, rec.y + 2); await A.waitForTimeout(300);
 
 // v0.14: agenda — evento começando em 20s: lembrete + link no telão + aviso
 const ev = await adminApi("POST", "/api/admin/events", { title: "Aula ao vivo: funis", startsAt: new Date(Date.now() + 20000).toISOString(), durationMin: 30, url: "https://youtu.be/jfKfPfyJRdk", description: "teste" });

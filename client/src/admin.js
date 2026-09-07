@@ -43,7 +43,7 @@ async function boot() {
   document.querySelectorAll("#tabs button").forEach((b) => { b.onclick = () => showTab(b.dataset.tab); if (me.role !== "admin") b.classList.toggle("hidden", !PROFESSOR_TABS.includes(b.dataset.tab)); });
   showTab(me.role === "admin" ? "overview" : "content");
 }
-const RENDER = { overview: renderOverview, content: renderContent, events: renderEvents, moderation: renderModeration, agents: renderAgents, providers: renderProviders, world: renderWorld, users: renderUsers, settings: renderSettings };
+const RENDER = { overview: renderOverview, content: renderContent, events: renderEvents, moderation: renderModeration, agents: renderAgents, providers: renderProviders, world: renderWorld, packs: renderPacks, users: renderUsers, settings: renderSettings };
 async function showTab(name) {
   document.querySelectorAll("#tabs button").forEach((b) => b.classList.toggle("active", b.dataset.tab === name));
   document.querySelectorAll(".tab").forEach((t) => t.classList.toggle("hidden", t.id !== "tab-" + name));
@@ -249,6 +249,85 @@ async function renderSettings(root) {
     el("div", { class: "checks" }, el("label", {}, guests, "permitir visitantes (entrar só com nome, sem conta)"), el("label", {}, reg, "permitir cadastro livre (membros criam a própria conta)")),
     el("p", { class: "lead" }, "Pra comunidade paga: visitantes desligado, cadastro desligado, e você cria as contas dos membros aqui (ou depois via integração de pagamento)."),
     el("div", { class: "row", style: "margin-top:10px" }, el("button", { class: "btn primary", onclick: async () => { try { await api("PUT", "/api/admin/settings", { communityName: name.value, allowGuests: guests.checked, allowRegister: reg.checked }); toast("salvo"); } catch (e) { toast(e.message, false); } } }, "Salvar"))));
+}
+
+// ---------- packs de peças ----------
+// zip de sprites → peças recortadas com nome, tipo, base e interação; entram na paleta do editor do espaço
+const uploadPack = (file, onProgress) => new Promise((resolve, reject) => {
+  const xhr = new XMLHttpRequest();
+  xhr.open("POST", `/api/admin/packs?name=${encodeURIComponent(file.name)}`);
+  xhr.setRequestHeader("content-type", "application/zip");
+  xhr.upload.onprogress = (e) => { if (e.lengthComputable) onProgress?.(Math.round((e.loaded / e.total) * 100)); };
+  xhr.onload = () => { try { const j = JSON.parse(xhr.responseText); xhr.status < 300 ? resolve(j) : reject(new Error(j.error || xhr.statusText)); } catch { reject(new Error("resposta inválida")); } };
+  xhr.onerror = () => reject(new Error("falha no envio"));
+  xhr.send(file);
+});
+async function renderPacks(root) {
+  const { packs, interactions, kinds } = await api("GET", "/api/admin/packs");
+  const prog = el("span", { class: "sub" });
+  const file = el("input", { type: "file", accept: ".zip,application/zip" });
+  file.onchange = async () => {
+    const f = file.files[0]; if (!f) return;
+    prog.textContent = "enviando…";
+    try { await uploadPack(f, (p) => (prog.textContent = `enviando… ${p}%`)); prog.textContent = "recortando…"; toast("pack importado"); showTab("packs"); }
+    catch (e) { prog.textContent = ""; toast(e.message, false); }
+  };
+  root.append(el("div", { class: "card glass" }, el("h2", {}, "Packs de peças"),
+    el("p", { class: "lead" }, "Suba um zip de sprites (CraftPix, itch.io, os seus). Cada PNG é recortado em peças; objetos soltos viram móveis e decoração, folhas de tiles viram peças de chão. Depois ajuste nome, base e interação: tudo aparece na aba Decoração do editor do espaço."),
+    el("div", { class: "row" }, file, prog)));
+  if (!packs.length) { root.append(el("div", { class: "card glass" }, el("p", { class: "lead" }, "nenhum pack ainda"))); return; }
+  for (const pk of packs) root.append(packCard(pk, interactions, kinds));
+}
+function packCard(pk, interactions, kinds) {
+  const card = el("div", { class: "card glass pack" });
+  const changed = new Map(); // peça -> patch pendente
+  const mark = (id, patch) => { changed.set(id, { ...(changed.get(id) || {}), id, ...patch }); saveBtn.disabled = false; saveBtn.textContent = `Salvar ${changed.size} alteração(ões)`; };
+  const name = input({ value: pk.name, style: "font-size:16px;max-width:320px" }); name.onchange = () => mark("__name", {});
+  const saveBtn = el("button", { class: "btn primary", disabled: "", onclick: async () => {
+    try { await api("PUT", `/api/admin/packs/${pk.id}`, { name: name.value, pieces: [...changed.values()].filter((x) => x.id !== "__name") }); toast("pack salvo"); showTab("packs"); } catch (e) { toast(e.message, false); }
+  } }, "Salvar");
+  const del = el("button", { class: "btn danger", onclick: async () => { if (!confirm(`Apagar o pack "${pk.name}"? As peças dele somem do espaço.`)) return; try { await api("DELETE", `/api/admin/packs/${pk.id}`); toast("pack apagado"); showTab("packs"); } catch (e) { toast(e.message, false); } } }, "Apagar pack");
+  card.append(el("div", { class: "row", style: "justify-content:space-between" }, el("div", { class: "row" }, name, el("span", { class: "sub" }, `${pk.pieces.length} peças · ${pk.sheets.length} folhas · ${new Date(pk.createdAt).toLocaleDateString("pt-BR")}`)), el("div", { class: "row" }, saveBtn, del)));
+  // folhas: modo de recorte e escala
+  const sheets = el("div", { class: "pack-sheets" });
+  for (const sh of pk.sheets) {
+    const mode = el("select", {}, ...[["auto", "objetos soltos (auto)"], ["grid16", "grade de 16px"], ["grid32", "grade de 32px"]].map(([v, t]) => el("option", { value: v, selected: v === sh.mode ? "" : undefined }, t)));
+    const scale = el("select", {}, el("option", { value: "2", selected: "" }, "ampliar 2x (pixel de 16px)"), el("option", { value: "1" }, "tamanho original"));
+    sheets.append(el("div", { class: "pack-sheet" }, el("img", { src: `/packs/${pk.id}/${sh.file}`, alt: sh.name, loading: "lazy" }),
+      el("div", {}, el("b", {}, sh.name), el("div", { class: "sub" }, `${sh.width}×${sh.height} · ${sh.count} peças`), el("div", { class: "row" }, mode, scale,
+        el("button", { class: "btn small", onclick: async () => { try { await api("POST", `/api/admin/packs/${pk.id}/reslice`, { sheet: sh.id, mode: mode.value, scale: Number(scale.value) }); toast("folha recortada de novo"); showTab("packs"); } catch (e) { toast(e.message, false); } } }, "Recortar de novo")))));
+  }
+  card.append(el("details", {}, el("summary", {}, "Folhas e recorte"), sheets));
+  // peças: grade editável
+  const filter = input({ placeholder: "filtrar por nome…", style: "max-width:240px" });
+  const onlyOn = el("label", { class: "row" }, el("input", { type: "checkbox" }), "só ligadas");
+  const grid = el("div", { class: "pack-grid" });
+  const paint = () => {
+    grid.innerHTML = "";
+    const q = filter.value.toLowerCase(), on = onlyOn.querySelector("input").checked;
+    for (const pc of pk.pieces) {
+      if (q && !pc.name.toLowerCase().includes(q)) continue;
+      if (on && pc.enabled === false) continue;
+      const cur = { ...pc, ...(changed.get(pc.id) || {}) };
+      const nm = input({ value: cur.name, maxlength: 40 }); nm.onchange = () => mark(pc.id, { name: nm.value });
+      const kind = el("select", {}, ...Object.entries(kinds).map(([v, t]) => el("option", { value: v, selected: v === cur.kind ? "" : undefined }, t))); kind.onchange = () => { mark(pc.id, { kind: kind.value }); base.hidden = kind.value !== "prop"; };
+      const bw = input({ type: "number", min: 0, max: pc.w, value: cur.bw, title: "largura da base (tiles)" }), bh = input({ type: "number", min: 0, max: pc.h, value: cur.bh, title: "altura da base (tiles)" });
+      bw.onchange = () => mark(pc.id, { bw: Number(bw.value) }); bh.onchange = () => mark(pc.id, { bh: Number(bh.value) });
+      const base = el("div", { class: "row" }, el("span", { class: "sub" }, "base"), bw, el("span", { class: "sub" }, "×"), bh); base.hidden = cur.kind !== "prop";
+      const inter = el("select", {}, ...Object.entries(interactions).map(([v, t]) => el("option", { value: v, selected: v === (cur.interact || "none") ? "" : undefined }, t))); inter.onchange = () => { mark(pc.id, { interact: inter.value }); dir.hidden = !["sit", "lie", "work"].includes(inter.value); alt.hidden = inter.value !== "use"; };
+      const dir = el("select", {}, ...[["down", "de frente"], ["up", "de costas"], ["left", "esquerda"], ["right", "direita"]].map(([v, t]) => el("option", { value: v, selected: v === (cur.dir || "down") ? "" : undefined }, t))); dir.onchange = () => mark(pc.id, { dir: dir.value }); dir.hidden = !["sit", "lie", "work"].includes(cur.interact);
+      const alt = el("select", {}, el("option", { value: "" }, "ligado: sem imagem alternativa (só brilha)"), ...pk.pieces.filter((x) => x.id !== pc.id && x.sheet === pc.sheet).map((x) => el("option", { value: x.id, selected: x.id === cur.alt ? "" : undefined }, "ligado vira: " + x.name))); alt.onchange = () => mark(pc.id, { alt: alt.value }); alt.hidden = cur.interact !== "use";
+      const chk = el("input", { type: "checkbox", checked: cur.enabled !== false ? "" : undefined, title: "aparece no editor" }); chk.onchange = () => mark(pc.id, { enabled: chk.checked });
+      grid.append(el("div", { class: "pack-piece" + (cur.enabled === false ? " off" : "") },
+        el("div", { class: "pack-thumb" }, el("img", { src: pc.url, alt: pc.name, loading: "lazy" })),
+        el("div", { class: "sub" }, `${pc.w}×${pc.h} tiles`),
+        nm, kind, base, inter, dir, alt, el("label", { class: "row sub" }, chk, "ligada")));
+    }
+  };
+  filter.oninput = paint; onlyOn.querySelector("input").onchange = paint;
+  card.append(el("div", { class: "row", style: "margin-top:12px" }, filter, onlyOn, el("button", { class: "btn small", onclick: () => { for (const pc of pk.pieces) mark(pc.id, { enabled: true }); paint(); } }, "ligar todas"), el("button", { class: "btn small", onclick: () => { for (const pc of pk.pieces) mark(pc.id, { enabled: false }); paint(); } }, "desligar todas")), grid);
+  paint();
+  return card;
 }
 
 // ---------- conteúdos (biblioteca) ----------

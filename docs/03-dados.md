@@ -26,8 +26,9 @@
 | `accounts` | uma conta | `email`, `name`, `role`, `pass` (scrypt `salt:hash`), `avatar`, `premium`, `reminders`, `tourDone`, `sv` (versão de sessão), `last_login` |
 | `settings/main` | configurações | `communityName`, `allowGuests`, `allowRegister` |
 | `settings/vapid` | chaves Web Push | `publicKey`, `privateKey` (geradas na primeira subida se não vierem por env) |
-| `world/overrides` | ajustes do mapa | `locked[]`, `objects{id: {x, y, url, label}}`, `decor{}`, `npcs[]` |
+| `world/overrides` | ajustes do mapa | `locked[]`, `objects{id: {x, y, url, label}}`, `decor{}`, `decorState{índice: bool}` (props ligados/desligados), `npcs[]` |
 | `world/layout` | espaço personalizado no editor (prioridade sobre o mapa do build e sobre o Tiled enviado) | `zones[]`, `walls[]`, `paths[]`, `furniture[]`, `props[]`, `trees[]`, `fires[]`, `objects[]`, `npcs[]`, `staticNpcs[]`, `graffiti[]`, `lamps[]`, `spawn`, `width`, `height` |
+| `packs` | pack de peças importado | `name`, `createdAt`, `sheets[] {id, name, mode, width, height, count, file}`, `pieces[] {id, name, sheet, file, w, h, bw, bh, kind, interact, dir, alt, enabled}` (tamanhos em tiles de 32 px) |
 | `world/speakers` | caixas de som | `{id: {videoId, start, title, author, startedAt, by, byName}}` |
 | `providers` | provedor LLM | `name`, `baseUrl`, `apiKey`, `models[]` |
 | `agents` | agente | `name`, `role`, `systemPrompt`, `model`, `tools[]`, `rss[]`, `avatar`, `zone`, `x`, `y`, `schedule` |
@@ -52,6 +53,7 @@ Com `S3_*` configurado, o Egress grava `aulas/<sala>/<data>.mp4` no bucket. A au
 | Caminho | Conteúdo |
 |---|---|
 | `uploads/` | arquivos da biblioteca e avatares enviados. Nome = 8 hex aleatórios + slug + extensão; servidos em `/files/<nome>` só pra contas |
+| `packs/<id>/` | folhas originais e peças recortadas de cada pack importado; servidas em `/packs/<id>/<arquivo>` (público, como os assets do build) |
 | `maps/sede.json` | mapa em uso: gerado do layout salvo no editor, ou enviado pelo painel (Tiled). Tem prioridade sobre o do build |
 | `state.json` | estado inteiro no modo memória |
 

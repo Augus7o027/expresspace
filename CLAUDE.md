@@ -6,7 +6,7 @@ Leia isto antes de mexer em qualquer coisa. É o resumo operacional; o detalhe e
 
 Ambiente 2D próprio de uma comunidade paga (mapa em pixel art, voz por proximidade, salas, palco, canais de texto, biblioteca de conteúdos, agentes de IA, agenda de aulas). Um processo Node serve tudo. Produção em `https://expressspace.improveyourlifedaily.com` numa VPS Hostinger com Coolify; repositório `Augus7o027/expresspace`; deploy automático no push.
 
-Versão atual: **v0.18**. Histórico em `docs/CHANGELOG.md`.
+Versão atual: **v0.19**. Histórico em `docs/CHANGELOG.md`.
 
 ## Mapa do código
 
@@ -17,6 +17,7 @@ Versão atual: **v0.18**. Histórico em `docs/CHANGELOG.md`.
 - `server/src/live.js`: LiveKit (tokens por sala, permissão no palco, gravação, webhook). Ligado só com `LIVEKIT_*` no env.
 - `server/src/mapgen.js` + `layout-default.json`: o mapa é gerado no servidor a partir do layout (o editor do app salva em `world/layout`). `tools/build-map.py` só regenera o `sede.json` do build a partir das mesmas constantes.
 - `client/src/editor.js`: editor do espaço (admin). Composição de móveis duplicada com `mapgen.js`: mudou uma, muda a outra.
+- `server/src/packs.js`: packs de sprites importados pelo painel (zip → peças em `DATA_DIR/packs/`). O índice `propIndex()` entra no catálogo do editor e no `mapgen`. Interações de avatar (sentar, deitar, usar, portal, placa, trabalho) são propriedades da peça no Tiled gerado; o cliente resolve em `game.js → registerInteractive`.
 - `test/e2e.mjs`: suíte Playwright com dois navegadores. `npm test`.
 
 ## Decisões que não mudam sem conversa
@@ -39,7 +40,7 @@ Versão atual: **v0.18**. Histórico em `docs/CHANGELOG.md`.
 
 ## Estado e pendências (atualizar a cada versão)
 
-Feito e testado: tudo listado no `README.md` até a v0.18. O modo LiveKit é testado no e2e com o binário `livekit-server` local (`LIVEKIT_BIN`); a gravação (Egress) está implementada mas só foi validada até a chamada da API, porque depende do serviço com Chrome headless e de um bucket.
+Feito e testado: tudo listado no `README.md` até a v0.19. O modo LiveKit é testado no e2e com o binário `livekit-server` local (`LIVEKIT_BIN`); a gravação (Egress) está implementada mas só foi validada até a chamada da API, porque depende do serviço com Chrome headless e de um bucket.
 
 Próximas fatias pedidas pelo dono, em ordem:
 1. Integração de pagamento criando e desativando contas (Hotmart/Kiwify/Stripe via webhook, flag premium).
@@ -48,7 +49,7 @@ Próximas fatias pedidas pelo dono, em ordem:
 4. Integração com OpenCode CLI (agentes).
 5. Backup automatizado, Sentry, staging e CI (ver `docs/05-infraestrutura.md`, estágio 1).
 
-Editor do espaço ainda não desenha salas novas, paredes, portas nem pinta piso (próxima versão do editor).
+Editor do espaço ainda não desenha salas novas, paredes, portas nem pinta piso (próxima versão do editor). Portais só teleportam dentro do mesmo mapa; vários cenários (mapas) com portal entre eles é a rodada seguinte. Peças de pack do tipo `floor` hoje são desenhadas como uma peça só (não repetem pela sala).
 
 Conhecidos e aceitos por enquanto: rate limit por processo (não distribuído); sem 2FA no admin; sem expurgo de mensagens; push no iPhone só com o app instalado; escolha de saída de áudio só em Chrome/Edge.
 

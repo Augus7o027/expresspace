@@ -50,7 +50,7 @@ export class WorldScene extends Phaser.Scene {
       this.load.spritesheet(`npc:${k}:walk`, `/assets/animals/${k}_walk.png${V}`, { frameWidth: 32, frameHeight: 32 });
     }
     for (const d of this.map.decor || []) {
-      if (d.kind === "prop") this.load.image(`prop:${d.sprite}`, `/assets/props/${d.sprite}.png${V}`);
+      if (d.kind === "prop") { this.load.image(`prop:${d.sprite}`, d.url || `/assets/props/${d.sprite}.png${V}`); if (d.alt) this.load.image(`prop:${d.sprite}:alt`, d.alt); }
       else if (d.kind === "tree2") this.load.spritesheet(`tree2:${d.sprite}`, `/assets/trees2/${d.sprite}.png${V}`, { frameWidth: 128, frameHeight: 160 });
       else if (d.kind === "fire") this.load.spritesheet("fx:campfire", `/assets/fx/campfire.png${V}`, { frameWidth: 88, frameHeight: 96 });
       else this.load.image(`tree:${d.sprite}`, `/assets/trees/${d.sprite}.png${V}`);
@@ -70,6 +70,7 @@ export class WorldScene extends Phaser.Scene {
     for (const z of map.zones) if (z.id === "jardim" || z.id === "terraco") this.emitters.push({ kind: "garden", x: z.x + z.w / 2, y: z.y + z.h / 2 });
     // o editor do espaço esconde e redesenha o que é editável (móveis, decoração, objetos): guardamos o que cada fase criou
     const cap = (fn) => { const b = this.children.list.length; fn(); return this.children.list.slice(b); };
+    this.registerInteractive();
     this.editable.decor = cap(() => this.drawDecor());   // antes das zonas: os títulos procuram lugar livre e os props contam como ocupado
     this.drawZones();
     this.editable.objects = cap(() => this.drawObjects());
@@ -270,9 +271,10 @@ export class WorldScene extends Phaser.Scene {
   }
 
   drawDecor() {
-    for (const d of this.map.decor || []) {
-      if (d.kind === "prop" || d.kind === "tree2" || d.kind === "fire") { this.drawProp(d); continue; }
-      if (!this.textures.exists(`tree:${d.sprite}`)) continue;
+    this.props = new Map(); // índice no map.decor -> { img, d, glow } (props com estado ligado/desligado)
+    (this.map.decor || []).forEach((d, i) => {
+      if (d.kind === "prop" || d.kind === "tree2" || d.kind === "fire") { this.drawProp(d, i); return; }
+      if (!this.textures.exists(`tree:${d.sprite}`)) return;
       const cx = (d.x + d.w / 2) * TILE, by = (d.y + d.h) * TILE;
       const img = this.add.image(cx, by - 6, `tree:${d.sprite}`).setOrigin(0.5, 0.9);
       img.texture.setFilter(1);
@@ -280,12 +282,43 @@ export class WorldScene extends Phaser.Scene {
       this.add.image(cx, by - 4, "fx:shadow").setScale(2, 1.2).setAlpha(0.5).setDepth(2);
       // balanço leve da copa
       this.tweens.add({ targets: img, scaleX: { from: 0.985, to: 1.015 }, duration: 1800 + (cx % 700), yoyo: true, repeat: -1, ease: "Sine.easeInOut" });
+    });
+  }
+
+  // Peças com interação viram lugares no mapa: assentos (sentar/trabalhar), camas (deitar), portais e
+  // objetos de perto (placa, ligar/desligar). Assentos feitos de tile (sofá, banco) vêm em map.seats.
+  registerInteractive() {
+    this.chairs ??= new Map(); this.chairBase ??= new Map();
+    this.seatDepth = new Map(); // assento onde a pessoa fica na frente da peça (sofá visto de frente, cama)
+    this.workSeats = new Set(); this.beds = new Map(); this.portals = new Map(); this.propObjects = [];
+    for (const s of this.map.seats || []) { const k = `${s.x},${s.y}`; this.chairs.set(k, s.dir); this.chairBase.set(k, (s.y + 1) * TILE); if (s.dir !== "up") this.seatDepth.set(k, 10 + ((s.y + 1) * TILE - 4) / 10000); }
+    (this.map.decor || []).forEach((d, i) => {
+      if (!d.interact) return;
+      const bx = d.bx ?? d.x, by = d.by ?? d.y, bw = d.bw || d.w, bh = d.bh || d.h;
+      const depth = 10 + ((d.y + d.h) * TILE - 4) / 10000;
+      const tiles = []; for (let y = by; y < by + bh; y++) for (let x = bx; x < bx + bw; x++) tiles.push(`${x},${y}`);
+      if (d.interact === "sit" || d.interact === "work") for (const k of tiles) { this.chairs.set(k, d.dir || "down"); this.chairBase.set(k, (by + bh) * TILE); if (d.dir !== "up") this.seatDepth.set(k, depth); if (d.interact === "work") this.workSeats.add(k); }
+      else if (d.interact === "lie") for (const k of tiles) { this.beds.set(k, d.dir || "down"); this.seatDepth.set(k, depth); }
+      else if (d.interact === "portal" && d.to) for (const k of tiles) this.portals.set(k, d.to);
+      else if (d.interact === "sign" || d.interact === "use") this.propObjects.push({ id: "prop:" + i, kind: d.interact, index: i, label: d.label || d.name || (d.interact === "sign" ? "Placa" : "Objeto"), text: d.text || "", x: bx, y: by, w: bw, h: bh, on: !!d.on });
+    });
+  }
+  // estado ligado/desligado de um prop "usar": troca pra imagem alternativa ou acende um brilho
+  setPropState(index, on) {
+    const d = this.map.decor?.[index]; if (!d) return; d.on = on;
+    const o = this.propObjects?.find((x) => x.index === index); if (o) o.on = on;
+    const pr = this.props?.get(index); if (!pr) return;
+    const alt = `prop:${d.sprite}:alt`;
+    if (this.textures.exists(alt)) pr.img.setTexture(on ? alt : `prop:${d.sprite}`);
+    else {
+      if (!pr.glow) { pr.glow = this.add.image(pr.img.x + pr.img.width / 2, pr.img.y + pr.img.height * 0.6, glowTexture(this, Math.max(64, pr.img.width * 2), Math.max(48, pr.img.height * 1.4), "255,214,150", 4)).setAlpha(0.28).setDepth(1); }
+      pr.glow.setVisible(on); pr.img.setTint(on ? 0xffffff : 0xb8b8b8);
     }
   }
 
   // Prop dos packs: imagem ocupa d.w x d.h tiles a partir de (d.x, d.y); a base (bw x bh) bloqueia e define a profundidade.
   // Tapetes (bh = 0) ficam rentes ao chão.
-  drawProp(d) {
+  drawProp(d, index) {
     const px = d.x * TILE, py = d.y * TILE, baseY = (d.y + d.h) * TILE;
     const bx = (d.bx ?? d.x) * TILE, bw = (d.bw ?? d.w) * TILE;
     for (let x = d.bx ?? d.x; x < (d.bx ?? d.x) + (d.bw ?? d.w); x++) for (let y = d.by ?? d.y; y < (d.by ?? d.y) + (d.bh ?? d.h); y++) this.occupied?.add(`${x},${y}`);
@@ -307,6 +340,8 @@ export class WorldScene extends Phaser.Scene {
     if (!img) return;
     img.texture.setFilter(1);
     img.setDepth((d.bh ?? 1) === 0 ? 2 : 10 + (baseY - 4) / 10000);
+    if (d.interact === "use" && index !== undefined) { this.props.set(index, { img, d }); this.setPropState(index, !!d.on); }
+    if (d.interact === "portal") { const g = this.add.image(px + d.w * TILE / 2, baseY - 6, glowTexture(this, d.w * TILE + 24, 40, "154,208,255", 3)).setAlpha(0.35).setDepth(2); this.tweens.add({ targets: g, alpha: { from: 0.2, to: 0.5 }, duration: 1200, yoyo: true, repeat: -1 }); }
   }
 
   // --------- bichos (NPCs simulados no servidor) ---------
@@ -403,12 +438,24 @@ export class WorldScene extends Phaser.Scene {
   // sentado de frente pra mesa (de costas pra câmera): sobe o sprite e deixa mesa+cadeira na frente do tronco
   setSeated(c, dir, key) {
     const up = dir === "up" && !!key;
+    c.seatKey = key ?? (c.lying ? c.seatKey : null);
     if (c.seatedUp === up) return up;
-    c.seatedUp = up; c.seatKey = key;
+    c.seatedUp = up;
     c.sprite.y = up ? -4 : 0; // sentado: leve subida, tronco na frente da mesa, cadeira cobrindo as pernas
     return up;
   }
-  depthFor(c, y) { return 10 + y / 10000; }
+  // deitado: sprite de frente girado 90° (cabeça pra esquerda ou direita conforme a peça), sombra some
+  setLying(c, dir, key) {
+    const on = !!key;
+    if (on) c.seatKey = key;
+    if (c.lying === on && (!on || c.lyingDir === dir)) return on;
+    c.lying = on; c.lyingDir = on ? dir : null;
+    c.sprite.setAngle(on ? (dir === "right" ? 90 : -90) : 0);
+    c.sprite.setOrigin(0.5, on ? 0.5 : 44 / 64); c.sprite.y = on ? -10 : 0;
+    c.shadow.setVisible(!on);
+    return on;
+  }
+  depthFor(c, y) { if (c.seatKey && this.seatDepth?.has(c.seatKey)) return this.seatDepth.get(c.seatKey) + 0.00001; return 10 + y / 10000; }
 
   setStatus(c, status) {
     if (c.statusNow === status) return;
@@ -418,10 +465,12 @@ export class WorldScene extends Phaser.Scene {
   }
 
   animate(c, dir, moving, running = false) {
+    if (c.lying) { dir = "down"; moving = false; }
     const anim = `${c.texKey}:${moving ? (running ? "run" : "walk") : "idle"}:${dir}`;
     if (c.sprite.anims.currentAnim?.key !== anim) c.sprite.play(anim, true);
     // o sheet do orc não é centralizado no quadro (o porrete puxa pro lado) e os pés ficam na linha 42, não 44:
     // ajusta a origem por direção pra ele pisar na sombra como o humano
+    if (c.lying) return;
     if (c.texKey === "av:orc") { if (c.orcDir !== dir) { c.orcDir = dir; c.sprite.setOrigin(ORC_ORIGIN_X[dir], 42 / 64); } }
     else if (c.orcDir) { c.orcDir = null; c.sprite.setOrigin(0.5, 44 / 64); }
   }
@@ -440,8 +489,10 @@ export class WorldScene extends Phaser.Scene {
       r.target = { x: p.x, y: p.y };
       r.dir = p.dir || r.dir;
       r.moving = !!p.moving; r.running = !!p.running;
-      const seatKey = `${Math.floor(p.x)},${Math.floor(p.y)}`, ch = !r.moving && this.chairs?.get(seatKey);
+      const seatKey = `${Math.floor(p.x)},${Math.floor(p.y)}`, ch = !r.moving && this.chairs?.get(seatKey), bed = !r.moving && this.beds?.get(seatKey);
       if (ch) { r.target = { x: Math.floor(p.x) + 0.5, y: Math.floor(p.y) + 0.6 }; r.dir = ch; }
+      else if (bed) r.target = { x: Math.floor(p.x) + 0.5, y: Math.floor(p.y) + 0.6 };
+      this.setLying(r.container, bed || null, bed ? seatKey : null);
       // histórico de posições: o desenho fica ~120ms atrás do servidor e interpola entre amostras (sem tremer nem "borracha")
       const now = performance.now();
       r.samples ??= [];
@@ -540,10 +591,19 @@ export class WorldScene extends Phaser.Scene {
       this.player.setPosition(this.pos.x * TILE, this.pos.y * TILE);
       this.updateZone();
       this.checkObjects();
+      this.checkPortal();
     }
-    // parou numa cadeira: encaixa no assento e vira pra mesa ("sentar")
+    // parou numa cadeira: encaixa no assento e vira pra mesa ("sentar"); numa cama, deita
     if (!moving && !this.frozen) {
-      const ch = this.chairs?.get(`${Math.floor(this.pos.x)},${Math.floor(this.pos.y)}`);
+      const tileKey = `${Math.floor(this.pos.x)},${Math.floor(this.pos.y)}`;
+      const ch = this.chairs?.get(tileKey), bed = this.beds?.get(tileKey);
+      const work = !!ch && this.workSeats?.has(tileKey);
+      if (work !== !!this.atWork) { this.atWork = work; this.onWork?.(work); }
+      if (bed) {
+        const cx = Math.floor(this.pos.x) + 0.5, cy = Math.floor(this.pos.y) + 0.6;
+        if (Math.abs(this.pos.x - cx) > 0.01 || Math.abs(this.pos.y - cy) > 0.01) { this.pos.x = cx; this.pos.y = cy; this.player.setPosition(cx * TILE, cy * TILE); this.sitSync = true; }
+        this.setSeated(this.player, null, null); this.setLying(this.player, bed, tileKey);
+      } else this.setLying(this.player, null, null);
       if (ch) {
         const cx = Math.floor(this.pos.x) + 0.5, cy = Math.floor(this.pos.y) + 0.6;
         if (Math.abs(this.pos.x - cx) > 0.01 || Math.abs(this.pos.y - cy) > 0.01) {
@@ -555,7 +615,7 @@ export class WorldScene extends Phaser.Scene {
         if (this.dir !== ch) { this.dir = ch; this.sitSync = true; }
         this.setSeated(this.player, ch, `${Math.floor(this.pos.x)},${Math.floor(this.pos.y)}`);
       } else this.setSeated(this.player, null, null);
-    } else if (moving) this.setSeated(this.player, null, null);
+    } else if (moving) { this.setSeated(this.player, null, null); this.setLying(this.player, null, null); if (this.atWork) { this.atWork = false; this.onWork?.(false); } }
     if (this.sitSync && !moving && performance.now() - this.lastSent > 120) { this.net.emit("move", { x: this.pos.x, y: this.pos.y, dir: this.dir, moving: false }); this.lastSent = performance.now(); this.sitSync = false; }
     this.animate(this.player, this.dir, moving, running);
     this.running = running;
@@ -643,8 +703,23 @@ export class WorldScene extends Phaser.Scene {
     if (force || id !== this.currentZone) { this.currentZone = id; this.focusZone(id); this.onZoneChange(z); }
   }
 
+  // pisou num portal: vai pro destino (o servidor confere se pode entrar lá)
+  checkPortal() {
+    const key = `${Math.floor(this.pos.x)},${Math.floor(this.pos.y)}`;
+    if (key === this.lastPortalKey) return;
+    this.lastPortalKey = this.portals?.has(key) ? key : null;
+    const to = this.portals?.get(key); if (!to) return;
+    if (isBlocked(this.map, to.x, to.y)) return;
+    this.pos = { x: to.x + 0.5, y: to.y + 0.5 }; this.clickTarget = null;
+    this.lastPortalKey = `${to.x},${to.y}`; // se o destino também é portal, não volta sozinho
+    this.player.setPosition(this.pos.x * TILE, this.pos.y * TILE);
+    this.net.emit("teleport", { x: this.pos.x, y: this.pos.y });
+    this.cameras.main.flash(250, 154, 208, 255, false);
+    this.updateZone(); this.checkObjects(); this.onPortal?.();
+  }
+
   checkObjects() {
-    let o = objectNear(this.map, this.pos.x, this.pos.y);
+    let o = objectNear(this.map, this.pos.x, this.pos.y) || (this.propObjects?.length ? objectNear({ objects: this.propObjects }, this.pos.x, this.pos.y, 1.3) : null);
     if (!o) { const a = this.agentNear(); if (a) o = { id: "agent:" + a.id, kind: "agent", label: a.name, agentId: a.id, role: a.role }; }
     if ((o && o.id) !== (this.nearObject && this.nearObject.id)) { this.nearObject = o; this.onObjectNear(o); }
   }

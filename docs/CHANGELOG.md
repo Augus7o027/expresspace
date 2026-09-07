@@ -2,6 +2,13 @@
 
 Uma entrada por versão. O detalhe de cada feature está na seção correspondente do `README.md`.
 
+## v0.19 · packs e interações
+
+- Importador de packs (`server/src/packs.js`): zip → PNGs recortados (componentes conexos ou grade 16/32), metadados por peça (nome, tipo, base, interação, direção, imagem alternativa), servidos em `/packs/<id>/`. Aba Packs no painel.
+- Peças importadas entram no catálogo do editor (`pk:<pack>/<peça>`) e no mapa gerado com `url`, `interact`, `dir`, `alt`, `text`, `label`, `to`.
+- Interações: sentar (props e tiles de sofá/banco, via `map.seats`), deitar, usar (`prop:use` → `prop:state`, estado em `world/overrides.decorState`), portal, placa, estação de trabalho (foco automático). Interação e direção também por peça colocada no layout.
+- Rotas `GET/POST /api/admin/packs`, `GET/PUT/DELETE /api/admin/packs/:id`, `POST /api/admin/packs/:id/reslice`.
+
 ## v0.18 · editor do espaço
 
 - Editor WYSIWYG no app (admin): móveis, decoração, árvores, fogueira, objetos, ponto de entrada, gente parada; propriedades por item; salas (nome, tipo, piso) e bichos; desfazer; salvar com checagem de alcançabilidade; voltar ao padrão.

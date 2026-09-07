@@ -32,8 +32,10 @@ export function catalog() {
 // gerador determinístico de "variação" de piso (mesmo layout → mesmo mapa)
 function rng(seed) { let s = seed >>> 0 || 1; return () => { s ^= s << 13; s >>>= 0; s ^= s >>> 17; s ^= s << 5; s >>>= 0; return (s % 10000) / 10000; }; }
 
-export function generate(layout) {
-  const L = normalizeLayout(layout);
+const INTERACT = ["none", "sit", "lie", "use", "portal", "sign", "work"], DIRS = ["down", "up", "left", "right"];
+// packs importados entram por aqui (índice "pk:<pack>/<peça>" -> { w, h, bw, bh, url, interact, ... })
+export function generate(layout, packIndex = {}) {
+  const L = normalizeLayout(layout, packIndex); L._packs = packIndex;
   const W = L.width, H = L.height;
   const ground = new Array(W * H).fill(0), walls = new Array(W * H).fill(0), furn = new Array(W * H).fill(0);
   const idx = (x, y) => y * W + x;
@@ -136,7 +138,8 @@ export function generate(layout) {
   }
   const interObjs = L.objects.map((o) => obj(o.label, "interactive", o.x, o.y, o.w, o.h, { id: o.id, kind: o.kind, label: o.label, url: o.url, text: o.text }));
   const decorObjs = [];
-  for (const p of L.props) { const pi = PROPS[p.sprite]; if (!pi) continue; decorObjs.push(obj(p.sprite, "prop", p.x, p.y, pi.w, pi.h, { sprite: p.sprite, bw: pi.bw, bh: pi.bh })); }
+  const PI = { ...PROPS, ...(L._packs || {}) };
+  for (const p of L.props) { const pi = PI[p.sprite]; if (!pi) continue; decorObjs.push(obj(p.sprite, "prop", p.x, p.y, pi.w, pi.h, { sprite: p.sprite, bw: pi.bw, bh: pi.bh, url: pi.url, interact: (p.interact || pi.interact) && (p.interact || pi.interact) !== "none" ? (p.interact || pi.interact) : undefined, dir: p.dir || pi.dir, alt: pi.alt, text: p.text, label: p.label, toX: p.to?.x, toY: p.to?.y })); }
   for (const t of L.trees) decorObjs.push(obj(t.sprite, "tree2", t.x, t.y, 4, 5, { sprite: t.sprite, bw: 2, bh: 1 }));
   for (const f of L.fires) decorObjs.push(obj("campfire", "fire", f.x, f.y, 3, 3, { sprite: "campfire", bw: 2, bh: 1 }));
   const grafObjs = L.graffiti.map((g) => obj(g.sprite, "graffiti", g.x + 0.5, g.y + 0.5, 0, 0, { sprite: g.sprite }, true));
@@ -163,7 +166,8 @@ export function generate(layout) {
 const int = (v, min, max, def = min) => { const n = Math.round(Number(v)); return Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : def; };
 const str = (v, max, def = "") => (typeof v === "string" ? v.trim().slice(0, max) : def);
 const slug = (v) => str(v, 40).toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9-]+/g, "-").replace(/^-|-$/g, "");
-export function normalizeLayout(raw) {
+export function normalizeLayout(raw, packIndex = {}) {
+  const PI = { ...PROPS, ...packIndex };
   const L = raw && typeof raw === "object" ? raw : {};
   const W = int(L.width, 20, 200, 58), H = int(L.height, 20, 200, 50);
   const rect = (r, maxW = W, maxH = H) => ({ x: int(r.x, 0, W - 1), y: int(r.y, 0, H - 1), w: int(r.w, 1, maxW, 1), h: int(r.h, 1, maxH, 1) });
@@ -182,7 +186,7 @@ export function normalizeLayout(raw) {
     name: str(L.name, 40) || "ExpresSpace", width: W, height: H, spawn: { x: int(L.spawn?.x, 0, W - 1, 2), y: int(L.spawn?.y, 0, H - 1, 2) }, proximityRadius: Math.min(8, Math.max(1.5, Number(L.proximityRadius) || 3.2)),
     zones, walls: list(L.walls, 200).map((w) => ({ ...rect(w), door: !!w.door })), paths: list(L.paths, 60).map((p) => rect(p)), lamps: list(L.lamps, 60).map((l) => ({ x: int(l.x, 0, W - 1), y: int(l.y, 0, H - 1) })),
     furniture: list(L.furniture, 300).map((f) => { const k = FURNITURE[f.kind] ? f.kind : "desk", d = FURNITURE[k]; return { kind: k, x: int(f.x, 0, W - 1), y: int(f.y, 0, H - 1), w: int(f.w, d.w[0], d.w[1], d.w[0]), h: int(f.h, d.h[0], d.h[1], d.h[0]) }; }),
-    props: list(L.props, 300).filter((p) => PROPS[p.sprite]).map((p) => ({ sprite: p.sprite, x: int(p.x, 0, W - 1), y: int(p.y, 0, H - 1) })),
+    props: list(L.props, 600).filter((p) => PI[p.sprite]).map((p) => ({ sprite: p.sprite, x: int(p.x, 0, W - 1), y: int(p.y, 0, H - 1), ...(p.text ? { text: str(p.text, 500) } : {}), ...(p.label ? { label: str(p.label, 40) } : {}), ...(INTERACT.includes(p.interact) ? { interact: p.interact } : {}), ...(DIRS.includes(p.dir) ? { dir: p.dir } : {}), ...(p.to && Number.isFinite(Number(p.to.x)) ? { to: { x: int(p.to.x, 0, W - 1), y: int(p.to.y, 0, H - 1) } } : {}) })),
     trees: list(L.trees, 120).filter((t) => TREES.includes(t.sprite)).map((t) => ({ sprite: t.sprite, x: int(t.x, 0, W - 1), y: int(t.y, 0, H - 1) })),
     fires: list(L.fires, 20).map((f) => ({ x: int(f.x, 0, W - 1), y: int(f.y, 0, H - 1) })),
     objects,

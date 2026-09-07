@@ -16,7 +16,7 @@ npm run build        # client/dist
 npm test             # build + Playwright com dois navegadores (~5 min)
 ```
 
-O teste sobe o servidor em `:3100` com um provedor de LLM falso em `:3199`, cria admin, membro e professor, e percorre voz, câmera, chat, objetos, caixa de som, tour, configurações, agenda, moderação, biblioteca, painel e as checagens de segurança. Screenshots ficam em `test/shots/`. Com o binário do LiveKit disponível (`LIVEKIT_BIN=/caminho/livekit-server`, baixado das releases do GitHub), o teste também sobe um segundo servidor em modo SFU e valida proximidade, reunião, câmera e permissão do palco.
+O teste sobe o servidor em `:3100` com um provedor de LLM falso em `:3199`, cria admin, membro e professor, e percorre voz, câmera, chat, objetos, caixa de som, tour, configurações, agenda, moderação, biblioteca, painel, editor do espaço, importação de um pack sintético com as interações (sofá, placa, luminária, portal) e as checagens de segurança. Screenshots ficam em `test/shots/`. Com o binário do LiveKit disponível (`LIVEKIT_BIN=/caminho/livekit-server`, baixado das releases do GitHub), o teste também sobe um segundo servidor em modo SFU e valida proximidade, reunião, câmera e permissão do palco.
 
 ## Estrutura
 
@@ -30,7 +30,7 @@ client/
   public/maps/sede.json                       mapa Tiled
   public/sw.js · manifest.webmanifest         PWA
 server/src/
-  index.js · world.js · map.js · auth.js · security.js · library.js · agents.js · events.js · notify.js · speaker.js · live.js
+  index.js · world.js · map.js · auth.js · security.js · library.js · agents.js · events.js · notify.js · speaker.js · live.js · packs.js
   db/store.js · schema.sql · migrate.js
 tools/
   build-tileset.py · build-assets.py · build-assets2.py   geram os PNGs a partir dos packs CraftPix (16px → 2x)
@@ -61,7 +61,9 @@ docs/
 
 **Um evento de socket.** Handler em `index.js` com `if (!user) return`, limitador `lim.*` se for algo que dá pra spammar, validação de tipos. Emitir pra sala `world` ou pro socket da pessoa via `socketsByUser`.
 
-**Uma peça no mapa (prop, árvore, NPC).** Recortar do pack com `build-assets2.py` (precisa de `PACKS=` apontando pras pastas dos packs), listar em `PACK_PROPS`/`TREES2`/`STATIC_NPCS` no `build-map.py`, regenerar. Créditos em `client/public/assets/ASSETS.md`.
+**Uma peça no mapa (prop, árvore, NPC).** O caminho normal agora é importar o pack pelo painel (aba Packs): o zip é recortado no servidor e as peças aparecem no editor. O caminho antigo (peças embutidas no build) continua: recortar com `build-assets2.py` (precisa de `PACKS=` apontando pras pastas dos packs), listar em `PACK_PROPS`/`TREES2`/`STATIC_NPCS` no `build-map.py`, regenerar. Créditos em `client/public/assets/ASSETS.md`.
+
+**Um tipo novo de interação de avatar.** `packs.js → INTERACTIONS` (rótulo), `mapgen.js → INTERACT` (aceito por peça colocada), `map.js` e `world.js` (se a base não deve bloquear, entra na lista `sit/lie/work/portal`), `game.js → registerInteractive` (o que acontece perto ou em cima), `main.js` (verbo do prompt e o que E faz), `editor.js` (rótulo e campos no painel de propriedades). Se tem estado compartilhado, handler de socket em `index.js` como o `prop:use`.
 
 **Um cabelo, roupa ou acessório.** `sprites.js`: lista correspondente + regra de pintura em `paintSheet`; `avatar-editor.js` mostra sozinho; `AVATAR_MAX` em `index.js` precisa acompanhar.
 

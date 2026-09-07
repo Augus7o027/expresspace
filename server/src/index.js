@@ -16,7 +16,8 @@ import { securityHeaders, rateLimiter, socketLimiter, originCheck, v } from "./s
 import { generate as generateMap, normalizeLayout, catalog as mapCatalog, reachability, DEFAULT_LAYOUT } from "./mapgen.js";
 import { liveEnabled, recordingEnabled, liveInfo, roomFor, tokenFor, setCanPublish, kick as liveKick, startRecording, stopRecording, parseWebhook } from "./live.js";
 import { eventsRepo, startEventClock, REMIND_MIN } from "./events.js";
-import { libraryRepo, saveUpload, uploadPath, removeUpload, embedUrl, TYPES, TYPE_LABEL } from "./library.js";
+import { libraryRepo, saveUpload, uploadPath, removeUpload, embedUrl, TYPES, TYPE_LABEL, DATA_DIR } from "./library.js";
+import { packsRepo, INTERACTIONS, PIECE_KINDS } from "./packs.js";
 
 const PORT = Number(process.env.PORT || 3000);
 // Servidores ICE: STUN do Google + TURN (TURN_URL="turn:host:3478,turns:host:5349", TURN_USER, TURN_PASS).
@@ -35,6 +36,7 @@ const library = libraryRepo(store);
 const speakers = speakersRepo(store);
 const notify = await notifyRepo(store, { subject: "mailto:" + (process.env.ADMIN_EMAIL || "admin@expresspace.local") });
 const events = eventsRepo(store);
+const packs = packsRepo(store, DATA_DIR);   // packs de peças importados (zip → PNGs recortados)
 // moderação: banidos (contas e visitantes) + log
 const bans = { list: async () => store.listDocs("bans"), get: (id) => store.getDoc("bans", id), add: (id, data) => store.putDoc("bans", id, data), remove: (id) => store.delDoc("bans", id) };
 const modlog = async (entry) => { const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 6); await store.putDoc("modlog", id, { ...entry, at: new Date().toISOString() }); };
@@ -48,7 +50,7 @@ const getOverrides = async () => (await store.getDoc("world", "overrides")) || {
 const world = new World();
 // layout salvo pelo editor do espaço tem prioridade: gera o Tiled e grava onde /maps/sede.json é servido
 const applyLayout = async (layout) => {
-  const tiled = generateMap(layout);
+  const tiled = generateMap(layout, await packs.propIndex());
   mkdirSync(path.dirname(UPLOADED_MAP), { recursive: true });
   writeFileSync(UPLOADED_MAP, JSON.stringify(tiled));
   return parseTiled(tiled, "sede.json");
@@ -194,27 +196,31 @@ app.put("/api/admin/world", admin, wrap(async (req, res) => {
   res.json({ ok: true, locked: [...world.locked] });
 }));
 // ---------- editor do espaço ----------
+// catálogo do editor = peças embutidas + peças dos packs importados (com url e interação)
+const fullCatalog = async () => { const c = mapCatalog(); const idx = await packs.propIndex(); return { ...c, props: { ...c.props, ...idx }, packs: (await packs.list()).map((p) => ({ id: p.id, name: p.name })), interactions: INTERACTIONS }; };
 app.get("/api/admin/layout", admin, wrap(async (_req, res) => {
   const cur = await store.getDoc("world", "layout");
-  res.json({ layout: normalizeLayout(cur || DEFAULT_LAYOUT), saved: !!cur, catalog: mapCatalog() });
+  res.json({ layout: normalizeLayout(cur || DEFAULT_LAYOUT, await packs.propIndex()), saved: !!cur, catalog: await fullCatalog() });
 }));
 // prévia: só valida e devolve alcançabilidade, sem salvar
 app.post("/api/admin/layout/check", admin, express.json({ limit: "4mb" }), wrap(async (req, res) => {
-  const layout = normalizeLayout(req.body?.layout);
-  const parsed = parseTiled(generateMap(layout), "sede.json");
+  const idx = await packs.propIndex();
+  const layout = normalizeLayout(req.body?.layout, idx);
+  const parsed = parseTiled(generateMap(layout, idx), "sede.json");
   const w = new World(); w.setMap(parsed, {});
   res.json({ layout, reach: reachability(w.map) });
 }));
 app.put("/api/admin/layout", admin, express.json({ limit: "4mb" }), wrap(async (req, res) => {
-  const layout = normalizeLayout(req.body?.layout);
+  const idx = await packs.propIndex();
+  const layout = normalizeLayout(req.body?.layout, idx);
   if (!layout.zones.length) throw new Error("o espaço precisa de pelo menos uma sala");
-  const parsed = parseTiled(generateMap(layout), "sede.json");
+  const parsed = parseTiled(generateMap(layout, idx), "sede.json");
   const probe = new World(); probe.setMap(parsed, {});
   const reach = reachability(probe.map);
   if (!reach.ok && !req.body?.force) return res.status(409).json({ error: "tem lugar sem acesso", reach });
   await store.putDoc("world", "layout", layout);
   // posições antigas de objetos/decoração do painel "Mundo" deixam de valer (o layout agora manda); links editados ficam
-  const ov = await getOverrides(); ov.decor = {}; for (const [id, o] of Object.entries(ov.objects || {})) { delete o.x; delete o.y; if (!Object.keys(o).length) delete ov.objects[id]; }
+  const ov = await getOverrides(); ov.decor = {}; ov.decorState = {}; for (const [id, o] of Object.entries(ov.objects || {})) { delete o.x; delete o.y; if (!Object.keys(o).length) delete ov.objects[id]; }
   await store.putDoc("world", "overrides", ov);
   world.setMap(await applyLayout(layout), ov);
   world.setAgents(await agents.list());
@@ -227,6 +233,24 @@ app.post("/api/admin/layout/reset", admin, wrap(async (_req, res) => {
   io.to("world").emit("world:changed", { reload: true });
   res.json({ ok: true });
 }));
+// ---------- packs de peças (zip de sprites → peças pro editor) ----------
+app.get("/api/admin/packs", admin, wrap(async (_req, res) => res.json({ packs: await packs.list(), interactions: INTERACTIONS, kinds: PIECE_KINDS })));
+app.post("/api/admin/packs", admin, writeLimiter, express.raw({ type: () => true, limit: "80mb" }), wrap(async (req, res) => {
+  const name = decodeURIComponent(String(req.query.name || "pack.zip"));
+  res.json({ pack: await packs.importZip(req.body, name) });
+}));
+app.get("/api/admin/packs/:id", admin, wrap(async (req, res) => { const p = await packs.get(v.id(req.params.id)); if (!p) throw new Error("pack não existe"); res.json({ pack: p }); }));
+app.put("/api/admin/packs/:id", admin, writeLimiter, express.json({ limit: "2mb" }), wrap(async (req, res) => res.json({ pack: await packs.update(v.id(req.params.id), req.body || {}) })));
+app.post("/api/admin/packs/:id/reslice", admin, writeLimiter, wrap(async (req, res) => res.json({ pack: await packs.reslice(v.id(req.params.id), v.str(req.body?.sheet, 80), { mode: v.str(req.body?.mode || "auto", 10), scale: Number(req.body?.scale) || 2 }) })));
+app.delete("/api/admin/packs/:id", admin, wrap(async (req, res) => {
+  await packs.remove(v.id(req.params.id));
+  // peças do pack que estavam no espaço saem do layout salvo
+  const cur = await store.getDoc("world", "layout");
+  if (cur) { const idx = await packs.propIndex(); const layout = normalizeLayout(cur, idx); await store.putDoc("world", "layout", layout); world.setMap(await applyLayout(layout), await getOverrides()); world.setAgents(await agents.list()); io.to("world").emit("world:changed", { reload: true }); }
+  res.json({ ok: true });
+}));
+app.use("/packs", express.static(packs.dir, { maxAge: "1d", immutable: false }));
+
 app.post("/api/admin/map", admin, express.json({ limit: "8mb" }), wrap(async (req, res) => {
   const t = req.body;
   if (!t || t.type !== "map" || !Array.isArray(t.layers)) throw new Error("envie o JSON exportado do Tiled");
@@ -378,6 +402,18 @@ io.on("connection", (socket) => {
     p.x = x; p.y = y; p.moving = false;
     world.updateZone(p);
     pushVoice();
+  });
+
+  // liga/desliga um prop "usar" (perto dele); estado fica nos ajustes e vale pra todo mundo
+  socket.on("prop:use", async ({ index } = {}, ack) => {
+    if (!user || !lim.misc()) return;
+    const p = world.players.get(user.id); const d = world.map.decor[Number(index)];
+    if (!p || !d || d.interact !== "use") return ack?.({ error: "não dá pra usar isso" });
+    if (Math.hypot(d.x + d.w / 2 - p.x, d.y + d.h - p.y) > 3) return ack?.({ error: "chega mais perto" });
+    d.on = !d.on;
+    const ov = await getOverrides(); ov.decorState = { ...(ov.decorState || {}), [Number(index)]: d.on }; await store.putDoc("world", "overrides", ov);
+    io.to("world").emit("prop:state", { index: Number(index), on: d.on, by: user.name });
+    ack?.({ ok: true, on: d.on });
   });
 
   socket.on("profile", ({ status, muted, presence, avatar } = {}) => {

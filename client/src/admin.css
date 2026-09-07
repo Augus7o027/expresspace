@@ -68,3 +68,17 @@ td input, td select { padding: 5px 8px; font-size: 12px; }
 details.item { display: block; }
 details.item summary { cursor: pointer; }
 details.item .stack { margin-top: 10px; }
+
+/* packs de peças */
+.pack-sheets { display: flex; flex-direction: column; gap: 10px; margin-top: 10px; }
+.pack-sheet { display: flex; gap: 12px; align-items: flex-start; }
+.pack-sheet img { max-width: 220px; max-height: 160px; image-rendering: pixelated; background: repeating-conic-gradient(rgba(255,255,255,0.06) 0 25%, transparent 0 50%) 0 0 / 16px 16px; border-radius: 6px; }
+.pack-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 10px; margin-top: 10px; }
+.pack-piece { display: flex; flex-direction: column; gap: 5px; padding: 10px; background: rgba(255,255,255,0.04); border: 1px solid var(--line); border-radius: 10px; }
+.pack-piece.off { opacity: 0.45; }
+.pack-piece input, .pack-piece select { width: 100%; box-sizing: border-box; font-size: 12px; padding: 5px 7px; }
+.pack-piece input[type=number] { width: 52px; }
+.pack-piece input[type=checkbox] { width: auto; }
+.pack-thumb { height: 96px; display: flex; align-items: center; justify-content: center; background: repeating-conic-gradient(rgba(255,255,255,0.06) 0 25%, transparent 0 50%) 0 0 / 16px 16px; border-radius: 6px; }
+.pack-thumb img { max-width: 100%; max-height: 96px; image-rendering: pixelated; }
+details summary { cursor: pointer; color: var(--ink-dim); margin-top: 12px; font-size: 13px; }

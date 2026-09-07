@@ -194,8 +194,13 @@ async function boot(net, { user, map, channels, players, locked = [], npcs = [],
     onReady: () => { showLoading("pronto", 1); setTimeout(hideLoading, 250); onSceneReady(); },
     onZoneChange: (z) => { state.zone = z; renderZone(); refreshSpeaker(); if (state.chatMode === "zone") loadHistory(); },
     onObjectNear: (o) => { state.nearObject = o; renderPrompt(); },
+    // sentou numa estação de trabalho: entra em foco; levantou: volta ao que era
+    onWork: (on) => { if (on) { if (state.presence === "focus") return; state.prevPresence = state.presence; setPresence("focus"); toast("Em foco: sentou pra trabalhar."); } else if (state.prevPresence) { setPresence(state.prevPresence); state.prevPresence = null; } },
+    onPortal: () => toast("Passou pelo portal."),
     locked,
   });
+  function setPresence(v) { state.presence = v; $("#presence").value = v; scene.setMyPresence(v); net.emit("profile", { presence: v }); }
+  net.on("prop:state", ({ index, on, by }) => { scene.setPropState(index, on); if (state.nearObject?.index === index) renderPrompt(); if (by && by !== user.name) toast(`${by} ${on ? "ligou" : "desligou"} ${state.map.decor?.[index]?.label || state.map.decor?.[index]?.name || "um objeto"}.`); });
   net.on("world:changed", ({ locked: l, reload } = {}) => {
     if (reload) { toast("O espaço foi atualizado. Recarregando…"); setTimeout(() => location.reload(), 1200); return; }
     if (l) { scene.setLocked(l); toast("Salas atualizadas."); }
@@ -475,9 +480,10 @@ async function boot(net, { user, map, channels, players, locked = [], npcs = [],
   const modal = $("#modal"), modalBody = $("#modal-body");
   let openBoardId = null;
   function openObject(o) {
+    if (o.kind === "use") { net.emit("prop:use", { index: o.index }, (r) => { if (r?.error) toast(r.error); }); return; }
     modalBody.innerHTML = "";
     $("#modal-title").textContent = o.label;
-    $("#modal-kind").textContent = { board: "quadro compartilhado", link: "link", video: "vídeo", info: "mural", speaker: "caixa de som · " + (zoneOf(o)?.name || "sala") }[o.kind];
+    $("#modal-kind").textContent = { board: "quadro compartilhado", link: "link", video: "vídeo", info: "mural", sign: "placa", speaker: "caixa de som · " + (zoneOf(o)?.name || "sala") }[o.kind];
     if (o.kind === "speaker") { openSpeakerModal(o); }
     else if (o.kind === "board") {
       const ta = document.createElement("textarea"); ta.placeholder = "Escreva aqui. Todo mundo vê.";
@@ -488,8 +494,8 @@ async function boot(net, { user, map, channels, players, locked = [], npcs = [],
       net.emit("board:get", { id: o.id }, (content) => { ta.value = content || ""; });
       let t; ta.oninput = () => { clearTimeout(t); t = setTimeout(() => net.emit("board:set", { id: o.id, content: ta.value }), 300); };
       setTimeout(() => ta.focus(), 50);
-    } else if (o.kind === "info") {
-      const d = document.createElement("div"); d.className = "info"; d.textContent = o.text || ""; modalBody.append(d);
+    } else if (o.kind === "info" || o.kind === "sign") {
+      const d = document.createElement("div"); d.className = "info"; d.textContent = o.text || "(sem texto ainda: edite no editor do espaço)"; modalBody.append(d);
     } else {
       const f = document.createElement("iframe"); f.src = o.url; f.allow = "autoplay; fullscreen; clipboard-write"; f.referrerPolicy = "no-referrer";
       modalBody.append(f);
@@ -656,7 +662,7 @@ async function boot(net, { user, map, channels, players, locked = [], npcs = [],
   function renderPrompt() {
     const el = $("#hud-prompt");
     if (!state.nearObject) { el.classList.add("hidden"); return; }
-    const verb = { board: "Abrir quadro", link: "Abrir", video: "Assistir", info: "Ler", agent: "Conversar com", speaker: "Escolher música" }[state.nearObject.kind];
+    const verb = { board: "Abrir quadro", link: "Abrir", video: "Assistir", info: "Ler", sign: "Ler", use: state.nearObject.on ? "Desligar" : "Ligar", agent: "Conversar com", speaker: "Escolher música" }[state.nearObject.kind];
     el.querySelector("span").textContent = `${verb} · ${state.nearObject.label}`;
     el.classList.remove("hidden");
   }

@@ -344,6 +344,8 @@ h1 .serif { font-size: 92px; }
 .ed-item { display: flex; flex-direction: column; align-items: center; gap: 4px; width: 86px; box-sizing: border-box; padding: 8px 4px; background: rgba(255,255,255,0.04); border: 1px solid transparent; border-radius: 10px; color: var(--ink); cursor: pointer; font: inherit; font-size: 10px; text-align: center; line-height: 1.2; }
 .ed-item:hover { background: rgba(255,255,255,0.09); border-color: var(--line); }
 .ed-item.active { border-color: #6ef0a3; background: rgba(110,240,163,0.12); }
+.ed-search { width: 100%; box-sizing: border-box; background: rgba(255,255,255,0.06); border: 1px solid var(--line); color: var(--ink); border-radius: 7px; padding: 6px 8px; font: inherit; font-size: 12px; }
+.ed-group { width: 100%; font-size: 10px; letter-spacing: 1px; text-transform: uppercase; padding-top: 6px; }
 .ed-thumb { width: 32px; height: 32px; background-repeat: no-repeat; image-rendering: pixelated; display: grid; place-items: center; font-size: 18px; color: #9ad0ff; }
 .ed-thumb.tall { width: 32px; height: 40px; }
 .ed-props { padding: 10px 14px; border-top: 1px solid var(--line); display: grid; gap: 8px; max-height: 40%; overflow: auto; }

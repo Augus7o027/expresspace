@@ -63,7 +63,7 @@ Módulos do espaço:
 | `spatial.js` | grafo Web Audio: ganho e pan por distância pra voz e emissores de som ambiente sintetizados |
 | `speaker.js` | player YouTube (IFrame API) sincronizado pelo `startedAt` do servidor, volume por distância |
 | `tiles.js` | janelas de vídeo arrastáveis e redimensionáveis |
-| `editor.js` | editor do espaço: paleta, colocar/mover/apagar, propriedades, salas e bichos, salvar layout; redesenha o layout na cena enquanto edita |
+| `editor.js` | editor do espaço: paleta (peças embutidas e dos packs, com busca), colocar/mover/apagar, propriedades (interação, direção, texto, destino do portal), salas e bichos, salvar layout; redesenha o layout na cena enquanto edita |
 | `settings.js`, `push.js`, `tour.js`, `mobile.js`, `sounds.js`, `icons.js`, `md.js` | configurações de dispositivos, assinatura push, tour, joystick e gavetas, sons sintetizados, ícones SVG, markdown seguro |
 
 ## Servidor
@@ -73,7 +73,8 @@ Módulos do espaço:
 | `index.js` | Express + Socket.io: middlewares de segurança, rotas REST, handlers de socket, relógio da agenda, scheduler dos agentes |
 | `world.js` | estado dos jogadores e NPCs, grid de colisão, zonas, cálculo dos grupos de voz |
 | `map.js` | lê o Tiled (`sede.json`), extrai zonas, objetos, decoração, NPCs, paredes |
-| `mapgen.js` | gera o Tiled a partir do layout (zonas, paredes, pisos, móveis, props, objetos, NPCs), normaliza o layout vindo do editor, checa alcançabilidade; `layout-default.json` é o espaço padrão |
+| `mapgen.js` | gera o Tiled a partir do layout (zonas, paredes, pisos, móveis, props, objetos, NPCs), normaliza o layout vindo do editor, checa alcançabilidade; `layout-default.json` é o espaço padrão. Recebe o índice dos packs (`pk:<pack>/<peça>`) pra resolver peças importadas |
+| `packs.js` | importador de packs: abre o zip, decodifica os PNGs, recorta (componentes conexos com 1 px de tolerância, ou grade de 16/32), amplia 2x, guarda folhas e peças em `DATA_DIR/packs/<id>/`, metadados na coleção `packs`; `propIndex()` é o que o `mapgen` e o editor consomem |
 | `auth.js` | contas (scrypt), sessões por cookie assinado (HMAC), cargos, versão de sessão |
 | `security.js` | cabeçalhos, rate limit, checagem de origem, validadores, bloqueio de SSRF |
 | `library.js` | conteúdos, progresso, uploads em disco |
@@ -114,8 +115,9 @@ Cliente → servidor:
 | `mod:action` | `{targetId, action, minutes, reason}` | equipe | `mute`, `unmute`, `kick`, `ban` |
 | `live:record` | `{on, title}` | equipe | gravar a sala atual (palco ou reunião) via Egress; precisa de LiveKit + S3 |
 | `visibility` | `bool` | todos | aba visível (menção vira push quando não está) |
+| `prop:use` | `{index}` | todos | liga/desliga um prop com interação `use` (a até 3 tiles); estado vai pra `world/overrides.decorState` e sai em `prop:state` |
 
-Servidor → cliente: `state` (12×/s, snapshot dos jogadores), `npcs`, `voice:group`, `chat:message`, `system`, `toast`, `bubble`, `rtc:signal`, `board:update`, `object:update`, `speaker:update`, `world:changed`, `events:changed`, `event:soon`, `event:started`, `mod:muted`, `kicked`, `agent:tool`, `live:recording`.
+Servidor → cliente: `state` (12×/s, snapshot dos jogadores), `npcs`, `voice:group`, `chat:message`, `system`, `toast`, `bubble`, `rtc:signal`, `board:update`, `object:update`, `speaker:update`, `world:changed`, `events:changed`, `event:soon`, `event:started`, `mod:muted`, `kicked`, `agent:tool`, `live:recording`, `prop:state` (`{index, on, by}`).
 
 ## Catálogo REST
 
@@ -137,6 +139,7 @@ Servidor → cliente: `state` (12×/s, snapshot dos jogadores), `npcs`, `voice:g
 | `GET/POST/DELETE /api/admin/agents`, `POST …/test`, `POST …/run-schedule` | admin | agentes |
 | `PUT /api/admin/world`, `POST /api/admin/map` | admin | trancas, posições, bichos; mapa do Tiled (8 MB) |
 | `GET /api/admin/layout`, `POST /api/admin/layout/check`, `PUT /api/admin/layout`, `POST /api/admin/layout/reset` | admin | editor do espaço: layout atual + catálogo; prévia com alcançabilidade; salvar (409 se algo ficou sem acesso, `force` passa); voltar ao padrão |
+| `GET/POST /api/admin/packs`, `GET/PUT/DELETE /api/admin/packs/:id`, `POST /api/admin/packs/:id/reslice` | admin | packs de peças: listar, importar zip (corpo bruto, 80 MB, `?name=`), editar peças, apagar (tira as peças do layout salvo), recortar folha de novo |
 | `POST /api/live/webhook` | LiveKit (assinatura JWT) | `egress_ended` → cria a aula na biblioteca |
 
 Todas as rotas de escrita passam por rate limit geral (600/min por IP), checagem de origem (CSRF) e limite de corpo (1 MB, salvo mapa e uploads).
