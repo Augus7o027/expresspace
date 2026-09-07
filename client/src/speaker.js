@@ -13,12 +13,17 @@ function loadApi() {
 }
 
 export class Speaker {
-  constructor(mountEl, { onState } = {}) {
-    this.mount = mountEl; this.onState = onState;
+  constructor(mountEl, { onState, onEnded } = {}) {
+    this.mount = mountEl; this.onState = onState; this.onEnded = onEnded;
     this.player = null; this.ready = false; this.current = null; // { id, state }
     this.volume = 0.8; this.muted = false; this.dist = 1; this.blocked = false;
     this.pending = null;
+    this.clockOffset = 0;   // relógio do servidor - relógio daqui (pra sincronizar sem depender do relógio do PC)
+    this.isLive = false;    // transmissão ao vivo: não tem posição pra sincronizar
+    this.lastSeek = 0; this.loaded = null;
   }
+  // chamado com o Date.now() do servidor sempre que chega algo dele
+  setServerTime(t) { if (Number.isFinite(t)) this.clockOffset = t - Date.now(); }
   // volume pelo usuário (0..1)
   setVolume(v) { this.volume = Math.max(0, Math.min(1, v)); this.apply(); }
   setMuted(m) { this.muted = !!m; this.apply(); }
@@ -32,11 +37,14 @@ export class Speaker {
       if (this.muted) this.player.mute(); else this.player.unMute();
     } catch {}
   }
-  expectedTime(state) { return (state.start || 0) + (Date.now() - state.startedAt) / 1000; }
+  expectedTime(state) { return (state.start || 0) + (Date.now() + this.clockOffset - state.startedAt) / 1000; }
 
   async play(id, state) {
+    // mesma música (só a fila mudou, ou reentrou na sala): não recarrega, só ressincroniza
+    const same = this.current && this.current.id === id && this.current.state.videoId === state.videoId && this.current.state.startedAt === state.startedAt;
     this.current = { id, state };
-    this.pending = state;
+    if (same && this.player) { this.sync(); return; }
+    this.pending = state; this.isLive = false; this.lastSeek = 0; this.loaded = state.videoId;
     const YT = await loadApi(); if (!YT) { this.onState?.("erro"); return; }
     if (this.current?.state !== state) return; // trocou enquanto carregava
     if (!this.player) {
@@ -47,8 +55,8 @@ export class Speaker {
           onReady: () => { this.ready = true; this.apply(); this.sync(true); this.onState?.("carregando"); },
           onStateChange: (e) => {
             const S = YT.PlayerState;
-            if (e.data === S.PLAYING) { this.blocked = false; this.onState?.("tocando"); }
-            else if (e.data === S.ENDED) this.onState?.("acabou");
+            if (e.data === S.PLAYING) { this.blocked = false; this.isLive = !(this.player.getDuration() > 0); this.onState?.("tocando"); }
+            else if (e.data === S.ENDED) { this.onState?.("acabou"); if (this.current) this.onEnded?.(this.current.id, this.current.state); }
             else if (e.data === S.PAUSED && this.current) { /* pausa do navegador/usuário: tenta retomar no próximo sync */ this.onState?.("pausado"); }
             else if (e.data === S.UNSTARTED || e.data === S.CUED) { this.onState?.("carregando"); }
           },
@@ -65,10 +73,13 @@ export class Speaker {
     if (!this.player || !this.ready || !this.current) return;
     try {
       const S = window.YT.PlayerState, st = this.player.getPlayerState();
+      const dur = this.player.getDuration() || 0; this.isLive = st === S.PLAYING && dur === 0;
       const want = this.expectedTime(this.current.state), have = this.player.getCurrentTime() || 0;
-      if (st === S.PLAYING && Math.abs(want - have) > 3) this.player.seekTo(want, true);
+      // ao vivo não tem "posição"; vídeo normal só corrige desvio grande, no máximo uma vez a cada 20s, e nunca além do fim
+      const canSeek = !this.isLive && (dur === 0 || want < dur - 2) && Date.now() - this.lastSeek > 20000;
+      if (st === S.PLAYING && canSeek && Math.abs(want - have) > 4) { this.lastSeek = Date.now(); this.player.seekTo(want, true); }
       if (st !== S.PLAYING && st !== S.ENDED && st !== S.BUFFERING) {
-        if (force || st === S.UNSTARTED || st === S.CUED || st === S.PAUSED) { this.player.seekTo(want, true); this.player.playVideo(); }
+        if (force || st === S.UNSTARTED || st === S.CUED || st === S.PAUSED) { if (canSeek && !this.isLive && dur > 0) this.player.seekTo(want, true); this.player.playVideo(); }
         // se continuar parado depois de um tempo, o navegador bloqueou o autoplay: pede um toque
         setTimeout(() => { try { if (this.current && this.player.getPlayerState() !== S.PLAYING && this.player.getPlayerState() !== S.BUFFERING) { this.blocked = true; this.onState?.("bloqueado"); } } catch {} }, 1500);
       }

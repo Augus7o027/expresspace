@@ -2,6 +2,21 @@
 
 Uma entrada por versão. O detalhe de cada feature está na seção correspondente do `README.md`.
 
+## v0.17 · rádio, fila e movimento
+
+- Caixa de som: sincronia pelo relógio do servidor, sem seek em transmissões ao vivo, recarga só quando a música muda, fila com pular/tirar/tocar agora, avanço automático ao terminar (`speaker:skip`, `speaker:remove`, `speaker:ended`).
+- Jogadores remotos com interpolação de amostras (120 ms de atraso) e teleporte em trocas de sala.
+- Orc alinhado com a sombra (origem por direção).
+
+## v0.16 · aula ao vivo de verdade
+
+- LiveKit (SFU) como transporte de voz, câmera e tela quando configurado; malha WebRTC continua como padrão sem configuração.
+- Salas por grupo de voz (`open`, `zone-<id>`, `ch-<id>`); na sala aberta o cliente assina só quem está no grupo de proximidade.
+- Permissão de publicar no palco vem do token e é atualizada ao vivo (`updateParticipant`).
+- Gravação da aula por Egress pra S3, com webhook assinado que cria a aula na biblioteca.
+- Arquivos de deploy do LiveKit (`deploy/`), variáveis novas, docs de infraestrutura atualizados.
+- Kick/ban também removem a pessoa da sala de mídia.
+
 ## v0.15 · blindagem e documentação
 
 - Camada de segurança no servidor (`security.js`): CSP, HSTS, nosniff, frame, permissions; rate limit por IP na API e por evento no socket; checagem de origem (CSRF); limites de corpo; validadores centrais; bloqueio de SSRF nas ferramentas dos agentes.

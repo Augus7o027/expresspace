@@ -39,7 +39,7 @@ flowchart LR
   N -. web push / SMTP .-> Navegador
 ```
 
-Um único processo Node serve tudo: a API, os arquivos do cliente (build do Vite em `client/dist`), o Socket.io e os uploads. O navegador carrega o app, faz login por cookie, abre o socket e, a partir daí, movimento, chat, presença e sinalização de voz passam pelo socket. A mídia (voz, câmera, tela) nunca passa pelo servidor: vai direto entre navegadores por WebRTC, com STUN/TURN só pra atravessar NAT.
+Um único processo Node serve tudo: a API, os arquivos do cliente (build do Vite em `client/dist`), o Socket.io e os uploads. O navegador carrega o app, faz login por cookie, abre o socket e, a partir daí, movimento, chat, presença e sinalização de voz passam pelo socket. A mídia (voz, câmera, tela) nunca passa pelo processo Node. Em dois modos: **malha** (padrão, direto entre navegadores por WebRTC, STUN/TURN só pra atravessar NAT) ou **LiveKit** (SFU, quando `LIVEKIT_URL` está configurado: cada navegador envia um fluxo ao servidor de mídia e recebe os que precisa).
 
 ## Cliente
 
@@ -58,7 +58,8 @@ Módulos do espaço:
 | `main.js` | login (conta/visitante, checagem de mic), boot, sidebar, chat, objetos, caixa de som, agenda, moderação, configurações, tour, mobile |
 | `game.js` | cena Phaser: tilemap, profundidade de móveis, avatares locais/remotos, movimento com colisão e deslize em cantos, sentar, NPCs, zonas, marcadores |
 | `sprites.js` | pinta o personagem base (64×64, 4 direções) conforme pele, cabelo, roupa, calça, sapato, acessório; corpo Orc premium |
-| `voice.js` | uma `RTCPeerConnection` por peer, perfect negotiation, watchdog de reconexão, porta de ruído, dispositivos, câmera e tela |
+| `voice.js` | malha: uma `RTCPeerConnection` por peer, perfect negotiation, watchdog de reconexão, porta de ruído, dispositivos, câmera e tela |
+| `voice-live.js` | LiveKit: mesma interface da `Voice`; entra na sala que o servidor manda com o grupo, publica mic/câmera/tela, assina só os peers do grupo |
 | `spatial.js` | grafo Web Audio: ganho e pan por distância pra voz e emissores de som ambiente sintetizados |
 | `speaker.js` | player YouTube (IFrame API) sincronizado pelo `startedAt` do servidor, volume por distância |
 | `tiles.js` | janelas de vídeo arrastáveis e redimensionáveis |
@@ -78,13 +79,16 @@ Módulos do espaço:
 | `events.js` | agenda: CRUD + relógio (lembrete, início) |
 | `notify.js` | Web Push (VAPID) e e-mail (SMTP) |
 | `speaker.js` | parse de links do YouTube, oEmbed, busca por raspagem, refinamento por LLM, estado das caixas |
+| `live.js` | LiveKit: tokens por sala, permissão de publicar ao vivo, expulsão, gravação (Egress → S3), webhook |
 | `db/store.js` | duas implementações da mesma interface: Postgres (`DATABASE_URL`) ou memória com `state.json` |
 
 ## Tempo real: quem ouve quem
 
 A cada movimento o servidor recalcula o grupo de voz de cada pessoa, nesta ordem: canal de voz da sidebar; sala `meeting`; Auditório (`stage`, só quem está no palco fala); zona `silent` (sem voz); área aberta agrupa por proximidade transitiva (raio `proximityRadius`, padrão 3,2 tiles). O cliente recebe `voice:group` com a lista de peers e abre/fecha conexões pra bater com ela. Dentro do grupo, o áudio espacial ajusta volume e lado; em sala ou canal, todo mundo no mesmo volume.
 
-O lado com id menor inicia a oferta (evita colisão na abertura). Um watchdog recria a conexão se ela ficar parada; na segunda falha avisa a pessoa e tenta pelo relay.
+Na malha, o lado com id menor inicia a oferta (evita colisão na abertura); um watchdog recria a conexão se ela ficar parada e na segunda falha avisa a pessoa.
+
+Com LiveKit, o grupo vira uma sala: `prox:*` → `open` (uma sala pra toda a área aberta; o cliente conecta com `autoSubscribe: false` e assina só os peers do grupo), `zone:<id>` → `zone-<id>` (reunião e palco), `ch:<id>` → `ch-<id>`. O servidor manda `voice:group.live = { room, token }`; o cliente troca de sala quando o nome muda e só atualiza o token quando não muda. No palco o token sai com `canPublish = onStage`, e subir ou descer chama `updateParticipant` no LiveKit sem reconectar. A permissão também é aplicada no cliente (mute forçado), mas quem manda é o servidor de mídia.
 
 ## Catálogo de eventos do socket
 
@@ -104,11 +108,12 @@ Cliente → servidor:
 | `board:get` / `board:set` | `{id, content}` | todos | quadros compartilhados |
 | `agent:chat` / `agent:history` | `{agentId, text}` | todos | precisa estar a 3 tiles do agente; 6/min |
 | `object:set` | `{id, url, label}` | equipe | telão e links; YouTube vira embed |
-| `speaker:get` / `speaker:set` / `speaker:stop` / `speaker:search` | `{id, url, q}` | todos | caixa de som da sala; stop só quem colocou ou equipe |
+| `speaker:get` / `speaker:set` / `speaker:stop` / `speaker:search` / `speaker:skip` / `speaker:remove` / `speaker:ended` | `{id, url, q, mode, index, videoId}` | todos | caixa de som da sala; com música tocando `set` enfileira (`mode: "now"` toca agora se for quem colocou ou equipe); stop/skip/remove só dono ou equipe; `ended` avança a fila (idempotente) |
 | `mod:action` | `{targetId, action, minutes, reason}` | equipe | `mute`, `unmute`, `kick`, `ban` |
+| `live:record` | `{on, title}` | equipe | gravar a sala atual (palco ou reunião) via Egress; precisa de LiveKit + S3 |
 | `visibility` | `bool` | todos | aba visível (menção vira push quando não está) |
 
-Servidor → cliente: `state` (12×/s, snapshot dos jogadores), `npcs`, `voice:group`, `chat:message`, `system`, `toast`, `bubble`, `rtc:signal`, `board:update`, `object:update`, `speaker:update`, `world:changed`, `events:changed`, `event:soon`, `event:started`, `mod:muted`, `kicked`, `agent:tool`.
+Servidor → cliente: `state` (12×/s, snapshot dos jogadores), `npcs`, `voice:group`, `chat:message`, `system`, `toast`, `bubble`, `rtc:signal`, `board:update`, `object:update`, `speaker:update`, `world:changed`, `events:changed`, `event:soon`, `event:started`, `mod:muted`, `kicked`, `agent:tool`, `live:recording`.
 
 ## Catálogo REST
 
@@ -129,6 +134,7 @@ Servidor → cliente: `state` (12×/s, snapshot dos jogadores), `npcs`, `voice:g
 | `GET/POST/DELETE /api/admin/providers`, `POST /api/admin/providers/:id/test` | admin | provedores LLM |
 | `GET/POST/DELETE /api/admin/agents`, `POST …/test`, `POST …/run-schedule` | admin | agentes |
 | `PUT /api/admin/world`, `POST /api/admin/map` | admin | trancas, posições, bichos; mapa do Tiled (8 MB) |
+| `POST /api/live/webhook` | LiveKit (assinatura JWT) | `egress_ended` → cria a aula na biblioteca |
 
 Todas as rotas de escrita passam por rate limit geral (600/min por IP), checagem de origem (CSRF) e limite de corpo (1 MB, salvo mapa e uploads).
 
@@ -138,4 +144,4 @@ Todas as rotas de escrita passam por rate limit geral (600/min por IP), checagem
 
 **Aula ao vivo.** Equipe cria o evento no painel → relógio (10 s) → 15 min antes: push, e-mail, `event:soon` → na hora: link vai pro override do telão, `object:update`, `event:started`, push pra quem está fora.
 
-**Caixa de som.** Alguém aperta E → cola link ou descreve → `speaker:search` (LLM refina, raspagem do YouTube) → `speaker:set` grava `{videoId, startedAt}` → todo mundo na sala recebe `speaker:update` → cada cliente carrega a IFrame API e busca o tempo `now - startedAt`; ressincroniza a cada 6 s se desviar mais de 3 s.
+**Caixa de som.** Alguém aperta E → cola link ou descreve → `speaker:search` (LLM refina, raspagem do YouTube) → `speaker:set` grava `{videoId, startedAt, queue}` → todo mundo na sala recebe `speaker:update` (com o relógio do servidor) → cada cliente carrega a IFrame API e posiciona em `now + offset - startedAt`. Transmissões ao vivo (duração 0) nunca são reposicionadas; vídeos normais só quando o desvio passa de 4 s, no máximo a cada 20 s. Ao terminar, o navegador avisa `speaker:ended` e o servidor passa pra próxima da fila.

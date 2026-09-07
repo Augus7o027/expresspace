@@ -13,6 +13,7 @@ import { agentsRepo, runAgent, startScheduler, chatCompletion, TOOL_NAMES } from
 import { parseYouTube, videoInfo, searchYouTube, refineQuery, speakersRepo } from "./speaker.js";
 import { notifyRepo } from "./notify.js";
 import { securityHeaders, rateLimiter, socketLimiter, originCheck, v } from "./security.js";
+import { liveEnabled, recordingEnabled, liveInfo, roomFor, tokenFor, setCanPublish, kick as liveKick, startRecording, stopRecording, parseWebhook } from "./live.js";
 import { eventsRepo, startEventClock, REMIND_MIN } from "./events.js";
 import { libraryRepo, saveUpload, uploadPath, removeUpload, embedUrl, TYPES, TYPE_LABEL } from "./library.js";
 
@@ -50,7 +51,7 @@ world.setAgents(await agents.list());
 const app = express();
 app.set("trust proxy", 1);
 // ---------- blindagem básica ----------
-app.use(securityHeaders({ secure: SECURE }));
+app.use(securityHeaders({ secure: SECURE, connect: [process.env.LIVEKIT_URL] }));
 app.use(originCheck([ORIGIN]));                       // POST/PUT/DELETE só da própria origem (CSRF)
 app.use("/api", rateLimiter({ windowMs: 60000, max: 600 }));  // teto geral por IP
 const authLimiter = rateLimiter({ windowMs: 10 * 60000, max: 12, message: "muitas tentativas de login; aguarde 10 minutos" });
@@ -226,6 +227,27 @@ app.post("/api/admin/uploads", staff, express.raw({ type: () => true, limit: pro
 }));
 app.delete("/api/admin/uploads/:name", staff, (req, res) => { removeUpload(req.params.name); res.json({ ok: true }); });
 
+// LiveKit avisa aqui quando uma gravação termina: vira aula na biblioteca
+app.post("/api/live/webhook", express.raw({ type: () => true, limit: "1mb" }), wrap(async (req, res) => {
+  if (!liveEnabled()) return res.status(404).json({ error: "live desligado" });
+  let ev; try { ev = await parseWebhook(req.body.toString("utf8"), req.headers.authorization); } catch { return res.status(401).json({ error: "assinatura inválida" }); }
+  if (ev.event === "egress_ended" || ev.event === "egress_failed") {
+    const rec = [...recordings.values()].find((r) => r.egressId === ev.egressInfo?.egressId);
+    if (rec) recordings.delete(rec.room);
+    if (ev.event === "egress_ended" && rec) {
+      const file = ev.egressInfo?.fileResults?.[0];
+      const url = file?.location || rec.url;
+      if (url) {
+        const it = await library.put({ type: "aula", title: rec.title, category: "Aulas ao vivo", summary: `Gravação de ${new Date(rec.startedAt).toLocaleString("pt-BR", { timeZone: process.env.TZ_DISPLAY || "America/Sao_Paulo" })}`, video: url, published: true, visibility: "member" }, { id: rec.by, name: rec.byName });
+        io.to("world").emit("toast", `Gravação "${rec.title}" já está na biblioteca.`);
+        console.log("[live] gravação salva na biblioteca:", it.id, url);
+      }
+    } else if (rec) console.warn("[live] gravação falhou:", ev.egressInfo?.error);
+    io.to("world").emit("live:recording", { room: rec?.room, on: false });
+  }
+  res.json({ ok: true });
+}));
+
 // mapa enviado pelo painel tem prioridade sobre o do build
 app.get("/maps/sede.json", (_req, res, next) => existsSync(UPLOADED_MAP) ? res.sendFile(UPLOADED_MAP) : next());
 
@@ -242,6 +264,8 @@ const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: [ORIGIN, /localhost/], credentials: true } });
 
 const socketsByUser = new Map(); // userId -> socket
+const liveRoom = new Map();      // userId -> { room, canPublish } (sala do LiveKit em que a pessoa está)
+const recordings = new Map();    // room -> { egressId, title, by, byName, startedAt, url }
 const mutes = new Map();         // userId -> timestamp até quando está silenciado pela equipe
 const lastVoice = new Map();     // userId -> JSON do último grupo enviado
 const COLORS = ["#ffffff", "#c9c9c9", "#9a9a9a", "#e8e0d0", "#d6d6d6", "#b5b5b5"];
@@ -292,7 +316,7 @@ io.on("connection", (socket) => {
     const { x, y } = pos || {};
     if (Number.isFinite(x) && Number.isFinite(y) && world.canEnter(p, Math.floor(x), Math.floor(y))) { p.x = x; p.y = y; world.updateZone(p); }
     const channels = await store.channels();
-    ack?.({ user, map: world.map, channels, players: world.snapshot(), locked: [...world.locked], npcs: world.npcSnapshot(), communityName: settings.communityName, iceServers: ICE_SERVERS, speakers: await speakers.all(), events: await events.upcoming(), pushKey: notify.publicKey, mutedUntil: mutes.get(id) || 0 });
+    ack?.({ user, map: world.map, channels, players: world.snapshot(), locked: [...world.locked], npcs: world.npcSnapshot(), communityName: settings.communityName, iceServers: ICE_SERVERS, speakers: await speakers.all(), events: await events.upcoming(), pushKey: notify.publicKey, mutedUntil: mutes.get(id) || 0, live: liveInfo(), recordings: [...recordings.keys()], serverTime: Date.now() });
     io.to("world").emit("system", { text: `${user.name} entrou.` });
     pushVoice();
   });
@@ -385,22 +409,60 @@ io.on("connection", (socket) => {
   // ---------- caixa de som da sala ----------
   const speakerObj = (id) => world.map.objects.find((x) => x.id === id && x.kind === "speaker");
   socket.on("speaker:get", async (_a, ack) => { if (user) ack?.(await speakers.all()); });
-  socket.on("speaker:set", async ({ id, url, title } = {}, ack) => {
+  // estado da caixa: { videoId, start, title, author, startedAt, by, byName, queue: [{videoId,title,author,by,byName}] }
+  const isStaff = () => ["admin", "professor"].includes(user.role);
+  const broadcastSpeaker = (id, state) => io.to("world").emit("speaker:update", { id, state, now: Date.now() });
+  const advance = async (id) => { // próxima da fila (ou desliga)
+    const cur = await speakers.get(id); if (!cur) return null;
+    const next = (cur.queue || []).shift?.() || null;
+    const state = next ? { ...next, start: 0, startedAt: Date.now(), queue: cur.queue || [] } : null;
+    await speakers.set(id, state); broadcastSpeaker(id, state); return state;
+  };
+  socket.on("speaker:set", async ({ id, url, title, mode } = {}, ack) => {
     if (!user) return; if (!lim.misc()) return ack?.({ error: "calma, muitas trocas seguidas" });
     const o = speakerObj(id); if (!o) return ack?.({ error: "caixa de som não encontrada" });
     const yt = parseYouTube(url); if (!yt) return ack?.({ error: "cole um link do YouTube (ou pesquise)" });
     const info = await videoInfo(yt.videoId);
-    const state = { videoId: yt.videoId, start: yt.start || 0, title: (info.title || String(title || "").slice(0, 120) || "YouTube"), author: info.author, startedAt: Date.now(), by: user.id, byName: user.name };
-    await speakers.set(id, state);
-    io.to("world").emit("speaker:update", { id, state });
+    const item = { videoId: yt.videoId, title: (info.title || String(title || "").slice(0, 120) || "YouTube"), author: info.author, by: user.id, byName: user.name };
+    const cur = await speakers.get(id);
+    // tocando algo: vai pra fila, a menos que seja "tocar agora" por quem colocou a atual ou pela equipe
+    if (cur && !(mode === "now" && (cur.by === user.id || isStaff()))) {
+      const queue = cur.queue || []; if (queue.length >= 20) return ack?.({ error: "fila cheia (20)" });
+      if (cur.videoId === item.videoId || queue.some((q) => q.videoId === item.videoId)) return ack?.({ error: "essa já está na fila" });
+      queue.push(item); const state = { ...cur, queue }; await speakers.set(id, state); broadcastSpeaker(id, state);
+      return ack?.({ ok: true, queued: true, position: queue.length, state });
+    }
+    const state = { ...item, start: yt.start || 0, startedAt: Date.now(), queue: cur?.queue || [] };
+    await speakers.set(id, state); broadcastSpeaker(id, state);
+    ack?.({ ok: true, state });
+  });
+  socket.on("speaker:skip", async ({ id } = {}, ack) => {
+    if (!user) return;
+    const cur = await speakers.get(id); if (!cur) return ack?.({ ok: true });
+    if (cur.by !== user.id && !isStaff()) return ack?.({ error: "só quem colocou (ou a equipe) pula" });
+    ack?.({ ok: true, state: await advance(id) });
+  });
+  // o vídeo acabou no navegador de alguém: passa pra próxima (idempotente: só se ainda for a mesma)
+  socket.on("speaker:ended", async ({ id, videoId, startedAt } = {}) => {
+    if (!user) return;
+    const cur = await speakers.get(id); if (!cur || cur.videoId !== videoId || cur.startedAt !== startedAt) return;
+    if (Date.now() - cur.startedAt < 15000) return;
+    await advance(id);
+  });
+  socket.on("speaker:remove", async ({ id, index } = {}, ack) => {
+    if (!user) return;
+    const cur = await speakers.get(id); const q = cur?.queue || []; const it = q[index];
+    if (!it) return ack?.({ ok: true });
+    if (it.by !== user.id && !isStaff()) return ack?.({ error: "só quem adicionou (ou a equipe) tira da fila" });
+    q.splice(index, 1); const state = { ...cur, queue: q }; await speakers.set(id, state); broadcastSpeaker(id, state);
     ack?.({ ok: true, state });
   });
   socket.on("speaker:stop", async ({ id } = {}, ack) => {
     if (!user) return;
     const cur = await speakers.get(id); if (!cur) return ack?.({ ok: true });
-    if (cur.by !== user.id && !["admin", "professor"].includes(user.role)) return ack?.({ error: "só quem colocou (ou a equipe) pode parar" });
+    if (cur.by !== user.id && !isStaff()) return ack?.({ error: "só quem colocou (ou a equipe) pode parar" });
     await speakers.set(id, null);
-    io.to("world").emit("speaker:update", { id, state: null });
+    broadcastSpeaker(id, null);
     ack?.({ ok: true });
   });
   let lastSearch = 0;
@@ -427,6 +489,30 @@ io.on("connection", (socket) => {
       p.voiceChannel = ch.id;
     } else p.voiceChannel = null;
     pushVoice();
+  });
+
+  // ---------- gravação da aula (equipe, no palco) ----------
+  socket.on("live:record", async ({ on, title } = {}, ack) => {
+    if (!user || !["admin", "professor"].includes(user.role)) return ack?.({ error: "só a equipe grava" });
+    if (!recordingEnabled()) return ack?.({ error: "gravação não configurada no servidor (LiveKit + S3)" });
+    const g = world.voiceGroups().get(user.id); const room = roomFor(g?.id);
+    if (!room || !room.startsWith("zone-")) return ack?.({ error: "entre no palco ou numa sala pra gravar" });
+    try {
+      if (on) {
+        if (recordings.has(room)) return ack?.({ error: "já está gravando" });
+        const live = (await events.upcoming()).find((e) => e.live);
+        const t = String(title || live?.title || `Aula ao vivo ${new Date().toLocaleDateString("pt-BR")}`).slice(0, 120);
+        const r = await startRecording(room, { title: t });
+        recordings.set(room, { ...r, room, by: user.id, byName: user.name, startedAt: Date.now() });
+        io.to("world").emit("live:recording", { room, on: true, by: user.name, title: t });
+        await modlog({ action: "record", by: user.id, byName: user.name, targetId: room, targetName: t });
+      } else {
+        const rec = recordings.get(room); if (!rec) return ack?.({ ok: true });
+        await stopRecording(rec.egressId);
+        io.to("world").emit("toast", `${user.name} parou a gravação; o vídeo entra na biblioteca em alguns minutos.`);
+      }
+      ack?.({ ok: true });
+    } catch (e) { ack?.({ error: "gravação: " + e.message.slice(0, 120) }); }
   });
 
   socket.on("chat:history", async ({ channelId } = {}, ack) => { if (!user || typeof channelId !== "string") return; ack?.(await store.history(channelId)); });
@@ -482,6 +568,7 @@ io.on("connection", (socket) => {
       if (action === "ban") await bans.add(targetId, { name: t.name, role: t.role, reason, by: user.name, at: new Date().toISOString() });
       await modlog(entry);
       tSock?.emit("kicked", (action === "ban" ? "Você foi removido deste espaço" : "Você foi expulso por " + user.name) + (reason ? ": " + reason : "."));
+      if (liveEnabled() && liveRoom.get(targetId)?.room) liveKick(liveRoom.get(targetId).room, targetId);
       setTimeout(() => tSock?.disconnect(true), 300);
       io.to("world").emit("system", { text: `${t.name} foi ${action === "ban" ? "banido" : "expulso"} por ${user.name}.` });
       return ack?.({ ok: true });
@@ -504,7 +591,7 @@ io.on("connection", (socket) => {
     if (!user) return;
     if (socketsByUser.get(user.id) === socket) {
       socketsByUser.delete(user.id);
-      lastVoice.delete(user.id);
+      lastVoice.delete(user.id); liveRoom.delete(user.id);
       world.remove(user.id);
       io.to("world").emit("system", { text: `${user.name} saiu.` });
       pushVoice();
@@ -517,14 +604,29 @@ setInterval(() => {
   if (world.players.size) { io.to("world").emit("state", world.snapshot()); io.to("world").emit("npcs", world.npcSnapshot()); }
 }, 1000 / 12);
 
-function pushVoice() {
-  const groups = world.voiceGroups();
-  for (const [uid, g] of groups) {
-    const key = JSON.stringify(g);
-    if (lastVoice.get(uid) === key) continue;
-    lastVoice.set(uid, key);
-    socketsByUser.get(uid)?.emit("voice:group", g);
-  }
+let pushing = false, pushAgain = false;
+async function pushVoice() {
+  if (pushing) { pushAgain = true; return; } // serializa: tokens são assíncronos
+  pushing = true;
+  try {
+    const groups = world.voiceGroups();
+    for (const [uid, g] of groups) {
+      const key = JSON.stringify(g);
+      if (lastVoice.get(uid) === key) continue;
+      lastVoice.set(uid, key);
+      const sock = socketsByUser.get(uid); if (!sock) continue;
+      if (liveEnabled()) {
+        const room = roomFor(g.id), canPublish = !!g.canSpeak, prev = liveRoom.get(uid);
+        const u = world.players.get(uid);
+        if (room && u) {
+          g.live = { room, token: await tokenFor({ id: uid, name: u.name, role: u.role }, room, { canPublish }) };
+          if (prev?.room === room && prev.canPublish !== canPublish) setCanPublish(room, uid, canPublish); // subiu/desceu do palco
+          liveRoom.set(uid, { room, canPublish });
+        } else { g.live = null; liveRoom.delete(uid); }
+      }
+      sock.emit("voice:group", g);
+    }
+  } finally { pushing = false; if (pushAgain) { pushAgain = false; pushVoice(); } }
 }
 
 startScheduler(agents, postAsAgent);

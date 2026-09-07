@@ -1,0 +1,32 @@
+# LiveKit (SFU) + Redis + Egress (gravação). Sobe como um recurso "Docker Compose" separado no Coolify.
+# Portas que precisam estar abertas no firewall da VPS: 7881/tcp, 3478/udp, 5349/tcp, 50000-50200/udp.
+# O sinal (wss://live.seudominio.com) passa pelo proxy do Coolify na porta 7880; mídia vai direto pra VPS.
+services:
+  livekit:
+    image: livekit/livekit-server:latest
+    command: --config /etc/livekit.yaml
+    restart: unless-stopped
+    network_mode: host             # necessário pra UDP/ICE anunciar o IP certo
+    volumes:
+      - ./livekit.yaml:/etc/livekit.yaml:ro
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    network_mode: host
+    command: redis-server --port 6379 --save "" --appendonly no
+  egress:
+    image: livekit/egress:latest
+    restart: unless-stopped
+    network_mode: host
+    environment:
+      EGRESS_CONFIG_STRING: |
+        api_key: TROQUE_API_KEY
+        api_secret: TROQUE_API_SECRET
+        ws_url: ws://127.0.0.1:7880
+        redis:
+          address: 127.0.0.1:6379
+        logging:
+          level: info
+    cap_add:
+      - SYS_ADMIN                   # o egress usa Chrome headless
+    shm_size: 2gb

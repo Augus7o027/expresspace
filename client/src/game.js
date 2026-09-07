@@ -16,6 +16,8 @@ const AVATAR_SCALE = 2;
 const FLAT_TILES = /^(floor|rug|grass|path|door|flowers|stage_light|plant_small)/;
 // profundidades: 0 chão/paredes · 1 luzes · 2 rasteiro · 3 marcas · 10+y móveis e gente · 20 nomes · 22 escurecimento de outras salas · 24 títulos · 30 balões
 const D = { LABEL: 20, DIM: 22, TITLE: 24, BUBBLE: 30 };
+// centro do corpo do orc em cada linha do sheet (o quadro de 64px não é simétrico)
+const ORC_ORIGIN_X = { down: 30 / 64, up: 35 / 64, left: 30 / 64, right: 33 / 64 };
 
 export class WorldScene extends Phaser.Scene {
   constructor({ map, me, net, onZoneChange, onObjectNear, locked = [], startZoom, onProgress, onReady }) {
@@ -415,6 +417,10 @@ export class WorldScene extends Phaser.Scene {
   animate(c, dir, moving, running = false) {
     const anim = `${c.texKey}:${moving ? (running ? "run" : "walk") : "idle"}:${dir}`;
     if (c.sprite.anims.currentAnim?.key !== anim) c.sprite.play(anim, true);
+    // o sheet do orc não é centralizado no quadro (o porrete puxa pro lado) e os pés ficam na linha 42, não 44:
+    // ajusta a origem por direção pra ele pisar na sombra como o humano
+    if (c.texKey === "av:orc") { if (c.orcDir !== dir) { c.orcDir = dir; c.sprite.setOrigin(ORC_ORIGIN_X[dir], 42 / 64); } }
+    else if (c.orcDir) { c.orcDir = null; c.sprite.setOrigin(0.5, 44 / 64); }
   }
 
   applyState(players) {
@@ -433,6 +439,12 @@ export class WorldScene extends Phaser.Scene {
       r.moving = !!p.moving; r.running = !!p.running;
       const seatKey = `${Math.floor(p.x)},${Math.floor(p.y)}`, ch = !r.moving && this.chairs?.get(seatKey);
       if (ch) { r.target = { x: Math.floor(p.x) + 0.5, y: Math.floor(p.y) + 0.6 }; r.dir = ch; }
+      // histórico de posições: o desenho fica ~120ms atrás do servidor e interpola entre amostras (sem tremer nem "borracha")
+      const now = performance.now();
+      r.samples ??= [];
+      const last = r.samples[r.samples.length - 1];
+      if (!last || last.x !== r.target.x || last.y !== r.target.y || now - last.t > 400) r.samples.push({ t: now, x: r.target.x, y: r.target.y });
+      if (r.samples.length > 6) r.samples.shift();
       this.setSeated(r.container, ch || null, ch ? seatKey : null);
       r.container.mic.setText(p.muted ? "×" : "");
       if (p.avatar && avatarKey(p.avatar) !== r.container.texKey) r.container.setAvatar(p.avatar);
@@ -538,10 +550,19 @@ export class WorldScene extends Phaser.Scene {
     if (moving !== !!this.wasMoving) this.onWalking?.(moving);
     this.wasMoving = moving;
 
+    const renderAt = performance.now() - 120;
     for (const r of this.remote.values()) {
-      const tx = r.target.x * TILE, ty = r.target.y * TILE;
-      r.container.x += (tx - r.container.x) * Math.min(1, dt * 12);
-      r.container.y += (ty - r.container.y) * Math.min(1, dt * 12);
+      let tx = r.target.x * TILE, ty = r.target.y * TILE;
+      const S = r.samples;
+      if (S && S.length >= 2) {
+        // acha o par de amostras em volta do instante desenhado e interpola linearmente
+        let i = S.length - 1; while (i > 0 && S[i - 1].t > renderAt) i--;
+        const a = S[Math.max(0, i - 1)], b = S[i];
+        if (renderAt <= b.t && b.t > a.t) { const k = Math.max(0, Math.min(1, (renderAt - a.t) / (b.t - a.t))); tx = (a.x + (b.x - a.x) * k) * TILE; ty = (a.y + (b.y - a.y) * k) * TILE; }
+      }
+      // teleporte (troca de sala): pula direto em vez de deslizar pelo mapa
+      if (Math.hypot(tx - r.container.x, ty - r.container.y) > TILE * 6) { r.container.setPosition(tx, ty); r.samples = []; }
+      else { r.container.x += (tx - r.container.x) * Math.min(1, dt * 20); r.container.y += (ty - r.container.y) * Math.min(1, dt * 20); }
       r.container.setDepth(this.depthFor(r.container, r.container.y));
       r.container.tag.setPosition(Math.round(r.container.x), Math.round(r.container.y));
       this.animate(r.container, r.dir, r.moving, r.running);

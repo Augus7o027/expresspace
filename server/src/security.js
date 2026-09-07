@@ -4,7 +4,8 @@
 // ---------- cabeçalhos ----------
 // CSP: scripts só daqui + API do YouTube; iframes de qualquer https (telão/links são escolhidos pela equipe);
 // estilos inline liberados (o app usa style="" e o Google Fonts); nada de plugins nem embutir o app em outro site.
-export function securityHeaders({ secure }) {
+export function securityHeaders({ secure, connect = [] }) {
+  const extra = connect.filter(Boolean).map((u) => { try { const x = new URL(u); return `${x.protocol.replace("ws", "http")}//${x.host} ${x.protocol.replace("http", "ws")}//${x.host}`; } catch { return ""; } }).join(" ");
   const csp = [
     "default-src 'self'",
     "script-src 'self' https://www.youtube.com https://s.ytimg.com",
@@ -12,7 +13,7 @@ export function securityHeaders({ secure }) {
     "font-src 'self' https://fonts.gstatic.com data:",
     "img-src 'self' data: blob: https:",
     "media-src 'self' blob: data:",
-    "connect-src 'self' wss: https://www.youtube.com https://i.ytimg.com",
+    `connect-src 'self' wss: https://www.youtube.com https://i.ytimg.com ${extra}`.trim(),
     "frame-src https: http://localhost:*",
     "worker-src 'self'",
     "manifest-src 'self'",

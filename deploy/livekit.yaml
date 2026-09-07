@@ -1,0 +1,29 @@
+# Configuração do LiveKit pra produção (usada pelo deploy/docker-compose.livekit.yml).
+# Troque as chaves e o domínio. Documentação: docs/05-infraestrutura.md
+port: 7880
+rtc:
+  tcp_port: 7881
+  port_range_start: 50000
+  port_range_end: 50200
+  use_external_ip: true          # descobre o IP público da VPS (STUN) e anuncia pros navegadores
+keys:
+  # gere com: docker run --rm livekit/livekit-server generate-keys
+  TROQUE_API_KEY: TROQUE_API_SECRET
+turn:
+  enabled: true
+  domain: live.seudominio.com    # o mesmo domínio do certificado; Traefik/Coolify NÃO fica na frente do TURN
+  tls_port: 5349
+  udp_port: 3478
+  external_tls: true             # o certificado é terminado pelo próprio LiveKit (cert_file/key_file) ou pelo Caddy abaixo
+redis:
+  address: 127.0.0.1:6379      # só pro egress (gravação); pode remover se não gravar
+room:
+  auto_create: true
+  empty_timeout: 300
+  max_participants: 500
+logging:
+  level: info
+webhook:
+  api_key: TROQUE_API_KEY
+  urls:
+    - https://app.seudominio.com/api/live/webhook   # gravação terminou -> vira aula na biblioteca

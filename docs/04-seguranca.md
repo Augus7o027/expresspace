@@ -41,7 +41,7 @@ Quem pode atacar e o que quer:
 
 **SSRF.** As ferramentas dos agentes (`fetch_url`, RSS, busca) só acessam endereços públicos: bloqueiam `localhost`, `10.*`, `172.16-31.*`, `192.168.*`, `169.254.*` (metadata de nuvem), IPv6 local, `.local`, `.internal` e hosts numéricos. Timeout de 12 s.
 
-**Voz.** A mídia é ponto a ponto e cifrada (DTLS-SRTP, padrão do WebRTC). O servidor só relê sinalização entre pessoas que estão no mesmo grupo de voz.
+**Voz.** Na malha, a mídia é ponto a ponto e cifrada (DTLS-SRTP); o servidor só relê sinalização entre pessoas do mesmo grupo. Com LiveKit, o token (JWT assinado com a chave da API, 6 h) dá acesso só à sala do grupo; salas de reunião e canais são isoladas; no palco, `canPublish` é do servidor de mídia, não do cliente. Exceção conhecida: a área aberta é uma sala só (`open`) e a separação por proximidade é feita pelo cliente (assina só o grupo). Um cliente modificado poderia assinar alguém longe na área aberta, que é pública por natureza. O webhook do LiveKit é validado pela assinatura.
 
 **Dependências.** `npm audit` limpo na v0.15 (Express 5). O Dockerfile instala só produção (`--omit=dev`).
 
@@ -57,6 +57,7 @@ Em ordem de importância:
 6. **Expurgo e LGPD.** Rotina de retenção de mensagens, exportação e exclusão de dados de uma conta a pedido.
 7. **Segredos.** `SESSION_SECRET`, `apiKey` dos provedores e a chave VAPID vivem no banco ou em env. Em escala, um cofre (Vault, Doppler, ou os secrets do próprio Coolify com acesso restrito).
 8. **Proteção de borda.** Cloudflare na frente (WAF, proteção DDoS, rate limit global) é o próximo passo barato. Ver infraestrutura.
+9. **Gravações públicas por URL.** O vídeo gravado fica num bucket com URL pública. Pra fechar: bucket privado e o app servindo URL assinada de curta duração.
 
 ## Checklist antes de abrir pra público pagante
 

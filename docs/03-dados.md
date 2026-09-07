@@ -36,7 +36,15 @@
 | `events` | evento da agenda | `title`, `description`, `startsAt`, `durationMin`, `url`, `zone`, `objectId`, `remindedAt`, `startedAt` |
 | `push` | assinatura Web Push | `userId`, `sub` (endpoint + chaves), `ua` |
 | `bans` | banido (id = id da conta ou do visitante) | `name`, `role`, `reason`, `by`, `at` |
-| `modlog` | ação de moderação | `action`, `by`, `byName`, `targetId`, `targetName`, `minutes`, `reason`, `at` |
+| `modlog` | ação de moderação | `action` (inclui `record`), `by`, `byName`, `targetId`, `targetName`, `minutes`, `reason`, `at` |
+
+## Só em memória (some no restart)
+
+Salas do LiveKit por pessoa (`liveRoom`), gravações em andamento (`recordings`, chave = sala; o Egress avisa por webhook quando termina), silêncios forçados (`mutes`), contadores de rate limit.
+
+## Gravações (S3)
+
+Com `S3_*` configurado, o Egress grava `aulas/<sala>/<data>.mp4` no bucket. A aula na biblioteca aponta pra `S3_PUBLIC_URL/<caminho>`; o app não guarda cópia. Bucket privado + CDN com URL assinada fica pra depois (hoje a URL é pública, protegida só por ser difícil de adivinhar).
 
 ## Arquivos em disco (`DATA_DIR`)
 

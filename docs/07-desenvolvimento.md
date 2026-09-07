@@ -16,7 +16,7 @@ npm run build        # client/dist
 npm test             # build + Playwright com dois navegadores (~5 min)
 ```
 
-O teste sobe o servidor em `:3100` com um provedor de LLM falso em `:3199`, cria admin, membro e professor, e percorre voz, câmera, chat, objetos, caixa de som, tour, configurações, agenda, moderação, biblioteca, painel e as checagens de segurança. Screenshots ficam em `test/shots/`.
+O teste sobe o servidor em `:3100` com um provedor de LLM falso em `:3199`, cria admin, membro e professor, e percorre voz, câmera, chat, objetos, caixa de som, tour, configurações, agenda, moderação, biblioteca, painel e as checagens de segurança. Screenshots ficam em `test/shots/`. Com o binário do LiveKit disponível (`LIVEKIT_BIN=/caminho/livekit-server`, baixado das releases do GitHub), o teste também sobe um segundo servidor em modo SFU e valida proximidade, reunião, câmera e permissão do palco.
 
 ## Estrutura
 
@@ -30,11 +30,12 @@ client/
   public/maps/sede.json                       mapa Tiled
   public/sw.js · manifest.webmanifest         PWA
 server/src/
-  index.js · world.js · map.js · auth.js · security.js · library.js · agents.js · events.js · notify.js · speaker.js
+  index.js · world.js · map.js · auth.js · security.js · library.js · agents.js · events.js · notify.js · speaker.js · live.js
   db/store.js · schema.sql · migrate.js
 tools/
   build-tileset.py · build-assets.py · build-assets2.py   geram os PNGs a partir dos packs CraftPix (16px → 2x)
   build-map.py                                             gera sede.json (zonas, paredes, móveis, objetos, NPCs)
+deploy/livekit.yaml · docker-compose.livekit.yml   LiveKit + Redis + Egress pro Coolify
 test/e2e.mjs
 docs/
 ```

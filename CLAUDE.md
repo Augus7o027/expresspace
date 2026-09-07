@@ -6,21 +6,22 @@ Leia isto antes de mexer em qualquer coisa. É o resumo operacional; o detalhe e
 
 Ambiente 2D próprio de uma comunidade paga (mapa em pixel art, voz por proximidade, salas, palco, canais de texto, biblioteca de conteúdos, agentes de IA, agenda de aulas). Um processo Node serve tudo. Produção em `https://expressspace.improveyourlifedaily.com` numa VPS Hostinger com Coolify; repositório `Augus7o027/expresspace`; deploy automático no push.
 
-Versão atual: **v0.15**. Histórico em `docs/CHANGELOG.md`.
+Versão atual: **v0.17**. Histórico em `docs/CHANGELOG.md`.
 
 ## Mapa do código
 
 - `server/src/index.js`: rotas REST, handlers de socket, relógios. É o arquivo central; leia `docs/02-arquitetura.md` pro catálogo de rotas e eventos.
 - `server/src/security.js`: cabeçalhos, rate limit, origem, validadores `v.*`, SSRF. Toda entrada nova passa por aqui.
 - `server/src/world.js`: estado dos jogadores e grupos de voz. `map.js`: leitura do Tiled.
-- `client/src/main.js`: UI do espaço. `game.js`: Phaser. `voice.js`: WebRTC. `sprites.js`: pintura do avatar.
+- `client/src/main.js`: UI do espaço. `game.js`: Phaser. `voice.js`: malha WebRTC; `voice-live.js`: LiveKit com a mesma interface (escolhido no boot pelo `live` do join). `sprites.js`: pintura do avatar.
+- `server/src/live.js`: LiveKit (tokens por sala, permissão no palco, gravação, webhook). Ligado só com `LIVEKIT_*` no env.
 - `tools/build-map.py`: gera `client/public/maps/sede.json`. Mudou o mapa? roda ele e confere alcançabilidade.
 - `test/e2e.mjs`: suíte Playwright com dois navegadores. `npm test`.
 
 ## Decisões que não mudam sem conversa
 
 - Sem framework de UI e sem TypeScript. DOM direto, Phaser só pro mapa, Web Audio pro som.
-- Voz em malha WebRTC até o estágio 2 da infraestrutura (LiveKit). Não otimizar a malha além do que existe.
+- Voz: LiveKit quando configurado, malha como fallback. As duas classes têm a mesma interface; feature nova de voz entra nas duas ou só na LiveKit com aviso na UI. A malha não recebe otimização.
 - Store com duas implementações (Postgres e memória) e a mesma interface. Dados novos vão em `docs` (coleção JSON), não em tabela nova, a menos que precisem de índice.
 - Servidor autoritativo em movimento, colisão, trancas, cargos e tudo que muda estado. O cliente nunca decide permissão.
 - Assets vêm dos packs CraftPix em 16px ampliados 2x. Nada de misturar densidade de pixel.
@@ -37,12 +38,12 @@ Versão atual: **v0.15**. Histórico em `docs/CHANGELOG.md`.
 
 ## Estado e pendências (atualizar a cada versão)
 
-Feito e testado: tudo listado no `README.md` até a v0.15.
+Feito e testado: tudo listado no `README.md` até a v0.17. O modo LiveKit é testado no e2e com o binário `livekit-server` local (`LIVEKIT_BIN`); a gravação (Egress) está implementada mas só foi validada até a chamada da API, porque depende do serviço com Chrome headless e de um bucket.
 
 Próximas fatias pedidas pelo dono, em ordem:
 1. Integração de pagamento criando e desativando contas (Hotmart/Kiwify/Stripe via webhook, flag premium).
 2. Recuperação de senha por e-mail (SMTP já existe) e verificação de e-mail.
-3. LiveKit (SFU) no lugar da malha pra aulas com muita gente; TURN próprio antes disso.
+3. Subir o LiveKit em produção (arquivos em `deploy/`, passo a passo em `docs/05-infraestrutura.md`) e validar a gravação com um bucket real.
 4. Integração com OpenCode CLI (agentes).
 5. Backup automatizado, Sentry, staging e CI (ver `docs/05-infraestrutura.md`, estágio 1).
 

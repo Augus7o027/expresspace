@@ -324,6 +324,9 @@ h1 .serif { font-size: 92px; }
 }
 
 .login-notice { background: rgba(240,110,110,0.12); border: 1px solid rgba(240,110,110,0.4); color: #f0a0a0; border-radius: 10px; padding: 10px 14px; font-size: 13px; margin-bottom: 12px; }
+.hud-rec { background: rgba(240,110,110,0.15); border: 1px solid rgba(240,110,110,0.5); color: #f0a0a0; border-radius: 7px; padding: 3px 9px; font-family: var(--mono); font-size: 10px; letter-spacing: 0.06em; text-transform: uppercase; cursor: pointer; }
+.hud-rec.on { background: #c0392b; color: #fff; border-color: transparent; animation: swpulse 1.4s ease-in-out infinite; }
+.hud-rec:disabled { cursor: default; }
 /* editor de avatar: botão aleatório */
 .avatar-random { justify-self: start; background: rgba(255,255,255,0.08); border: 1px solid var(--line); color: var(--ink); border-radius: 8px; padding: 6px 10px; font-size: 12px; cursor: pointer; margin-top: 4px; }
 .avatar-random:hover { background: rgba(255,255,255,0.16); }

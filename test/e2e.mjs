@@ -177,6 +177,16 @@ await A.waitForTimeout(2500);
 console.log("A recebeu música da sala:", await A.evaluate(() => window.__sede.state.speakers["som-lounge"]?.videoId), "| widget visível:", await A.evaluate(() => !document.querySelector("#speaker-widget").classList.contains("hidden")), "| título:", await A.textContent("#sw-title"));
 await A.click("#sw-open"); await A.waitForTimeout(400);
 await A.screenshot({ path: "test/shots/16-caixa-de-som.png" });
+// v0.17: fila, pular e fim de vídeo
+const q1 = await A.evaluate(() => new Promise((r) => window.__sede.net.emit("speaker:set", { id: "som-lounge", url: "https://youtu.be/5qap5aO4i9A" }, r)));
+console.log("A adicionou à fila:", q1?.queued, "posição", q1?.position, "| fila vista por B:", await B.evaluate(() => new Promise((r) => setTimeout(() => r(window.__sede.state.speakers["som-lounge"]?.queue?.length), 400))));
+console.log("A (não colocou) tenta pular:", (await A.evaluate(() => new Promise((r) => window.__sede.net.emit("speaker:skip", { id: "som-lounge" }, r))))?.error);
+await B.evaluate(() => window.__sede.net.emit("speaker:ended", { id: "som-lounge", videoId: "jfKfPfyJRdk", startedAt: window.__sede.state.speakers["som-lounge"].startedAt }));
+await B.waitForTimeout(400);
+console.log("fim reportado cedo demais (ignorado):", await B.evaluate(() => window.__sede.state.speakers["som-lounge"]?.videoId));
+const sk = await B.evaluate(() => new Promise((r) => window.__sede.net.emit("speaker:skip", { id: "som-lounge" }, r)));
+await A.waitForTimeout(600);
+console.log("B pulou → agora toca:", sk?.state?.videoId, "| A acompanhou:", await A.evaluate(() => window.__sede.state.speakers["som-lounge"]?.videoId), "| player recarregou a certa:", await A.evaluate(() => window.__sede.state.speakers["som-lounge"]?.videoId === "5qap5aO4i9A"));
 const srch = await A.evaluate(() => new Promise((r) => window.__sede.net.emit("speaker:search", { q: "lofi hip hop radio" }, r)));
 console.log("pesquisa youtube:", srch?.results?.length, "resultados | ia:", srch?.aiQuery, "| erro:", srch?.error);
 await A.waitForTimeout(300);
@@ -320,6 +330,34 @@ await PR.close();
   const pw = await adminApi("PUT", `/api/admin/users/${users.id}`, { password: "outra-senha-9" });
   const oldSess = await fetch(base + "/api/library", { headers: { cookie: memberCookie } });
   console.log("sessão antiga após troca de senha:", oldSess.status);
+}
+
+// v0.16: LiveKit (opcional: precisa do binário livekit-server; LIVEKIT_BIN=/caminho ou /tmp/livekit-server)
+{
+  const { existsSync } = await import("node:fs");
+  const bin = process.env.LIVEKIT_BIN || "/tmp/livekit-server";
+  if (!existsSync(bin)) console.log("livekit: binário não encontrado, pulando (defina LIVEKIT_BIN pra testar)");
+  else {
+    const lk = spawn(bin, ["--dev", "--bind", "127.0.0.1", "--node-ip", "127.0.0.1", "--port", "7890"], { stdio: "ignore" });
+    const app2 = spawn("node", ["server/src/index.js"], { env: { ...process.env, PORT: "3101", DATA_DIR: "/tmp/sede-e2e-lk", SESSION_SECRET: "x", LIVEKIT_URL: "ws://127.0.0.1:7890", LIVEKIT_API_KEY: "devkey", LIVEKIT_API_SECRET: "secret" }, stdio: "ignore" });
+    await new Promise((r) => setTimeout(r, 3500));
+    const b2 = "http://localhost:3101";
+    const mk = async (name) => { const c = await browser.newContext({ viewport: { width: 1200, height: 800 }, permissions: ["microphone", "camera"] }); const p = await c.newPage(); p.on("pageerror", (e) => errors.push("livekit " + e.message)); await p.goto(b2 + `/?name=${name}&auto=1&canvas=1&notour=1`, { waitUntil: "domcontentloaded" }); await p.waitForSelector("#app:not(.hidden)"); return p; };
+    const LA = await mk("Lia"), LB = await mk("Leo"); await LA.waitForTimeout(4000);
+    const st = (p) => p.evaluate(() => { const v = window.__sede.voice; return `${v.live ? "livekit" : "malha"} sala=${v.roomName} estado=${v.room?.state} peers=${v.connectedCount()} mic=${!!v.pubs?.mic} audioRemoto=${v.remoteAudio?.size}`; });
+    console.log("livekit spawn A:", await st(LA), "| hud:", await LA.textContent("#hud-voice"));
+    await LA.click("#zones li:nth-child(6)"); await LB.click("#zones li:nth-child(6)"); await LA.waitForTimeout(3500);
+    await LB.keyboard.press("c"); await LB.waitForTimeout(2500);
+    console.log("livekit reunião A:", await st(LA), "| tiles de câmera em A:", await LA.$$eval("#tiles .tile", (t) => t.length));
+    await LB.keyboard.press("c");
+    await LA.evaluate(() => window.__sede.net.emit("teleport", { x: 30.5, y: 11.5 })); await LB.evaluate(() => window.__sede.net.emit("teleport", { x: 30.5, y: 18.5 })); await LA.waitForTimeout(3500);
+    console.log("livekit palco A:", await st(LA), "| plateia B:", await st(LB), "canPublish:", await LB.evaluate(() => window.__sede.voice.room?.localParticipant.permissions?.canPublish));
+    await LB.evaluate(() => window.__sede.net.emit("teleport", { x: 32.5, y: 11.5 })); await LB.waitForTimeout(3500);
+    console.log("livekit B subiu no palco:", await st(LB), "canPublish:", await LB.evaluate(() => window.__sede.voice.room?.localParticipant.permissions?.canPublish));
+    console.log("livekit gravação sem S3:", (await LA.evaluate(() => new Promise((r) => window.__sede.net.emit("live:record", { on: true }, r))))?.error);
+    await LA.context().close(); await LB.context().close();
+    app2.kill(); lk.kill();
+  }
 }
 
 await browser.close();

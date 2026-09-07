@@ -1,5 +1,6 @@
 import { io } from "socket.io-client";
 import { Voice } from "./voice.js";
+import { VoiceLive } from "./voice-live.js";
 import { Spatial } from "./spatial.js";
 import { Speaker } from "./speaker.js";
 import { Tiles } from "./tiles.js";
@@ -166,7 +167,7 @@ function start(creds) {
   net.on("kicked", (msg) => { if (app) app.kicked = true; toast(msg); safe(() => sessionStorage.setItem("sede:notice", msg)); setTimeout(() => location.reload(), 1800); });
 }
 
-async function boot(net, { user, map, channels, players, locked = [], npcs = [], communityName, iceServers, speakers = {}, events = [], pushKey, mutedUntil = 0 }, creds) {
+async function boot(net, { user, map, channels, players, locked = [], npcs = [], communityName, iceServers, speakers = {}, events = [], pushKey, mutedUntil = 0, live = null, recordings = [], serverTime }, creds) {
   const { createGame } = await loadGame();
   $("#login").classList.add("hidden");
   $("#app").classList.remove("hidden");
@@ -212,7 +213,9 @@ async function boot(net, { user, map, channels, players, locked = [], npcs = [],
   // --- voz e tela ---
   let spatial = null;
   const getSpatial = () => { if (!spatial) { try { spatial = new Spatial(voice.audioCtx(), { routeVoice: !isIOS() }); spatial.setEnabled(sounds.enabled); for (const e of scene.emitters || []) spatial.addEmitter(e.kind, e.x, e.y); } catch (e) { console.warn("sem áudio espacial", e); } } return spatial; };
-  const voice = new Voice(net, user.id, {
+  // com LiveKit configurado no servidor, a voz vai pelo SFU (aulas grandes); senão, malha WebRTC
+  const voice = new (live ? VoiceLive : Voice)(net, user.id, {
+    liveUrl: live?.url,
     onChange: renderVoice,
     onSpeaking: (who, on) => {
       if (who === "me") { scene.setMySpeaking(on); net.emit("speaking", on); }
@@ -241,7 +244,7 @@ async function boot(net, { user, map, channels, players, locked = [], npcs = [],
   net.on("voice:group", (g) => {
     state.group = g;
     voice.setCanSpeak(g.canSpeak);
-    voice.sync(g.peers || []);
+    voice.sync(g.peers || [], g.live);
     const n = (g.peers || []).length;
     if (n > lastPeerCount) sounds.nearby(); else if (n < lastPeerCount) sounds.leave();
     lastPeerCount = n;
@@ -644,7 +647,31 @@ async function boot(net, { user, map, channels, players, locked = [], npcs = [],
     el.querySelector("span").textContent = `${verb} · ${state.nearObject.label}`;
     el.classList.remove("hidden");
   }
+  // ---------- gravação da aula (LiveKit + S3) ----------
+  const recRooms = new Set(recordings);
+  const recBtn = $("#hud-rec");
+  const myRoom = () => state.group?.live?.room || null;
+  recBtn.onclick = () => {
+    const on = !recRooms.has(myRoom());
+    const title = on ? prompt("Título da gravação (vai pra biblioteca):", "") : null;
+    if (on && title === null) return;
+    net.emit("live:record", { on, title }, (r) => { if (r?.error) toast(r.error); });
+  };
+  net.on("live:recording", ({ room, on, by, title }) => {
+    if (on) recRooms.add(room); else recRooms.delete(room);
+    if (room && room === myRoom()) toast(on ? `● ${by} começou a gravar "${title}"` : "Gravação encerrada.");
+    renderVoice();
+  });
+  function renderRec() {
+    const room = myRoom(), can = isStaff && live?.recording && room && room.startsWith("zone-");
+    const on = recRooms.has(room);
+    recBtn.classList.toggle("hidden", !can && !on);
+    recBtn.classList.toggle("on", on);
+    recBtn.textContent = on ? (can ? "■ parar gravação" : "● gravando") : "● gravar aula";
+    recBtn.disabled = !can;
+  }
   function renderVoice() {
+    renderRec();
     const g = state.group;
     const el = $("#hud-voice");
     if (!g || !g.id) el.textContent = g && g.canSpeak === false ? `${g.label}: sem voz` : "ninguém por perto";
@@ -668,19 +695,21 @@ async function boot(net, { user, map, channels, players, locked = [], npcs = [],
   const sw = $("#speaker-widget"), swTitle = $("#sw-title"), swSub = $("#sw-sub"), swPlay = $("#sw-play"), swIcon = $("#sw-icon");
   swIcon.innerHTML = ICON.music; $("#sw-toggle").innerHTML = ICON.chevron; $("#sw-open").innerHTML = ICON.edit;
   const swMute = $("#sw-mute"), swVol = $("#sw-vol");
-  const speaker = new Speaker($("#speaker-player"), { onState: (st) => {
+  const speaker = new Speaker($("#speaker-player"), { onEnded: (id, st) => net.emit("speaker:ended", { id, videoId: st.videoId, startedAt: st.startedAt }), onState: (st) => {
     swPlay.classList.toggle("hidden", st !== "bloqueado");
     swIcon.classList.toggle("on", st === "tocando");
     if (st === "bloqueado") swSub.textContent = "toque em ▶ pra ouvir";
     else if (st === "erro") swSub.textContent = "esse vídeo não pode tocar aqui";
-    else if (st === "acabou") swSub.textContent = "acabou · escolha outra (E na caixa)";
+    else if (st === "acabou") swSub.textContent = (state.speakers[activeSpeakerId]?.queue?.length ? "acabou · próxima da fila…" : "acabou · escolha outra (E na caixa)");
     else if (st) paintSpeakerSub();
   } });
+  speaker.setServerTime(serverTime);
   let activeSpeakerId = null;
   const activeSpeakerObj = () => map.objects.find((o) => o.id === activeSpeakerId);
   function paintSpeakerSub() {
     const st = activeSpeakerId && state.speakers[activeSpeakerId]; if (!st) return;
-    swSub.textContent = (st.author ? st.author + " · " : "") + (st.byName ? "por " + st.byName : "");
+    const q = st.queue?.length ? ` · fila: ${st.queue.length}` : "";
+    swSub.textContent = (st.author ? st.author + " · " : "") + (st.byName ? "por " + st.byName : "") + q;
   }
   // qual caixa toca pra mim: a da sala em que estou (se tiver música)
   function refreshSpeaker() {
@@ -695,7 +724,7 @@ async function boot(net, { user, map, channels, players, locked = [], npcs = [],
       activeSpeakerId = o.id;
       swTitle.textContent = st.title || "YouTube"; paintSpeakerSub();
       sw.classList.remove("hidden");
-      speaker.play(o.id, st);
+      speaker.play(o.id, st); // idempotente: mesma música só ressincroniza
       spatial?.muteKind("radio", true);
     }
   }
@@ -709,10 +738,17 @@ async function boot(net, { user, map, channels, players, locked = [], npcs = [],
   $("#sw-toggle").onclick = () => { sw.classList.toggle("collapsed"); safe(() => localStorage.setItem("sede:music:collapsed", sw.classList.contains("collapsed") ? "1" : "0")); };
   if (safe(() => localStorage.getItem("sede:music:collapsed") === "1", false)) sw.classList.add("collapsed");
   $("#sw-open").onclick = () => { const o = activeSpeakerObj(); if (o) openObject(o); };
-  net.on("speaker:update", ({ id, state: st }) => {
+  net.on("speaker:update", ({ id, state: st, now }) => {
+    speaker.setServerTime(now);
+    const prev = state.speakers[id];
     if (st) state.speakers[id] = st; else delete state.speakers[id];
     const o = map.objects.find((x) => x.id === id);
-    if (o && state.zone && zoneOf(o)?.id === state.zone.id) toast(st ? `♪ ${st.byName} colocou "${st.title}"` : "A música da sala parou.");
+    const changedTrack = !prev || !st || prev.videoId !== st.videoId || prev.startedAt !== st.startedAt;
+    if (o && state.zone && zoneOf(o)?.id === state.zone.id) {
+      if (!st) toast("A música da sala parou.");
+      else if (changedTrack) toast(`♪ ${st.byName} colocou "${st.title}"`);
+      else if ((st.queue?.length || 0) > (prev?.queue?.length || 0)) toast(`♪ ${st.queue[st.queue.length - 1].byName} adicionou "${st.queue[st.queue.length - 1].title}" à fila`);
+    }
     refreshSpeaker();
     if (modalOpenId === id) openSpeakerModal(o);
   });
@@ -731,6 +767,7 @@ async function boot(net, { user, map, channels, players, locked = [], npcs = [],
   }, 300);
   let modalOpenId = null;
   function openSpeakerModal(o) {
+    const keep = modalOpenId === o.id ? modalBody.querySelector(".sp-row input")?.value : ""; // redesenho por atualização da fila não apaga o que a pessoa digitava
     modalOpenId = o.id; modalBody.innerHTML = "";
     const st = state.speakers[o.id];
     const form = document.createElement("div"); form.className = "sp-form";
@@ -739,20 +776,40 @@ async function boot(net, { user, map, channels, players, locked = [], npcs = [],
       now.innerHTML = `<img src="https://i.ytimg.com/vi/${st.videoId}/mqdefault.jpg" alt=""><div class="t"><div></div><small></small></div>`;
       now.querySelector(".t div").textContent = "♪ " + (st.title || "YouTube");
       now.querySelector("small").textContent = (st.author ? st.author + " · " : "") + "colocada por " + (st.byName || "alguém");
-      const stop = document.createElement("button"); stop.className = "sp-btn"; stop.textContent = "Parar";
-      stop.onclick = () => net.emit("speaker:stop", { id: o.id }, (r) => { if (r?.error) toast(r.error); });
-      now.append(stop); form.append(now);
+      const canCtl = isStaff || st.by === user.id;
+      if (canCtl) {
+        const skip = document.createElement("button"); skip.className = "sp-btn"; skip.textContent = st.queue?.length ? "Pular ▸" : "Parar";
+        skip.onclick = () => net.emit(st.queue?.length ? "speaker:skip" : "speaker:stop", { id: o.id }, (r) => { if (r?.error) toast(r.error); });
+        now.append(skip);
+      }
+      form.append(now);
+      // fila
+      const q = st.queue || [];
+      if (q.length) {
+        const qh = document.createElement("div"); qh.className = "sp-hint"; qh.textContent = `a seguir (${q.length})`; form.append(qh);
+        const ql = document.createElement("div"); ql.className = "sp-results";
+        q.forEach((it, i) => {
+          const b = document.createElement("div"); b.className = "sp-res";
+          b.innerHTML = `<img loading="lazy" src="https://i.ytimg.com/vi/${it.videoId}/mqdefault.jpg" alt=""><div class="t"><div></div><small></small></div>`;
+          b.querySelector(".t div").textContent = `${i + 1}. ${it.title || it.videoId}`; b.querySelector("small").textContent = [it.author, "por " + it.byName].filter(Boolean).join(" · ");
+          if (isStaff || it.by === user.id) { const rm = document.createElement("button"); rm.className = "sp-btn"; rm.textContent = "tirar"; rm.onclick = () => net.emit("speaker:remove", { id: o.id, index: i }, (r) => { if (r?.error) toast(r.error); }); b.append(rm); }
+          ql.append(b);
+        });
+        form.append(ql);
+      }
     } else {
       const h = document.createElement("div"); h.className = "sp-hint"; h.textContent = "nada tocando nesta sala"; form.append(h);
     }
     const row = document.createElement("div"); row.className = "sp-row";
-    const inp = document.createElement("input"); inp.placeholder = "Cole um link do YouTube ou descreva o que quer ouvir (ex.: lo-fi pra focar)";
+    const inp = document.createElement("input"); inp.placeholder = "Cole um link do YouTube ou descreva o que quer ouvir (ex.: lo-fi pra focar)"; inp.value = keep || "";
     const go = document.createElement("button"); go.className = "sp-btn primary"; go.textContent = "Pesquisar / tocar";
     row.append(inp, go); form.append(row);
     const hint = document.createElement("div"); hint.className = "sp-hint"; hint.textContent = "a música toca pra todo mundo que estiver nesta sala · volume cai com a distância da caixa"; form.append(hint);
     const ai = document.createElement("div"); ai.className = "sp-ai hidden"; form.append(ai);
     const res = document.createElement("div"); res.className = "sp-results"; form.append(res);
-    const play = (videoId, title) => net.emit("speaker:set", { id: o.id, url: videoId, title }, (r) => { if (r?.error) return toast(r.error); toast("Tocando pra sala inteira."); });
+    const play = (videoId, title, mode) => net.emit("speaker:set", { id: o.id, url: videoId, title, mode }, (r) => { if (r?.error) return toast(r.error); toast(r.queued ? `Na fila (posição ${r.position}).` : "Tocando pra sala inteira."); inp.value = ""; res.innerHTML = ""; });
+    const playing = !!state.speakers[o.id], canNow = isStaff || state.speakers[o.id]?.by === user.id;
+    hint.textContent = (playing ? "tem música tocando: o que você escolher entra na fila" + (canNow ? " (ou toca agora)" : "") : "a música toca pra todo mundo que estiver nesta sala") + " · volume cai com a distância da caixa";
     go.onclick = () => {
       const q = inp.value.trim(); if (!q) return inp.focus();
       go.disabled = true; go.textContent = "…"; res.innerHTML = ""; ai.classList.add("hidden");
@@ -760,12 +817,16 @@ async function boot(net, { user, map, channels, players, locked = [], npcs = [],
         go.disabled = false; go.textContent = "Pesquisar / tocar";
         if (!r) return; if (r.error) toast(r.error);
         if (r.aiQuery) { ai.textContent = `ia sugeriu buscar: "${r.aiQuery}"`; ai.classList.remove("hidden"); }
-        if (r.results?.length === 1 && /^([\w-]{11}|https?:)/.test(q) && !r.aiQuery) return play(r.results[0].videoId, r.results[0].title);
+        if (r.results?.length === 1 && /^([\w-]{11}|https?:)/.test(q) && !r.aiQuery) return play(r.results[0].videoId, r.results[0].title, playing ? "queue" : undefined);
         for (const v of r.results || []) {
           const b = document.createElement("button"); b.type = "button"; b.className = "sp-res";
           b.innerHTML = `<img loading="lazy" src="https://i.ytimg.com/vi/${v.videoId}/mqdefault.jpg" alt=""><div class="t"><div></div><small></small></div>`;
           b.querySelector(".t div").textContent = v.title || v.videoId; b.querySelector("small").textContent = [v.author, v.length].filter(Boolean).join(" · ");
-          b.onclick = () => play(v.videoId, v.title);
+          if (playing) {
+            const add = document.createElement("button"); add.className = "sp-btn"; add.textContent = "+ fila"; add.onclick = (e) => { e.stopPropagation(); play(v.videoId, v.title, "queue"); }; b.append(add);
+            if (canNow) { const nowB = document.createElement("button"); nowB.className = "sp-btn primary"; nowB.textContent = "agora"; nowB.onclick = (e) => { e.stopPropagation(); play(v.videoId, v.title, "now"); }; b.append(nowB); }
+            b.onclick = () => play(v.videoId, v.title, "queue");
+          } else b.onclick = () => play(v.videoId, v.title);
           res.append(b);
         }
         if (!r.results?.length && !r.error) { const n = document.createElement("div"); n.className = "sp-hint"; n.textContent = "nada encontrado"; res.append(n); }

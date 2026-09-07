@@ -4,7 +4,22 @@ Ambiente 2D próprio da comunidade. Híbrido entre Gather e Discord: um mapa ond
 
 Documentação completa em [`docs/`](docs/README.md) (arquitetura, dados, segurança, infraestrutura, operação, desenvolvimento, changelog). Contexto operacional em [`CLAUDE.md`](CLAUDE.md).
 
-## O que já funciona (v0.15)
+## O que já funciona (v0.17)
+
+- **Rádio que não reseta**: a caixa de som parou de recarregar o vídeo a cada atualização e de "corrigir" transmissões ao vivo (que não têm posição pra sincronizar). A sincronia usa o relógio do servidor, só corrige desvio acima de 4 s e no máximo uma vez a cada 20 s; entrar na sala com música tocando só ressincroniza, não reinicia
+- **Fila na caixa de som**: com música tocando, o que você escolhe entra na fila (até 20). Quem colocou a atual, ou a equipe, pode "tocar agora", pular e tirar itens da fila. Quando o vídeo acaba, a próxima entra sozinha
+- **Personagens mais suaves**: quem está longe é desenhado 120 ms atrás do servidor, interpolando entre amostras, em vez de correr atrás do último ponto (some o tremor e o efeito de "borracha"); troca de sala teleporta em vez de deslizar pelo mapa
+- **Orc no chão**: o sheet do orc não é centralizado no quadro (o porrete puxa pro lado) e os pés ficam 2 px acima do humano; a origem agora é ajustada por direção e ele pisa na sombra
+
+## v0.16
+
+- **Aula ao vivo de verdade (LiveKit)**: com `LIVEKIT_URL`, `LIVEKIT_API_KEY` e `LIVEKIT_API_SECRET` no Coolify, voz, câmera e tela passam por um servidor de mídia (SFU) em vez da malha: cada pessoa envia um fluxo e recebe só os que precisa. Aguenta centenas de pessoas no Auditório. Sem as variáveis, tudo continua na malha WebRTC como antes. O resto do app não muda: mesmos grupos de voz (proximidade, sala, canal, palco), mesmo áudio espacial, mesmas janelas de vídeo
+- **Palco com permissão de verdade**: na sala do Auditório só quem está em cima do palco tem permissão de publicar áudio e vídeo (vem do token e é atualizada ao vivo quando alguém sobe ou desce, sem reconectar)
+- **Gravar aula**: com um bucket S3 configurado (`S3_*`) e o Egress do LiveKit no ar, a equipe vê o botão "gravar aula" no palco e nas salas; ao parar, o vídeo cai sozinho na biblioteca como aula na categoria "Aulas ao vivo", com o título do evento da agenda em andamento
+- `deploy/docker-compose.livekit.yml` e `deploy/livekit.yaml` prontos pra subir LiveKit + Redis + Egress como um recurso separado no Coolify (passo a passo em `docs/05-infraestrutura.md`)
+- Expulsar ou banir também tira a pessoa da sala de mídia na hora
+
+## v0.15
 
 - **Blindagem do servidor** (`server/src/security.js`): CSP, HSTS, nosniff, X-Frame, Permissions-Policy; rate limit por IP na API (600/min), no login (12 por 10 min) e por evento no socket; checagem de origem em toda escrita (CSRF); corpo limitado a 1 MB; validadores centrais de entrada; ferramentas dos agentes só acessam endereços públicos (SSRF)
 - **Contas mais duras**: senha mínima de 8 sem senhas óbvias; trocar senha ou cargo derruba as sessões antigas; conta banida não loga
