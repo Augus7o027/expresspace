@@ -68,7 +68,8 @@ h1 .serif { display: block; font-size: 112px; letter-spacing: -0.02em; }
 
 /* ---------- App layout ---------- */
 #app { display: grid; grid-template-columns: 260px 1fr 320px; gap: 12px; padding: 12px; }
-#sidebar, #chat { display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+#sidebar, #chat, #editor { display: flex; flex-direction: column; min-height: 0; min-width: 0; overflow: hidden; }
+#editor.hidden, #chat.hidden { display: none; }
 #stage { position: relative; border-radius: 16px; overflow: hidden; border: 1px solid var(--line); background: #070707; }
 #game, #game canvas { width: 100%; height: 100%; display: block; }
 #game canvas { image-rendering: pixelated; image-rendering: crisp-edges; }
@@ -327,6 +328,33 @@ h1 .serif { font-size: 92px; }
 .hud-rec { background: rgba(240,110,110,0.15); border: 1px solid rgba(240,110,110,0.5); color: #f0a0a0; border-radius: 7px; padding: 3px 9px; font-family: var(--mono); font-size: 10px; letter-spacing: 0.06em; text-transform: uppercase; cursor: pointer; }
 .hud-rec.on { background: #c0392b; color: #fff; border-color: transparent; animation: swpulse 1.4s ease-in-out infinite; }
 .hud-rec:disabled { cursor: default; }
+/* editor do espaço */
+#editor header { display: flex; justify-content: space-between; align-items: flex-end; padding: 18px 18px 12px; border-bottom: 1px solid var(--line); }
+#editor header .serif { font-size: 22px; }
+.ed-status { padding: 8px 18px; font-size: 10px; border-bottom: 1px solid var(--line); }
+.ed-tabs { display: flex; flex-wrap: wrap; gap: 4px; padding: 10px 14px 0; }
+.ed-tabs button { background: transparent; border: 1px solid var(--line); color: var(--ink-dim); border-radius: 999px; padding: 4px 10px; font-size: 11px; cursor: pointer; }
+.ed-tabs button.active { background: var(--ink); color: #000; border-color: transparent; }
+.ed-palette { flex: 1; min-height: 0; overflow: auto; padding: 10px 14px; display: flex; flex-wrap: wrap; gap: 6px; align-content: flex-start; }
+.ed-item { display: flex; flex-direction: column; align-items: center; gap: 4px; width: 86px; box-sizing: border-box; padding: 8px 4px; background: rgba(255,255,255,0.04); border: 1px solid transparent; border-radius: 10px; color: var(--ink); cursor: pointer; font: inherit; font-size: 10px; text-align: center; line-height: 1.2; }
+.ed-item:hover { background: rgba(255,255,255,0.09); border-color: var(--line); }
+.ed-item.active { border-color: #6ef0a3; background: rgba(110,240,163,0.12); }
+.ed-thumb { width: 32px; height: 32px; background-repeat: no-repeat; image-rendering: pixelated; display: grid; place-items: center; font-size: 18px; color: #9ad0ff; }
+.ed-thumb.tall { width: 32px; height: 40px; }
+.ed-props { padding: 10px 14px; border-top: 1px solid var(--line); display: grid; gap: 8px; max-height: 40%; overflow: auto; }
+.ed-props:empty { display: none; }
+.ed-sel-title { font-family: var(--serif); font-size: 17px; }
+.ed-field { display: grid; gap: 3px; font-size: 12px; }
+.ed-field input, .ed-field select, .ed-field textarea, .ed-zone input, .ed-zone select, .ed-npcs select, .ed-palette select { background: rgba(255,255,255,0.06); border: 1px solid var(--line); color: var(--ink); border-radius: 7px; padding: 6px 8px; font: inherit; font-size: 12px; min-width: 0; }
+.ed-zone { width: 100%; display: grid; gap: 6px; padding: 8px; border: 1px solid var(--line); border-radius: 10px; }
+.ed-zone .row, .ed-npcs .row, .ed-palette > .row, .ed-props .row { display: flex; gap: 6px; align-items: center; }
+.ed-zone .row select { flex: 1; }
+.ed-npcs { width: 100%; display: grid; gap: 4px; font-size: 12px; }
+.ed-npcs .row span { flex: 1; }
+.ed-foot { display: flex; gap: 6px; padding: 10px 14px; border-top: 1px solid var(--line); }
+.ed-foot .primary { margin-left: auto; }
+#editor .sp-hint { padding: 0 14px 6px; width: 100%; }
+.sp-btn.danger { color: #f0a0a0; border-color: rgba(240,110,110,0.4); }
 /* editor de avatar: botão aleatório */
 .avatar-random { justify-self: start; background: rgba(255,255,255,0.08); border: 1px solid var(--line); color: var(--ink); border-radius: 8px; padding: 6px 10px; font-size: 12px; cursor: pointer; margin-top: 4px; }
 .avatar-random:hover { background: rgba(255,255,255,0.16); }

@@ -4,7 +4,15 @@ Ambiente 2D próprio da comunidade. Híbrido entre Gather e Discord: um mapa ond
 
 Documentação completa em [`docs/`](docs/README.md) (arquitetura, dados, segurança, infraestrutura, operação, desenvolvimento, changelog). Contexto operacional em [`CLAUDE.md`](CLAUDE.md).
 
-## O que já funciona (v0.17)
+## O que já funciona (v0.18)
+
+- **Editor do espaço dentro do app** (admin, botão de lápis no rodapé): a câmera fica livre, o mapa vira uma prancheta. Paleta com **móveis** (mesas de trabalho com cadeira, mesas de reunião com cadeiras em volta, sofás, balcões, bancos, estantes, cafeteira, bebedouro, postes), **decoração** dos packs (plantas, tapetes, estantes, caixotes, barris, arbustos, pedras), **árvores** animadas e fogueira, **objetos** (quadro, mural, telão, link, caixa de som, ponto de entrada) e **gente parada**. Clica na peça, clica no mapa; arrasta pra mover; Delete apaga; Ctrl+Z desfaz; duplicar; propriedades (tamanho, nome, link, texto). Aba **Salas** troca nome, tipo (proximidade, reunião, palco, silêncio) e piso; aba **Bichos** escolhe quais animais andam em cada sala
+- **O que você vê é o que sai**: enquanto edita, o app esconde os móveis atuais e desenha o layout ao vivo com os mesmos tiles e sprites do jogo
+- **Salvar e aplicar**: o servidor confere se todo lugar continua alcançável a pé (avisa se uma sala ou objeto ficou sem acesso), gera o mapa e recarrega pra todo mundo em segundos, sem deploy. "Padrão" volta pro espaço original
+- Por baixo: o mapa passou a ser gerado no servidor a partir de um layout em JSON (`server/src/mapgen.js`, porte do script Python). O `tools/build-map.py` continua funcionando, mas a fonte agora é `server/src/layout-default.json`
+- Próxima versão do editor: desenhar salas novas, paredes e portas, e pintar o piso
+
+## v0.17
 
 - **Rádio que não reseta**: a caixa de som parou de recarregar o vídeo a cada atualização e de "corrigir" transmissões ao vivo (que não têm posição pra sincronizar). A sincronia usa o relógio do servidor, só corrige desvio acima de 4 s e no máximo uma vez a cada 20 s; entrar na sala com música tocando só ressincroniza, não reinicia
 - **Fila na caixa de som**: com música tocando, o que você escolhe entra na fila (até 20). Quem colocou a atual, ou a equipe, pode "tocar agora", pular e tirar itens da fila. Quando o vídeo acaba, a próxima entra sozinha

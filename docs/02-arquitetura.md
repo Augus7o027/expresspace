@@ -63,6 +63,7 @@ Módulos do espaço:
 | `spatial.js` | grafo Web Audio: ganho e pan por distância pra voz e emissores de som ambiente sintetizados |
 | `speaker.js` | player YouTube (IFrame API) sincronizado pelo `startedAt` do servidor, volume por distância |
 | `tiles.js` | janelas de vídeo arrastáveis e redimensionáveis |
+| `editor.js` | editor do espaço: paleta, colocar/mover/apagar, propriedades, salas e bichos, salvar layout; redesenha o layout na cena enquanto edita |
 | `settings.js`, `push.js`, `tour.js`, `mobile.js`, `sounds.js`, `icons.js`, `md.js` | configurações de dispositivos, assinatura push, tour, joystick e gavetas, sons sintetizados, ícones SVG, markdown seguro |
 
 ## Servidor
@@ -72,6 +73,7 @@ Módulos do espaço:
 | `index.js` | Express + Socket.io: middlewares de segurança, rotas REST, handlers de socket, relógio da agenda, scheduler dos agentes |
 | `world.js` | estado dos jogadores e NPCs, grid de colisão, zonas, cálculo dos grupos de voz |
 | `map.js` | lê o Tiled (`sede.json`), extrai zonas, objetos, decoração, NPCs, paredes |
+| `mapgen.js` | gera o Tiled a partir do layout (zonas, paredes, pisos, móveis, props, objetos, NPCs), normaliza o layout vindo do editor, checa alcançabilidade; `layout-default.json` é o espaço padrão |
 | `auth.js` | contas (scrypt), sessões por cookie assinado (HMAC), cargos, versão de sessão |
 | `security.js` | cabeçalhos, rate limit, checagem de origem, validadores, bloqueio de SSRF |
 | `library.js` | conteúdos, progresso, uploads em disco |
@@ -134,6 +136,7 @@ Servidor → cliente: `state` (12×/s, snapshot dos jogadores), `npcs`, `voice:g
 | `GET/POST/DELETE /api/admin/providers`, `POST /api/admin/providers/:id/test` | admin | provedores LLM |
 | `GET/POST/DELETE /api/admin/agents`, `POST …/test`, `POST …/run-schedule` | admin | agentes |
 | `PUT /api/admin/world`, `POST /api/admin/map` | admin | trancas, posições, bichos; mapa do Tiled (8 MB) |
+| `GET /api/admin/layout`, `POST /api/admin/layout/check`, `PUT /api/admin/layout`, `POST /api/admin/layout/reset` | admin | editor do espaço: layout atual + catálogo; prévia com alcançabilidade; salvar (409 se algo ficou sem acesso, `force` passa); voltar ao padrão |
 | `POST /api/live/webhook` | LiveKit (assinatura JWT) | `egress_ended` → cria a aula na biblioteca |
 
 Todas as rotas de escrita passam por rate limit geral (600/min por IP), checagem de origem (CSRF) e limite de corpo (1 MB, salvo mapa e uploads).

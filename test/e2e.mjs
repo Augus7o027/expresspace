@@ -38,8 +38,10 @@ console.log("conta criada:", users.email);
 
 setTimeout(() => { console.log("TIMEOUT global"); process.exit(2); }, 420000);
 const browser = await chromium.launch({ executablePath: "/opt/pw-browsers/chromium", args: ["--use-fake-ui-for-media-stream", "--use-fake-device-for-media-stream"] });
-const ctxA = await browser.newContext({ viewport: { width: 1440, height: 900 }, permissions: ["microphone", "camera"] });
-const ctxB = await browser.newContext({ viewport: { width: 1440, height: 900 }, permissions: ["microphone", "camera"] });
+// fontes externas e telemetria do Chrome fora: sem isso a rede instável de CI atrasa cada recarga em dezenas de segundos
+const newCtx = async (opts) => { const c = await browser.newContext(opts); await c.route(/fonts\.(googleapis|gstatic)\.com|googleapis\.com|google\.com|gstatic\.com|openrelay\.metered\.ca/, (r) => r.abort()); return c; };
+const ctxA = await newCtx({ viewport: { width: 1440, height: 900 }, permissions: ["microphone", "camera"] });
+const ctxB = await newCtx({ viewport: { width: 1440, height: 900 }, permissions: ["microphone", "camera"] });
 const A = await ctxA.newPage(), B = await ctxB.newPage();
 const errors = [];
 const csp = [];
@@ -149,7 +151,7 @@ console.log("quadro:", board);
 
 // v0.14: tour de primeira vez (página própria) + configurações + service worker
 {
-  const ctxT = await browser.newContext({ viewport: { width: 1440, height: 900 }, permissions: ["microphone"] });
+  const ctxT = await newCtx({ viewport: { width: 1440, height: 900 }, permissions: ["microphone"] });
   const T = await ctxT.newPage(); await T.goto(base + "/?name=Tati&auto=1&canvas=1", { waitUntil: "domcontentloaded" });
   await T.waitForSelector("#app:not(.hidden)"); await T.waitForSelector("#tour:not(.hidden)", { timeout: 15000 });
   console.log("tour passo 1:", await T.textContent("#tour-step"), "|", await T.textContent("#tour-title"), "| loading escondido:", await T.evaluate(() => document.querySelector("#loading").classList.contains("hidden")));
@@ -247,14 +249,39 @@ console.log("admin editou telão:", oset?.url, oset?.label, "| erro:", oset?.err
 await A.waitForTimeout(500);
 console.log("A viu novo link do telão:", await A.evaluate(() => { const o = window.__sede.state.map.objects.find((x) => x.id === "telao"); return o.url + " / " + o.label; }));
 console.log("link persistido no mapa do servidor:", (await (await fetch(base + "/api/map")).json()).objects.find((o) => o.id === "telao").label);
+// v0.18: editor do espaço — admin coloca um sofá e uma caixa de som, salva, todo mundo recarrega com o mapa novo
+await W.click("#btn-editor"); await W.waitForTimeout(1500);
+console.log("editor:", await W.evaluate(() => !document.querySelector("#editor").classList.contains("hidden") && window.__sede.scene.editMode), "| paleta:", await W.$$eval(".ed-item", (e) => e.length), "| status:", await W.textContent(".ed-status"));
+await W.click(".ed-item[title='sofá']");
+const ept = await W.evaluate(() => { const s = window.__sede.scene, cam = s.cameras.main; const wx = (Math.floor(s.pos.x) + 2) * 32 + 16, wy = Math.floor(s.pos.y) * 32 + 16; const r = document.querySelector("#game canvas").getBoundingClientRect(); return { x: r.left + (wx - cam.worldView.x) * cam.zoom, y: r.top + (wy - cam.worldView.y) * cam.zoom }; });
+await W.mouse.click(ept.x, ept.y); await W.waitForTimeout(300);
+await W.click(".ed-tabs button:nth-child(4)"); await W.click(".ed-item[title='caixa de som']"); await W.mouse.click(ept.x + 128, ept.y); await W.waitForTimeout(300);
+console.log("editor depois de colocar:", await W.textContent(".ed-status"));
+await W.screenshot({ path: "test/shots/22-editor.png" });
+const objsBefore = (await (await fetch(base + "/api/map")).json()).objects.length;
+W.once("dialog", (d) => d.accept());
+await W.click(".ed-foot .primary"); await W.waitForTimeout(4000);
+const mapAfter = await (await fetch(base + "/api/map")).json();
+await A.waitForSelector("#app:not(.hidden)", { timeout: 20000 }); await B.waitForSelector("#app:not(.hidden)", { timeout: 20000 }); await A.waitForTimeout(1500);
+console.log("layout salvo:", (await adminApi("GET", "/api/admin/layout")).saved, "| objetos no mapa:", objsBefore, "→", mapAfter.objects.length, "| A e B recarregaram e voltaram:", await A.evaluate(() => !document.querySelector("#app").classList.contains("hidden")), await B.evaluate(() => !document.querySelector("#app").classList.contains("hidden")));
+// o admin (W) também recarregou: entra de novo com a conta (o formulário só fica ativo depois que a sessão carrega)
+const ensureW = async () => {
+  if (await W.evaluate(() => !!window.__sede)) return;
+  await W.waitForSelector("#login:not(.hidden)", { timeout: 20000 }); await W.waitForFunction(() => !document.querySelector("#session-box").classList.contains("hidden"), null, { timeout: 15000 });
+  await W.click(".login-tabs .tab[data-login='account']"); await W.click("#account-form .btn-primary"); await W.waitForSelector("#app:not(.hidden)", { timeout: 20000 }); await W.waitForFunction(() => !!window.__sede, null, { timeout: 15000 });
+};
+await ensureW();
+console.log("admin de volta no espaço:", await W.evaluate(() => window.__sede.state.me.name));
+
 // v0.14: agenda — evento começando em 20s: lembrete + link no telão + aviso
 const ev = await adminApi("POST", "/api/admin/events", { title: "Aula ao vivo: funis", startsAt: new Date(Date.now() + 20000).toISOString(), durationMin: 30, url: "https://youtu.be/jfKfPfyJRdk", description: "teste" });
-await A.waitForTimeout(800);
+await A.waitForTimeout(1500);
 console.log("agenda na barra lateral:", await A.evaluate(() => document.querySelector("#events-box").classList.contains("hidden") ? "escondida" : document.querySelector("#events").textContent));
 await A.waitForTimeout(33000);
 console.log("evento começou → telão:", await A.evaluate(() => window.__sede.state.map.objects.find((x) => x.id === "telao").url), "| toast:", (await A.textContent("#toast")).slice(0, 60), "| ao vivo:", await A.evaluate(() => document.querySelector("#events li.live")?.textContent));
 console.log("estado do evento:", (await adminApi("GET", "/api/admin/events")).find((e) => e.id === ev.id)?.startedAt ? "iniciado" : "não iniciado");
 // v0.14: moderação — admin silencia e depois bane Bruno
+await ensureW();
 const mute = await W.evaluate((id) => new Promise((r) => window.__sede.net.emit("mod:action", { targetId: id, action: "mute", minutes: 5 }, r)), (await B.evaluate(() => window.__sede.state.me.id)));
 await B.waitForTimeout(500);
 console.log("silenciado:", mute?.ok, "| B mudo:", await B.evaluate(() => window.__sede.voice.muted), "| toast B:", (await B.textContent("#toast")).slice(0, 50));
@@ -285,7 +312,7 @@ const memberLogin = await fetch(base + "/api/auth/login", { method: "POST", head
 const memberCookie = memberLogin.headers.get("set-cookie").split(";")[0];
 // arquivo sem login não abre
 console.log("arquivo sem login:", (await fetch(base + up.url)).status, "| com login:", (await fetch(base + up.url, { headers: { cookie } })).status);
-const ctxM = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+const ctxM = await newCtx({ viewport: { width: 1440, height: 900 } });
 const M = await ctxM.newPage(); await M.goto(base + "/membros", { waitUntil: "domcontentloaded" }); await M.waitForTimeout(600);
 await M.fill("#email", "membro@teste.com"); await M.fill("#password", "senha-forte-1"); await M.click("#login-form .btn-primary"); await M.waitForSelector("#app:not(.hidden)"); await M.waitForTimeout(600);
 const titles = await M.$$eval(".card-item h3", (els) => els.map((e) => e.textContent));
@@ -301,7 +328,7 @@ console.log("progresso:", (await M.textContent(".prog-num")).replace(/\s+/g, " "
 await M.close();
 // professor entra no painel só com conteúdos
 await adminApi("POST", "/api/admin/users", { email: "prof@teste.com", name: "Prof", password: "senha-forte-1", role: "professor" });
-const ctxP = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+const ctxP = await newCtx({ viewport: { width: 1440, height: 900 } });
 const PR = await ctxP.newPage(); await PR.goto(base + "/admin", { waitUntil: "domcontentloaded" }); await PR.waitForTimeout(500);
 await PR.fill("#email", "prof@teste.com"); await PR.fill("#password", "senha-forte-1"); await PR.click("#login-form .btn-primary"); await PR.waitForTimeout(1000);
 console.log("professor no painel, abas visíveis:", await PR.$$eval("#tabs button:not(.hidden)", (b) => b.map((x) => x.textContent).join(",")), "| conteúdos listados:", await PR.$$eval("#tab-content .item", (i) => i.length));
@@ -342,7 +369,7 @@ await PR.close();
     const app2 = spawn("node", ["server/src/index.js"], { env: { ...process.env, PORT: "3101", DATA_DIR: "/tmp/sede-e2e-lk", SESSION_SECRET: "x", LIVEKIT_URL: "ws://127.0.0.1:7890", LIVEKIT_API_KEY: "devkey", LIVEKIT_API_SECRET: "secret" }, stdio: "ignore" });
     await new Promise((r) => setTimeout(r, 3500));
     const b2 = "http://localhost:3101";
-    const mk = async (name) => { const c = await browser.newContext({ viewport: { width: 1200, height: 800 }, permissions: ["microphone", "camera"] }); const p = await c.newPage(); p.on("pageerror", (e) => errors.push("livekit " + e.message)); await p.goto(b2 + `/?name=${name}&auto=1&canvas=1&notour=1`, { waitUntil: "domcontentloaded" }); await p.waitForSelector("#app:not(.hidden)"); return p; };
+    const mk = async (name) => { const c = await newCtx({ viewport: { width: 1200, height: 800 }, permissions: ["microphone", "camera"] }); const p = await c.newPage(); p.on("pageerror", (e) => errors.push("livekit " + e.message)); await p.goto(b2 + `/?name=${name}&auto=1&canvas=1&notour=1`, { waitUntil: "domcontentloaded" }); await p.waitForSelector("#app:not(.hidden)"); return p; };
     const LA = await mk("Lia"), LB = await mk("Leo"); await LA.waitForTimeout(4000);
     const st = (p) => p.evaluate(() => { const v = window.__sede.voice; return `${v.live ? "livekit" : "malha"} sala=${v.roomName} estado=${v.room?.state} peers=${v.connectedCount()} mic=${!!v.pubs?.mic} audioRemoto=${v.remoteAudio?.size}`; });
     console.log("livekit spawn A:", await st(LA), "| hud:", await LA.textContent("#hud-voice"));

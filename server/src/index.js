@@ -13,6 +13,7 @@ import { agentsRepo, runAgent, startScheduler, chatCompletion, TOOL_NAMES } from
 import { parseYouTube, videoInfo, searchYouTube, refineQuery, speakersRepo } from "./speaker.js";
 import { notifyRepo } from "./notify.js";
 import { securityHeaders, rateLimiter, socketLimiter, originCheck, v } from "./security.js";
+import { generate as generateMap, normalizeLayout, catalog as mapCatalog, reachability, DEFAULT_LAYOUT } from "./mapgen.js";
 import { liveEnabled, recordingEnabled, liveInfo, roomFor, tokenFor, setCanPublish, kick as liveKick, startRecording, stopRecording, parseWebhook } from "./live.js";
 import { eventsRepo, startEventClock, REMIND_MIN } from "./events.js";
 import { libraryRepo, saveUpload, uploadPath, removeUpload, embedUrl, TYPES, TYPE_LABEL } from "./library.js";
@@ -45,7 +46,15 @@ const getSettings = async () => ({ ...DEFAULT_SETTINGS, ...(await store.getDoc("
 const getOverrides = async () => (await store.getDoc("world", "overrides")) || { locked: [], objects: {}, decor: {}, npcs: null };
 
 const world = new World();
-world.setMap(WORLD, await getOverrides());
+// layout salvo pelo editor do espaço tem prioridade: gera o Tiled e grava onde /maps/sede.json é servido
+const applyLayout = async (layout) => {
+  const tiled = generateMap(layout);
+  mkdirSync(path.dirname(UPLOADED_MAP), { recursive: true });
+  writeFileSync(UPLOADED_MAP, JSON.stringify(tiled));
+  return parseTiled(tiled, "sede.json");
+};
+const savedLayout = await store.getDoc("world", "layout");
+world.setMap(savedLayout ? await applyLayout(savedLayout) : WORLD, await getOverrides());
 world.setAgents(await agents.list());
 
 const app = express();
@@ -183,6 +192,40 @@ app.put("/api/admin/world", admin, wrap(async (req, res) => {
   world.setAgents(await agents.list());
   io.to("world").emit("world:changed", { locked: [...world.locked], reload: !!(b.objects || b.decor) });
   res.json({ ok: true, locked: [...world.locked] });
+}));
+// ---------- editor do espaço ----------
+app.get("/api/admin/layout", admin, wrap(async (_req, res) => {
+  const cur = await store.getDoc("world", "layout");
+  res.json({ layout: normalizeLayout(cur || DEFAULT_LAYOUT), saved: !!cur, catalog: mapCatalog() });
+}));
+// prévia: só valida e devolve alcançabilidade, sem salvar
+app.post("/api/admin/layout/check", admin, express.json({ limit: "4mb" }), wrap(async (req, res) => {
+  const layout = normalizeLayout(req.body?.layout);
+  const parsed = parseTiled(generateMap(layout), "sede.json");
+  const w = new World(); w.setMap(parsed, {});
+  res.json({ layout, reach: reachability(w.map) });
+}));
+app.put("/api/admin/layout", admin, express.json({ limit: "4mb" }), wrap(async (req, res) => {
+  const layout = normalizeLayout(req.body?.layout);
+  if (!layout.zones.length) throw new Error("o espaço precisa de pelo menos uma sala");
+  const parsed = parseTiled(generateMap(layout), "sede.json");
+  const probe = new World(); probe.setMap(parsed, {});
+  const reach = reachability(probe.map);
+  if (!reach.ok && !req.body?.force) return res.status(409).json({ error: "tem lugar sem acesso", reach });
+  await store.putDoc("world", "layout", layout);
+  // posições antigas de objetos/decoração do painel "Mundo" deixam de valer (o layout agora manda); links editados ficam
+  const ov = await getOverrides(); ov.decor = {}; for (const [id, o] of Object.entries(ov.objects || {})) { delete o.x; delete o.y; if (!Object.keys(o).length) delete ov.objects[id]; }
+  await store.putDoc("world", "overrides", ov);
+  world.setMap(await applyLayout(layout), ov);
+  world.setAgents(await agents.list());
+  io.to("world").emit("world:changed", { reload: true });
+  res.json({ ok: true, reach, zones: parsed.zones.map((z) => z.id) });
+}));
+app.post("/api/admin/layout/reset", admin, wrap(async (_req, res) => {
+  await store.delDoc("world", "layout");
+  world.setMap(await applyLayout(DEFAULT_LAYOUT), await getOverrides()); world.setAgents(await agents.list());
+  io.to("world").emit("world:changed", { reload: true });
+  res.json({ ok: true });
 }));
 app.post("/api/admin/map", admin, express.json({ limit: "8mb" }), wrap(async (req, res) => {
   const t = req.body;

@@ -2,6 +2,13 @@
 
 Uma entrada por versão. O detalhe de cada feature está na seção correspondente do `README.md`.
 
+## v0.18 · editor do espaço
+
+- Editor WYSIWYG no app (admin): móveis, decoração, árvores, fogueira, objetos, ponto de entrada, gente parada; propriedades por item; salas (nome, tipo, piso) e bichos; desfazer; salvar com checagem de alcançabilidade; voltar ao padrão.
+- `server/src/mapgen.js` gera o Tiled a partir de um layout JSON (`world/layout` em docs); `layout-default.json` é a fonte do espaço padrão.
+- Rotas `GET/PUT /api/admin/layout`, `POST /api/admin/layout/check`, `POST /api/admin/layout/reset`.
+- Cena: modo editor (câmera livre, esconde o que é editável).
+
 ## v0.17 · rádio, fila e movimento
 
 - Caixa de som: sincronia pelo relógio do servidor, sem seek em transmissões ao vivo, recarga só quando a música muda, fila com pular/tirar/tocar agora, avanço automático ao terminar (`speaker:skip`, `speaker:remove`, `speaker:ended`).

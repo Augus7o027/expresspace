@@ -51,7 +51,11 @@ docs/
 
 ## Como adicionar
 
-**Um objeto interativo novo.** `tools/build-map.py` → `OBJECTS` (id, kind, posição, label) e o tile de móvel embaixo; regenerar o mapa; `main.js → openObject` trata o `kind`; se precisar de estado, handler no socket em `index.js` e coleção em `docs`.
+**Mudar o espaço padrão (posição de móveis, objetos, salas).** Editar `server/src/layout-default.json` (ou usar o editor no app e copiar o JSON de `GET /api/admin/layout`). `tools/build-map.py` ainda gera o `sede.json` do build a partir das mesmas constantes, mas a fonte de verdade é o layout.
+
+**Um tipo novo de objeto interativo.** `mapgen.js` → `OBJECT_KINDS` e o tile embaixo em `generate`; `editor.js` → `OBJ_DEFAULT` e `objectTiles`; `main.js → openObject` trata o `kind`; se precisar de estado, handler no socket em `index.js` e coleção em `docs`.
+
+**Um móvel novo feito de tiles.** Desenhar os tiles em `tools/build-tileset.py` (regenera `office.png/json`), compor em `mapgen.js → generate` e em `editor.js → furnitureTiles`, listar em `FURNITURE` com limites de tamanho.
 
 **Uma rota REST.** Em `index.js`, com o middleware certo (`admin`, `staff`, `member`), `wrap(async …)` pra erros virarem 400, validação com `v.*`. Documentar no catálogo em `02-arquitetura.md`.
 

@@ -27,6 +27,7 @@
 | `settings/main` | configurações | `communityName`, `allowGuests`, `allowRegister` |
 | `settings/vapid` | chaves Web Push | `publicKey`, `privateKey` (geradas na primeira subida se não vierem por env) |
 | `world/overrides` | ajustes do mapa | `locked[]`, `objects{id: {x, y, url, label}}`, `decor{}`, `npcs[]` |
+| `world/layout` | espaço personalizado no editor (prioridade sobre o mapa do build e sobre o Tiled enviado) | `zones[]`, `walls[]`, `paths[]`, `furniture[]`, `props[]`, `trees[]`, `fires[]`, `objects[]`, `npcs[]`, `staticNpcs[]`, `graffiti[]`, `lamps[]`, `spawn`, `width`, `height` |
 | `world/speakers` | caixas de som | `{id: {videoId, start, title, author, startedAt, by, byName}}` |
 | `providers` | provedor LLM | `name`, `baseUrl`, `apiKey`, `models[]` |
 | `agents` | agente | `name`, `role`, `systemPrompt`, `model`, `tools[]`, `rss[]`, `avatar`, `zone`, `x`, `y`, `schedule` |
@@ -51,7 +52,7 @@ Com `S3_*` configurado, o Egress grava `aulas/<sala>/<data>.mp4` no bucket. A au
 | Caminho | Conteúdo |
 |---|---|
 | `uploads/` | arquivos da biblioteca e avatares enviados. Nome = 8 hex aleatórios + slug + extensão; servidos em `/files/<nome>` só pra contas |
-| `sede.json` | mapa enviado pelo painel (tem prioridade sobre o do build) |
+| `maps/sede.json` | mapa em uso: gerado do layout salvo no editor, ou enviado pelo painel (Tiled). Tem prioridade sobre o do build |
 | `state.json` | estado inteiro no modo memória |
 
 O `DATA_DIR` precisa ser um volume persistente no Coolify. Sem isso, uploads e mapa somem a cada deploy.

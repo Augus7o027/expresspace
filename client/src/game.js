@@ -68,9 +68,11 @@ export class WorldScene extends Phaser.Scene {
     this.anims.create({ key: "fx:screen", frames: this.anims.generateFrameNumbers("fx:screen", { start: 0, end: 1 }), frameRate: 2, repeat: -1 });
     this.drawTilemap();
     for (const z of map.zones) if (z.id === "jardim" || z.id === "terraco") this.emitters.push({ kind: "garden", x: z.x + z.w / 2, y: z.y + z.h / 2 });
-    this.drawDecor();   // antes das zonas: os títulos procuram lugar livre e os props contam como ocupado
+    // o editor do espaço esconde e redesenha o que é editável (móveis, decoração, objetos): guardamos o que cada fase criou
+    const cap = (fn) => { const b = this.children.list.length; fn(); return this.children.list.slice(b); };
+    this.editable.decor = cap(() => this.drawDecor());   // antes das zonas: os títulos procuram lugar livre e os props contam como ocupado
     this.drawZones();
-    this.drawObjects();
+    this.editable.objects = cap(() => this.drawObjects());
     this.drawGraffiti();
     this.setupNpcAnims();
     this.npcs = new Map();
@@ -100,7 +102,7 @@ export class WorldScene extends Phaser.Scene {
 
     // clique no mapa: anda até lá (linha reta simples com colisão)
     this.input.on("pointerdown", (p) => {
-      if (this.frozen || p.event.target.tagName !== "CANVAS") return;
+      if (this.frozen || this.editMode || p.event.target.tagName !== "CANVAS") return;
       const w = this.cameras.main.getWorldPoint(p.x, p.y);
       this.clickTarget = { x: w.x / TILE, y: w.y / TILE };
     });
@@ -134,7 +136,8 @@ export class WorldScene extends Phaser.Scene {
       if (layer) layer.setDepth(0);
     }
     const furn = tm.createLayer("furniture", ts, 0, 0);
-    if (furn) { this.sortFurniture(furn, ts); furn.setVisible(false); }
+    this.editable ??= {};
+    if (furn) { const b = this.children.list.length; this.sortFurniture(furn, ts); this.editable.furn = this.children.list.slice(b); furn.setVisible(false); }
     this.tilemap = tm;
   }
 
@@ -479,11 +482,26 @@ export class WorldScene extends Phaser.Scene {
   }
 
   // --------- loop ---------
+  // ---------- modo editor: câmera livre, sem movimento do personagem ----------
+  setEditMode(on) {
+    this.editMode = on;
+    const cam = this.cameras.main;
+    if (on) { cam.stopFollow(); for (const list of Object.values(this.editable || {})) for (const o of list) o.setVisible?.(false); for (const r of this.npcs?.values() || []) { r.sprite?.setVisible(false); r.shadow?.setVisible(false); r.container?.tag?.setVisible(false); } }
+    else { cam.startFollow(this.player, true, 0.12, 0.12); for (const list of Object.values(this.editable || {})) for (const o of list) o.setVisible?.(true); for (const r of this.npcs?.values() || []) { r.sprite?.setVisible(true); r.shadow?.setVisible(true); r.container?.tag?.setVisible(true); } }
+  }
+  panBy(dx, dy) { const cam = this.cameras.main; cam.scrollX += dx / cam.zoom; cam.scrollY += dy / cam.zoom; }
+
   update(_t, dtMs) {
     const dt = Math.min(dtMs / 1000, 0.1);
     const k = this.keys;
     let dx = 0, dy = 0;
-    if (!this.frozen) {
+    if (this.editMode) {
+      // setas/WASD movem a câmera
+      const sp = 600 * dt; let cx = 0, cy = 0;
+      if (k.left.isDown || k.left2.isDown) cx -= sp; if (k.right.isDown || k.right2.isDown) cx += sp; if (k.up.isDown || k.up2.isDown) cy -= sp; if (k.down.isDown || k.down2.isDown) cy += sp;
+      if (cx || cy) this.panBy(cx, cy);
+      this.animate(this.player, this.dir, false, false);
+    } else if (!this.frozen) {
       if (k.left.isDown || k.left2.isDown) dx -= 1;
       if (k.right.isDown || k.right2.isDown) dx += 1;
       if (k.up.isDown || k.up2.isDown) dy -= 1;

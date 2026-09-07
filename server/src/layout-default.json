@@ -1,0 +1,1256 @@
+{
+ "name": "ExpresSpace",
+ "width": 58,
+ "height": 50,
+ "spawn": {
+  "x": 5,
+  "y": 6
+ },
+ "proximityRadius": 3.2,
+ "zones": [
+  {
+   "id": "recepcao",
+   "name": "Recepção",
+   "kind": "open",
+   "x": 1,
+   "y": 1,
+   "w": 12,
+   "h": 9,
+   "floor": "floor_marble"
+  },
+  {
+   "id": "openspace",
+   "name": "Open Space",
+   "kind": "open",
+   "x": 1,
+   "y": 11,
+   "w": 22,
+   "h": 14,
+   "floor": "floor_wood"
+  },
+  {
+   "id": "cafe",
+   "name": "Café",
+   "kind": "open",
+   "x": 1,
+   "y": 26,
+   "w": 12,
+   "h": 11,
+   "floor": "floor_tile"
+  },
+  {
+   "id": "lounge",
+   "name": "Lounge",
+   "kind": "open",
+   "x": 14,
+   "y": 26,
+   "w": 9,
+   "h": 11,
+   "floor": "floor_wood2"
+  },
+  {
+   "id": "foco",
+   "name": "Foco",
+   "kind": "silent",
+   "x": 14,
+   "y": 1,
+   "w": 9,
+   "h": 9,
+   "floor": "floor_carpet2"
+  },
+  {
+   "id": "reuniao-1",
+   "name": "Reunião 1",
+   "kind": "meeting",
+   "x": 24,
+   "y": 1,
+   "w": 10,
+   "h": 8,
+   "floor": "floor_carpet"
+  },
+  {
+   "id": "reuniao-2",
+   "name": "Reunião 2",
+   "kind": "meeting",
+   "x": 35,
+   "y": 1,
+   "w": 10,
+   "h": 8,
+   "floor": "floor_carpet"
+  },
+  {
+   "id": "diretoria",
+   "name": "Diretoria",
+   "kind": "meeting",
+   "x": 46,
+   "y": 1,
+   "w": 11,
+   "h": 8,
+   "floor": "floor_carpet"
+  },
+  {
+   "id": "auditorio",
+   "name": "Auditório",
+   "kind": "stage",
+   "x": 24,
+   "y": 10,
+   "w": 33,
+   "h": 14,
+   "floor": "floor_concrete",
+   "stage": {
+    "x": 26,
+    "y": 11,
+    "w": 29,
+    "h": 2
+   }
+  },
+  {
+   "id": "reuniao-3",
+   "name": "Reunião 3",
+   "kind": "meeting",
+   "x": 24,
+   "y": 25,
+   "w": 10,
+   "h": 12,
+   "floor": "floor_carpet"
+  },
+  {
+   "id": "terraco",
+   "name": "Terraço",
+   "kind": "open",
+   "x": 35,
+   "y": 25,
+   "w": 22,
+   "h": 12,
+   "floor": "floor_deck"
+  },
+  {
+   "id": "jardim",
+   "name": "Jardim",
+   "kind": "open",
+   "x": 1,
+   "y": 38,
+   "w": 56,
+   "h": 11,
+   "floor": "grass"
+  }
+ ],
+ "walls": [
+  {
+   "x": 13,
+   "y": 0,
+   "w": 1,
+   "h": 11,
+   "door": false
+  },
+  {
+   "x": 13,
+   "y": 4,
+   "w": 1,
+   "h": 2,
+   "door": true
+  },
+  {
+   "x": 0,
+   "y": 10,
+   "w": 24,
+   "h": 1,
+   "door": false
+  },
+  {
+   "x": 5,
+   "y": 10,
+   "w": 2,
+   "h": 1,
+   "door": true
+  },
+  {
+   "x": 17,
+   "y": 10,
+   "w": 2,
+   "h": 1,
+   "door": true
+  },
+  {
+   "x": 23,
+   "y": 0,
+   "w": 1,
+   "h": 38,
+   "door": false
+  },
+  {
+   "x": 23,
+   "y": 5,
+   "w": 1,
+   "h": 2,
+   "door": true
+  },
+  {
+   "x": 23,
+   "y": 16,
+   "w": 1,
+   "h": 3,
+   "door": true
+  },
+  {
+   "x": 23,
+   "y": 30,
+   "w": 1,
+   "h": 2,
+   "door": true
+  },
+  {
+   "x": 34,
+   "y": 0,
+   "w": 1,
+   "h": 10,
+   "door": false
+  },
+  {
+   "x": 45,
+   "y": 0,
+   "w": 1,
+   "h": 10,
+   "door": false
+  },
+  {
+   "x": 24,
+   "y": 9,
+   "w": 34,
+   "h": 1,
+   "door": false
+  },
+  {
+   "x": 28,
+   "y": 9,
+   "w": 2,
+   "h": 1,
+   "door": true
+  },
+  {
+   "x": 39,
+   "y": 9,
+   "w": 2,
+   "h": 1,
+   "door": true
+  },
+  {
+   "x": 50,
+   "y": 9,
+   "w": 2,
+   "h": 1,
+   "door": true
+  },
+  {
+   "x": 24,
+   "y": 24,
+   "w": 34,
+   "h": 1,
+   "door": false
+  },
+  {
+   "x": 28,
+   "y": 24,
+   "w": 2,
+   "h": 1,
+   "door": true
+  },
+  {
+   "x": 44,
+   "y": 24,
+   "w": 3,
+   "h": 1,
+   "door": true
+  },
+  {
+   "x": 34,
+   "y": 25,
+   "w": 1,
+   "h": 13,
+   "door": false
+  },
+  {
+   "x": 34,
+   "y": 30,
+   "w": 1,
+   "h": 2,
+   "door": true
+  },
+  {
+   "x": 0,
+   "y": 25,
+   "w": 24,
+   "h": 1,
+   "door": false
+  },
+  {
+   "x": 5,
+   "y": 25,
+   "w": 2,
+   "h": 1,
+   "door": true
+  },
+  {
+   "x": 17,
+   "y": 25,
+   "w": 2,
+   "h": 1,
+   "door": true
+  },
+  {
+   "x": 13,
+   "y": 26,
+   "w": 1,
+   "h": 12,
+   "door": false
+  },
+  {
+   "x": 13,
+   "y": 31,
+   "w": 1,
+   "h": 2,
+   "door": true
+  },
+  {
+   "x": 0,
+   "y": 37,
+   "w": 58,
+   "h": 1,
+   "door": false
+  },
+  {
+   "x": 6,
+   "y": 37,
+   "w": 2,
+   "h": 1,
+   "door": true
+  },
+  {
+   "x": 18,
+   "y": 37,
+   "w": 2,
+   "h": 1,
+   "door": true
+  },
+  {
+   "x": 45,
+   "y": 37,
+   "w": 2,
+   "h": 1,
+   "door": true
+  },
+  {
+   "x": 0,
+   "y": 0,
+   "w": 58,
+   "h": 1,
+   "door": false
+  },
+  {
+   "x": 0,
+   "y": 0,
+   "w": 1,
+   "h": 38,
+   "door": false
+  },
+  {
+   "x": 57,
+   "y": 0,
+   "w": 1,
+   "h": 38,
+   "door": false
+  }
+ ],
+ "paths": [
+  {
+   "x": 6,
+   "y": 38,
+   "w": 2,
+   "h": 12
+  },
+  {
+   "x": 18,
+   "y": 38,
+   "w": 2,
+   "h": 12
+  },
+  {
+   "x": 45,
+   "y": 38,
+   "w": 2,
+   "h": 12
+  },
+  {
+   "x": 6,
+   "y": 43,
+   "w": 41,
+   "h": 2
+  }
+ ],
+ "furniture": [
+  {
+   "kind": "sofa",
+   "x": 8,
+   "y": 7,
+   "w": 3,
+   "h": 1
+  },
+  {
+   "kind": "cooler",
+   "x": 1,
+   "y": 8,
+   "w": 1,
+   "h": 1
+  },
+  {
+   "kind": "desk",
+   "x": 15,
+   "y": 3,
+   "w": 2,
+   "h": 1
+  },
+  {
+   "kind": "desk",
+   "x": 19,
+   "y": 3,
+   "w": 2,
+   "h": 1
+  },
+  {
+   "kind": "desk",
+   "x": 15,
+   "y": 6,
+   "w": 2,
+   "h": 1
+  },
+  {
+   "kind": "desk",
+   "x": 19,
+   "y": 6,
+   "w": 2,
+   "h": 1
+  },
+  {
+   "kind": "bookshelf",
+   "x": 14,
+   "y": 2,
+   "w": 1,
+   "h": 1
+  },
+  {
+   "kind": "desk",
+   "x": 3,
+   "y": 13,
+   "w": 3,
+   "h": 1
+  },
+  {
+   "kind": "desk",
+   "x": 3,
+   "y": 15,
+   "w": 3,
+   "h": 1
+  },
+  {
+   "kind": "desk",
+   "x": 9,
+   "y": 13,
+   "w": 3,
+   "h": 1
+  },
+  {
+   "kind": "desk",
+   "x": 9,
+   "y": 15,
+   "w": 3,
+   "h": 1
+  },
+  {
+   "kind": "desk",
+   "x": 15,
+   "y": 13,
+   "w": 3,
+   "h": 1
+  },
+  {
+   "kind": "desk",
+   "x": 15,
+   "y": 15,
+   "w": 3,
+   "h": 1
+  },
+  {
+   "kind": "desk",
+   "x": 3,
+   "y": 19,
+   "w": 3,
+   "h": 1
+  },
+  {
+   "kind": "desk",
+   "x": 3,
+   "y": 21,
+   "w": 3,
+   "h": 1
+  },
+  {
+   "kind": "desk",
+   "x": 9,
+   "y": 19,
+   "w": 3,
+   "h": 1
+  },
+  {
+   "kind": "desk",
+   "x": 9,
+   "y": 21,
+   "w": 3,
+   "h": 1
+  },
+  {
+   "kind": "desk",
+   "x": 15,
+   "y": 19,
+   "w": 3,
+   "h": 1
+  },
+  {
+   "kind": "desk",
+   "x": 15,
+   "y": 21,
+   "w": 3,
+   "h": 1
+  },
+  {
+   "kind": "cooler",
+   "x": 21,
+   "y": 23,
+   "w": 1,
+   "h": 1
+  },
+  {
+   "kind": "coffee",
+   "x": 8,
+   "y": 27,
+   "w": 1,
+   "h": 1
+  },
+  {
+   "kind": "sofa",
+   "x": 15,
+   "y": 28,
+   "w": 3,
+   "h": 1
+  },
+  {
+   "kind": "sofa",
+   "x": 19,
+   "y": 28,
+   "w": 3,
+   "h": 1
+  },
+  {
+   "kind": "sofa",
+   "x": 15,
+   "y": 33,
+   "w": 3,
+   "h": 1
+  },
+  {
+   "kind": "sofa",
+   "x": 19,
+   "y": 33,
+   "w": 3,
+   "h": 1
+  },
+  {
+   "kind": "table",
+   "x": 26,
+   "y": 3,
+   "w": 6,
+   "h": 2
+  },
+  {
+   "kind": "table",
+   "x": 37,
+   "y": 3,
+   "w": 6,
+   "h": 2
+  },
+  {
+   "kind": "table",
+   "x": 48,
+   "y": 3,
+   "w": 7,
+   "h": 2
+  },
+  {
+   "kind": "bookshelf",
+   "x": 56,
+   "y": 2,
+   "w": 1,
+   "h": 1
+  },
+  {
+   "kind": "table",
+   "x": 27,
+   "y": 29,
+   "w": 4,
+   "h": 3
+  },
+  {
+   "kind": "bench",
+   "x": 27,
+   "y": 16,
+   "w": 10,
+   "h": 1
+  },
+  {
+   "kind": "bench",
+   "x": 42,
+   "y": 16,
+   "w": 10,
+   "h": 1
+  },
+  {
+   "kind": "bench",
+   "x": 27,
+   "y": 19,
+   "w": 10,
+   "h": 1
+  },
+  {
+   "kind": "bench",
+   "x": 42,
+   "y": 19,
+   "w": 10,
+   "h": 1
+  },
+  {
+   "kind": "table",
+   "x": 42,
+   "y": 29,
+   "w": 2,
+   "h": 2
+  },
+  {
+   "kind": "table",
+   "x": 48,
+   "y": 29,
+   "w": 2,
+   "h": 2
+  },
+  {
+   "kind": "sofa",
+   "x": 42,
+   "y": 33,
+   "w": 3,
+   "h": 1
+  },
+  {
+   "kind": "sofa",
+   "x": 47,
+   "y": 33,
+   "w": 3,
+   "h": 1
+  },
+  {
+   "kind": "bench_park",
+   "x": 10,
+   "y": 42,
+   "w": 2,
+   "h": 1
+  },
+  {
+   "kind": "bench_park",
+   "x": 30,
+   "y": 42,
+   "w": 2,
+   "h": 1
+  },
+  {
+   "kind": "bench_park",
+   "x": 46,
+   "y": 42,
+   "w": 2,
+   "h": 1
+  },
+  {
+   "kind": "bench_park",
+   "x": 20,
+   "y": 46,
+   "w": 2,
+   "h": 1
+  },
+  {
+   "kind": "lamp_post",
+   "x": 5,
+   "y": 40,
+   "w": 1,
+   "h": 1
+  },
+  {
+   "kind": "lamp_post",
+   "x": 52,
+   "y": 40,
+   "w": 1,
+   "h": 1
+  },
+  {
+   "kind": "lamp_post",
+   "x": 28,
+   "y": 47,
+   "w": 1,
+   "h": 1
+  }
+ ],
+ "props": [
+  {
+   "sprite": "counter_plain",
+   "x": 3,
+   "y": 2
+  },
+  {
+   "sprite": "planter",
+   "x": 1,
+   "y": 2
+  },
+  {
+   "sprite": "rug_blue",
+   "x": 5,
+   "y": 5
+  },
+  {
+   "sprite": "lantern",
+   "x": 11,
+   "y": 4
+  },
+  {
+   "sprite": "plant_pot2",
+   "x": 12,
+   "y": 2
+  },
+  {
+   "sprite": "bookshelf",
+   "x": 8,
+   "y": 10
+  },
+  {
+   "sprite": "planter2",
+   "x": 20,
+   "y": 12
+  },
+  {
+   "sprite": "rug_red",
+   "x": 7,
+   "y": 16
+  },
+  {
+   "sprite": "shelf_items",
+   "x": 18,
+   "y": 12
+  },
+  {
+   "sprite": "plant_pot",
+   "x": 1,
+   "y": 22
+  },
+  {
+   "sprite": "herbs",
+   "x": 1,
+   "y": 11
+  },
+  {
+   "sprite": "plant_pot",
+   "x": 21,
+   "y": 7
+  },
+  {
+   "sprite": "shelf_empty",
+   "x": 14,
+   "y": 6
+  },
+  {
+   "sprite": "plant_pot2",
+   "x": 33,
+   "y": 1
+  },
+  {
+   "sprite": "plant_pot",
+   "x": 44,
+   "y": 1
+  },
+  {
+   "sprite": "table_wood",
+   "x": 46,
+   "y": 6
+  },
+  {
+   "sprite": "shelf_glass2",
+   "x": 55,
+   "y": 5
+  },
+  {
+   "sprite": "plant_pot",
+   "x": 25,
+   "y": 21
+  },
+  {
+   "sprite": "plant_pot",
+   "x": 55,
+   "y": 21
+  },
+  {
+   "sprite": "counter_vases",
+   "x": 2,
+   "y": 26
+  },
+  {
+   "sprite": "shelf_glass",
+   "x": 9,
+   "y": 26
+  },
+  {
+   "sprite": "table_round_set",
+   "x": 2,
+   "y": 29
+  },
+  {
+   "sprite": "table_round_set",
+   "x": 7,
+   "y": 29
+  },
+  {
+   "sprite": "table_small",
+   "x": 3,
+   "y": 34
+  },
+  {
+   "sprite": "table_small",
+   "x": 8,
+   "y": 34
+  },
+  {
+   "sprite": "barrel",
+   "x": 12,
+   "y": 34
+  },
+  {
+   "sprite": "rug_red_round",
+   "x": 17,
+   "y": 29
+  },
+  {
+   "sprite": "table_small",
+   "x": 17,
+   "y": 30
+  },
+  {
+   "sprite": "bookshelf",
+   "x": 21,
+   "y": 30
+  },
+  {
+   "sprite": "art_dragon",
+   "x": 16,
+   "y": 25
+  },
+  {
+   "sprite": "herbs",
+   "x": 14,
+   "y": 26
+  },
+  {
+   "sprite": "plant_pot2",
+   "x": 14,
+   "y": 34
+  },
+  {
+   "sprite": "art_tulip",
+   "x": 31,
+   "y": 25
+  },
+  {
+   "sprite": "plant_pot",
+   "x": 33,
+   "y": 34
+  },
+  {
+   "sprite": "crate_big",
+   "x": 55,
+   "y": 34
+  },
+  {
+   "sprite": "bush_round",
+   "x": 37,
+   "y": 33
+  },
+  {
+   "sprite": "rocks",
+   "x": 50,
+   "y": 35
+  },
+  {
+   "sprite": "stump",
+   "x": 40,
+   "y": 35
+  },
+  {
+   "sprite": "barrel2",
+   "x": 36,
+   "y": 26
+  },
+  {
+   "sprite": "bush_big",
+   "x": 17,
+   "y": 44
+  },
+  {
+   "sprite": "bush_round",
+   "x": 40,
+   "y": 40
+  },
+  {
+   "sprite": "rocks",
+   "x": 10,
+   "y": 47
+  },
+  {
+   "sprite": "rocks",
+   "x": 33,
+   "y": 41
+  },
+  {
+   "sprite": "stump",
+   "x": 20,
+   "y": 41
+  },
+  {
+   "sprite": "bush_round",
+   "x": 53,
+   "y": 45
+  }
+ ],
+ "trees": [
+  {
+   "sprite": "apple_m",
+   "x": 35,
+   "y": 26
+  },
+  {
+   "sprite": "oak_s",
+   "x": 52,
+   "y": 31
+  },
+  {
+   "sprite": "green_m",
+   "x": 50,
+   "y": 25
+  },
+  {
+   "sprite": "green_l",
+   "x": 2,
+   "y": 38
+  },
+  {
+   "sprite": "apple_l",
+   "x": 12,
+   "y": 39
+  },
+  {
+   "sprite": "oak_l",
+   "x": 24,
+   "y": 38
+  },
+  {
+   "sprite": "green_l",
+   "x": 36,
+   "y": 39
+  },
+  {
+   "sprite": "apple_m",
+   "x": 50,
+   "y": 38
+  },
+  {
+   "sprite": "oak_m",
+   "x": 8,
+   "y": 44
+  },
+  {
+   "sprite": "green_s",
+   "x": 30,
+   "y": 44
+  },
+  {
+   "sprite": "oak_s",
+   "x": 44,
+   "y": 44
+  }
+ ],
+ "fires": [
+  {
+   "x": 44,
+   "y": 26
+  }
+ ],
+ "objects": [
+  {
+   "id": "mural",
+   "kind": "info",
+   "x": 9,
+   "y": 2,
+   "w": 3,
+   "h": 1,
+   "label": "Mural",
+   "text": "Bem-vindo ao ExpresSpace.\n\nAnde com WASD ou setas. Chegue perto de alguém para conversar por voz. Entre numa sala de reunião para cair na call dela. Aperte E perto de objetos como este.\n\nCanais de texto e voz ficam na barra da esquerda. M liga e desliga o microfone."
+  },
+  {
+   "id": "quadro-open",
+   "kind": "board",
+   "x": 20,
+   "y": 17,
+   "w": 1,
+   "h": 2,
+   "label": "Quadro do time"
+  },
+  {
+   "id": "quadro-r1",
+   "kind": "board",
+   "x": 24,
+   "y": 2,
+   "w": 1,
+   "h": 2,
+   "label": "Quadro"
+  },
+  {
+   "id": "quadro-r2",
+   "kind": "board",
+   "x": 35,
+   "y": 2,
+   "w": 1,
+   "h": 2,
+   "label": "Quadro"
+  },
+  {
+   "id": "quadro-dir",
+   "kind": "board",
+   "x": 46,
+   "y": 2,
+   "w": 1,
+   "h": 2,
+   "label": "Quadro"
+  },
+  {
+   "id": "quadro-r3",
+   "kind": "board",
+   "x": 24,
+   "y": 27,
+   "w": 1,
+   "h": 2,
+   "label": "Quadro"
+  },
+  {
+   "id": "telao",
+   "kind": "video",
+   "x": 30,
+   "y": 10,
+   "w": 9,
+   "h": 1,
+   "label": "Telão",
+   "url": "https://www.youtube.com/embed/jfKfPfyJRdk"
+  },
+  {
+   "id": "docs",
+   "kind": "link",
+   "x": 8,
+   "y": 12,
+   "w": 2,
+   "h": 1,
+   "label": "Biblioteca",
+   "url": "/membros",
+   "tile": "none"
+  },
+  {
+   "id": "palco-link",
+   "kind": "link",
+   "x": 52,
+   "y": 11,
+   "w": 2,
+   "h": 1,
+   "label": "Palco · link",
+   "url": "https://www.youtube.com/embed/jfKfPfyJRdk"
+  },
+  {
+   "id": "som-cafe",
+   "kind": "speaker",
+   "x": 11,
+   "y": 27,
+   "w": 1,
+   "h": 1,
+   "label": "Caixa de som"
+  },
+  {
+   "id": "som-lounge",
+   "kind": "speaker",
+   "x": 22,
+   "y": 27,
+   "w": 1,
+   "h": 1,
+   "label": "Caixa de som"
+  },
+  {
+   "id": "som-auditorio",
+   "kind": "speaker",
+   "x": 25,
+   "y": 11,
+   "w": 1,
+   "h": 1,
+   "label": "Caixa de som"
+  },
+  {
+   "id": "som-terraco",
+   "kind": "speaker",
+   "x": 36,
+   "y": 26,
+   "w": 1,
+   "h": 1,
+   "label": "Caixa de som"
+  },
+  {
+   "id": "som-jardim",
+   "kind": "speaker",
+   "x": 2,
+   "y": 40,
+   "w": 1,
+   "h": 1,
+   "label": "Caixa de som"
+  }
+ ],
+ "npcs": [
+  {
+   "kind": "fox",
+   "zone": "terraco"
+  },
+  {
+   "kind": "hare",
+   "zone": "terraco"
+  },
+  {
+   "kind": "grouse",
+   "zone": "terraco"
+  },
+  {
+   "kind": "deer",
+   "zone": "jardim"
+  },
+  {
+   "kind": "deer",
+   "zone": "jardim"
+  },
+  {
+   "kind": "boar",
+   "zone": "jardim"
+  },
+  {
+   "kind": "hare",
+   "zone": "jardim"
+  },
+  {
+   "kind": "grouse",
+   "zone": "jardim"
+  }
+ ],
+ "staticNpcs": [
+  {
+   "kind": "seller",
+   "x": 5.5,
+   "y": 2.7,
+   "zone": "recepcao"
+  },
+  {
+   "kind": "customer",
+   "x": 4.5,
+   "y": 26.7,
+   "zone": "cafe"
+  }
+ ],
+ "graffiti": [
+  {
+   "sprite": "expresspace",
+   "x": 40,
+   "y": 24
+  },
+  {
+   "sprite": "slogan",
+   "x": 30,
+   "y": 24
+  },
+  {
+   "sprite": "shortway",
+   "x": 50,
+   "y": 24
+  },
+  {
+   "sprite": "n7",
+   "x": 3,
+   "y": 10
+  },
+  {
+   "sprite": "cafe",
+   "x": 4,
+   "y": 25
+  },
+  {
+   "sprite": "foco",
+   "x": 18,
+   "y": 1
+  },
+  {
+   "sprite": "benice",
+   "x": 6,
+   "y": 1
+  },
+  {
+   "sprite": "greenteam",
+   "x": 29,
+   "y": 1
+  },
+  {
+   "sprite": "loot",
+   "x": 51,
+   "y": 1
+  },
+  {
+   "sprite": "expresspace",
+   "x": 12,
+   "y": 37
+  }
+ ],
+ "lamps": [
+  {
+   "x": 29,
+   "y": 1
+  },
+  {
+   "x": 40,
+   "y": 1
+  },
+  {
+   "x": 51,
+   "y": 1
+  },
+  {
+   "x": 6,
+   "y": 25
+  },
+  {
+   "x": 29,
+   "y": 24
+  },
+  {
+   "x": 18,
+   "y": 25
+  }
+ ]
+}

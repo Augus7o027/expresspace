@@ -11,6 +11,7 @@ import { mountAvatarEditor } from "./avatar-editor.js";
 import { startTour } from "./tour.js";
 import { openSettings, loadDevices } from "./settings.js";
 import { pushClient } from "./push.js";
+import { openEditor } from "./editor.js";
 import { SHIRTS, DEFAULT_AVATAR, normalizeAvatar, loadBase } from "./sprites.js";
 
 const $ = (s) => document.querySelector(s);
@@ -317,6 +318,18 @@ async function boot(net, { user, map, channels, players, locked = [], npcs = [],
     });
     modal.classList.remove("hidden"); scene.frozen = true;
   };
+
+  // editor do espaço (admin, só no computador)
+  if (user.role === "admin" && !isMobile()) {
+    const eb = $("#btn-editor"); eb.classList.remove("hidden"); eb.innerHTML = ICON.edit;
+    let ed = null;
+    eb.onclick = async () => {
+      if (ed) return;
+      if (!modal.classList.contains("hidden")) closeModal();
+      try { ed = await openEditor({ scene, apiJson, toast, onClose: () => { ed = null; } }); scene.input.mouse?.disableContextMenu(); }
+      catch (e) { toast("editor: " + e.message); }
+    };
+  }
 
   // --- silêncio forçado pela equipe ---
   let mutedUntilTs = mutedUntil || 0;
