@@ -10,6 +10,7 @@ Arquivos estáticos, sem build e sem dependência:
 |--------------|--------------------------------------------------------------|
 | `index.html` | o funil inteiro (conversa, validações, roteamento, rastreio)  |
 | `manychat.md`| a copy das mensagens do ManyChat, na mesma voz                |
+| `manychat-automacao.md` | roteiro de ações pra montar a automação no ManyChat |
 | `teste.mjs`  | suíte ponta a ponta (3 ramos, nutrição, retomada, temas, contraste) |
 | `logo.svg`   | lockup provisório — troque por `logo.png`                     |
 | `avatar.svg` | foto provisória da Gabi — troque por `gabriela.jpg`           |
