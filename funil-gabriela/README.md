@@ -10,12 +10,19 @@ Arquivos estáticos, sem build e sem dependência:
 |--------------|--------------------------------------------------------------|
 | `index.html` | o funil inteiro (conversa, validações, roteamento, rastreio)  |
 | `manychat.md`| a copy das mensagens do ManyChat, na mesma voz                |
+| `teste.mjs`  | suíte ponta a ponta (3 ramos, nutrição, retomada, temas, contraste) |
 | `logo.svg`   | lockup provisório — troque por `logo.png`                     |
 | `avatar.svg` | foto provisória da Gabi — troque por `gabriela.jpg`           |
 | `marca.svg`  | selo da seta (favicon)                                        |
 
 Para rodar: sirva a pasta (`python3 -m http.server`) ou publique na
 Netlify/Vercel/Coolify, num domínio ou subdomínio próprio.
+
+Para rodar a suíte (da raiz do repositório, que é onde o Playwright está):
+
+```
+node funil-gabriela/teste.mjs
+```
 
 ## Identidade
 
@@ -24,6 +31,32 @@ preto (`#0f0c0c`); serifa de alto contraste (Playfair Display) nos títulos e Op
 Sans no corpo; pílula de etapa com contorno creme, no lugar do "PÁGINA 09"; o fio
 geométrico do impresso aparece discreto atrás da conversa. Cor e fonte são tokens
 no `:root` — trocar a paleta é mexer em um bloco só.
+
+## Tema claro e noturno
+
+A página abre no tema que o aparelho da pessoa pede (`prefers-color-scheme`) e
+cai no noturno quando não há preferência. O botão no cabeçalho alterna na hora,
+e a escolha fica salva em `localStorage` (`gabi_tema`): a partir daí ela manda
+mais que o sistema. Um script no `<head>` aplica o tema antes da primeira
+pintura, então não existe aquele lampejo de tela branca.
+
+O que muda entre os dois: fundo, superfícies, texto, bordas, sombras, o fio
+geométrico, o brilho do topo, a cor do CTA e a barra do navegador. O que **não**
+muda, de propósito: o cabeçalho carmim e a bolha da pessoa — são eles que fazem
+a página continuar reconhecível quando a luz inverte.
+
+Como mexer:
+
+- **trocar uma cor**: tudo mora em dois blocos, `:root` (noturno) e
+  `:root[data-tema="claro"]`. Nenhuma regra abaixo deles cita cor — elas usam só
+  o papel semântico (`--bg`, `--superficie`, `--texto`, `--cta-bg`…), então
+  redefinir o token muda a página inteira;
+- **fixar um tema só**: troque a linha do `<head>` por
+  `document.documentElement.setAttribute('data-tema', 'claro')` (ou `'escuro'`) e
+  remova o botão `#temaBtn` do cabeçalho;
+- **checar o contraste depois de mexer**: `node funil-gabriela/teste.mjs` mede os
+  pares críticos nos dois temas e reprova abaixo de 4,5:1 em texto pequeno e
+  3:1 em texto grande (WCAG AA).
 
 ## A jornada
 
@@ -104,7 +137,7 @@ a pergunta pendente; funil concluído reabre mostrando o card do WhatsApp.
 
 ## Checklist da especificação
 
-Pronto aqui: página do funil na voz da Gabi, captura de contato antes da
+Pronto aqui: página do funil na voz da Gabi, tema claro e noturno opcionais, captura de contato antes da
 qualificação, salvamento incremental, roteamento para os 3 destinos, mensagens
 pré-preenchidas, faixa de faturamento só nos ramos B e C, tratamento do não
 elegível, LGPD, UTM/fbclid, evento Lead na classificação, retomada por
