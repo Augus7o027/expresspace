@@ -128,26 +128,31 @@ escrever no seu CRM.
 ## Rastreamento
 
 UTMs e `fbclid` são capturados na entrada e preservam a primeira atribuição. O
-evento `Lead` dispara na **classificação** (quando o destino é definido), uma vez
-por lead, com o mesmo `eventID` no Pixel e na Conversions API para o Meta
-deduplicar. Quem abandona antes ou cai em nutrição não dispara conversão — a
+evento `Lead` dispara na **classificação** (quando o destino é definido) e o
+`Schedule` quando o horário é marcado no Calendly — cada um uma vez por lead,
+com o mesmo `eventID` no Pixel e na Conversions API para o Meta deduplicar. Quem abandona antes ou cai em nutrição não dispara conversão — a
 campanha aprende com o lead qualificado.
 
 O estado fica em `localStorage`: refresh no meio remonta a conversa e volta para
-a pergunta pendente; funil concluído reabre mostrando o card do WhatsApp.
+a pergunta pendente; funil concluído reabre mostrando o card final (e a agenda
+volta funcionando).
 
 ## Checklist da especificação
 
-Pronto aqui: página do funil na voz da Gabi, tema claro e noturno opcionais, captura de contato antes da
-qualificação, salvamento incremental, roteamento para os 3 destinos, mensagens
-pré-preenchidas, faixa de faturamento só nos ramos B e C, tratamento do não
-elegível, LGPD, UTM/fbclid, evento Lead na classificação, retomada por
-`localStorage` e a copy do ManyChat em `manychat.md`.
+Pronto aqui: página do funil na voz da Gabi, aquecimento com região pelo DDD,
+e-mail e preview do Instagram, agenda automática no workshop e na mentoria,
+lead prioritário a partir de R$150 mil, tema claro e noturno opcionais, captura
+de contato antes da qualificação, salvamento incremental, roteamento para os 3
+destinos, mensagens pré-preenchidas, faixa de faturamento só nos ramos B e C,
+tratamento do não elegível, LGPD, UTM/fbclid, eventos Lead e Schedule, retomada
+por `localStorage` e a copy do ManyChat em `manychat.md` e `manychat-automacao.md`.
 
-Fora desta pasta (seu lado): montar o fluxo no ManyChat com o gatilho de novo
-seguidor e o toggle de DM de lembrete ligado; publicar num domínio ou
-subdomínio; subir o endpoint de salvamento e ligar no ClickUp; configurar Pixel e
-Conversions API; colocar os 3 números reais e a foto da Gabi.
+Fora desta pasta (seu lado): criar os dois eventos no Calendly, com o telefone
+como primeira pergunta, e colar os links; montar o fluxo no ManyChat com o
+gatilho de novo seguidor e o toggle de DM de lembrete ligado; publicar num
+domínio ou subdomínio; subir o endpoint de salvamento e ligar no ClickUp; se
+quiser o preview real do Instagram, subir também a rota de perfil e o proxy de
+imagem; configurar Pixel e Conversions API; colocar os 3 números reais.
 
 ## Sobre esta pasta
 
