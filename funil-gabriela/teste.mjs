@@ -11,13 +11,23 @@ import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
-const PORTA = 4333;
-const TIPOS = { '.html': 'text/html; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png' };
+let PORTA = 0;                                   // porta livre escolhida na hora
+const TIPOS = { '.html': 'text/html; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.jpg': 'image/jpeg' };
 const SHOTS = process.env.SHOTS_DIR || '';
 
 const leads = [];
 const server = createServer(async (req, res) => {
   const rota = req.url.split('?')[0];
+  if (rota === '/api/instagram-profile') {           // perfil de mentira, pra testar o preview
+    let body = ''; for await (const c of req) body += c;
+    const { username } = JSON.parse(body || '{}');
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ status: 'ok', profile: {
+      username, fullName: 'Clínica Teste', followersCount: 12400, postsCount: 320,
+      verified: true, profilePicUrl: '/gabriela.jpg', businessCategoryName: 'Clínica de estética',
+    } }));
+    return;
+  }
   if (rota === '/api/lead') {                        // back-end de mentira, só pra conferir o payload
     let body = ''; for await (const c of req) body += c;
     leads.push(JSON.parse(body));
@@ -29,7 +39,8 @@ const server = createServer(async (req, res) => {
     res.writeHead(200, { 'Content-Type': TIPOS[extname(arq)] || 'text/plain' }); res.end(b);
   } catch { res.writeHead(404); res.end('não encontrado'); }
 });
-await new Promise((r) => server.listen(PORTA, r));
+await new Promise((r) => server.listen(0, r));
+PORTA = server.address().port;
 
 /* usa o Chromium já instalado no ambiente quando o do playwright não estiver lá */
 const CHROMIUM_LOCAL = '/opt/pw-browsers/chromium-1194/chrome-linux/chrome';
@@ -40,10 +51,10 @@ const falhas = [];
 const checa = (ok, msg) => { console.log(ok ? 'OK  ' : 'FALHOU ', msg); if (!ok) falhas.push(msg); };
 const titulo = (t) => console.log(`\n=== ${t} ===`);
 
-async function abrir({ backend = false, esquema = 'dark', tema = null } = {}) {
+async function abrir({ backend = false, esquema = 'dark', tema = null, cfg = {} } = {}) {
   const page = await browser.newPage({ viewport: { width: 420, height: 900 }, colorScheme: esquema });
   page.on('pageerror', (e) => erros.push(e.message));
-  if (backend) await page.addInitScript(() => { window.FUNIL_CONFIG = { API_SAVE: '/api/lead' }; });
+  if (backend) await page.addInitScript((extra) => { window.FUNIL_CONFIG = Object.assign({ API_SAVE: '/api/lead' }, extra); }, cfg);
   if (tema) await page.addInitScript((t) => { try { localStorage.setItem('gabi_tema', t); } catch (e) {} }, tema);
   await page.goto(`http://localhost:${PORTA}/?utm_source=manychat&utm_campaign=novo-seguidor&fbclid=abc123`);
   return page;
@@ -51,7 +62,17 @@ async function abrir({ backend = false, esquema = 'dark', tema = null } = {}) {
 const chip = async (p, t) => { const b = p.locator('.chips.show button.chip', { hasText: t }); await b.first().waitFor({ timeout: 30000 }); await b.first().click(); };
 const digitar = async (p, v) => { await p.locator('#inputWrap.show #input').waitFor({ timeout: 30000 }); await p.fill('#input', v); await p.click('#sendBtn'); };
 const escolher = async (p, v) => { await p.locator('#selectWrap.show #selectEl').waitFor({ timeout: 30000 }); await p.selectOption('#selectEl', v); await p.click('#selectBtn'); };
-const comum = async (p, nome, fone) => { await digitar(p, nome); await digitar(p, fone); };
+const comum = async (p, nome, fone, opts = {}) => {   // nome, whats, e-mail e @ do Instagram
+  await digitar(p, nome);
+  await digitar(p, fone);
+  await digitar(p, opts.email || 'contato@gmail.com');
+  await digitar(p, opts.insta || 'minha.clinica');
+  await chip(p, 'Sou eu');
+};
+const marcar = async (p, textos) => {          // chips de seleção múltipla
+  for (const t of textos) { const b = p.locator('.chips.show button.chip', { hasText: t }); await b.first().waitFor({ timeout: 30000 }); await b.first().click(); }
+  await p.locator('.chips.show button.chip.confirmar').click();
+};
 const shot = async (p, nome) => { if (SHOTS) await p.screenshot({ path: join(SHOTS, nome), fullPage: false }); };
 const pill = async (p) => (await p.locator('.step-pill').innerText()).toLowerCase();
 
@@ -127,14 +148,15 @@ titulo('RAMO A · paciente (com back-end)');
   checa(/me%20tratar%20na%20sua%20cl%C3%ADnica/.test(href), 'A: tema certo na mensagem');
   checa(/Minha recepção/.test(txt), 'A: card da recepção');
   checa(!/faturamento/i.test(txt), 'A: paciente não recebe pergunta de faturamento');
-  checa(await pill(p) === 'etapa 4/4', 'A: contador fecha em 4/4');
+  checa(await pill(p) === 'etapa 6/6', 'A: contador fecha em 6/6');
   const st = await p.evaluate(() => JSON.parse(localStorage.getItem('gabi_funil_v1')));
   checa(st.data.destino === 'clinica' && st.data.status === 'roteado', 'A: estado salvo como roteado');
   const roteado = leads.filter((l) => l.status === 'roteado').pop();
-  checa(leads.length >= 4, `A: salvou a cada etapa (${leads.length} envios)`);
+  checa(leads.length >= 6, `A: salvou a cada etapa (${leads.length} envios)`);
   checa(roteado && roteado.telefone === '+5511988887777', 'A: telefone em E.164');
   checa(roteado && roteado.utm_source === 'manychat' && roteado.fbclid === 'abc123', 'A: UTM e fbclid no payload');
   checa(roteado && roteado.tag === 'clinica-paciente', 'A: tag de destino');
+  checa(roteado && roteado.email === 'contato@gmail.com' && roteado.instagram === 'minha.clinica', 'A: e-mail e @ no payload');
   checa(!!leads.find((l) => l.status === 'parcial' && l.telefone && !l.interesse), 'A: parcial com telefone antes da qualificação');
   await p.close();
 }
@@ -147,7 +169,7 @@ titulo('RAMO B · injetáveis, elegível');
   await chip(p, 'Sou profissional e quero aprender');
   await escolher(p, 'Enfermeira(o)');
   await chip(p, 'Já aplico hoje');
-  await escolher(p, 'Harmonização facial');
+  await escolher(p, 'Injetáveis faciais');
   await chip(p, 'Resultados que não se repetem');
   await escolher(p, 'De R$70.000 a R$150.000');
   await p.locator('.wa-bubble').waitFor({ timeout: 30000 });
@@ -157,7 +179,7 @@ titulo('RAMO B · injetáveis, elegível');
   checa(/Workshop/.test(txt), 'B: fecho do Workshop');
   checa(/Workshop%20de%20injet%C3%A1veis/.test(href), 'B: tema do workshop no link');
   checa(/De R\$70\.000 a R\$150\.000/.test(txt), 'B: faturamento perguntado por último');
-  checa(await pill(p) === 'etapa 8/8', 'B: contador 8/8');
+  checa(await pill(p) === 'etapa 10/10', 'B: contador 10/10');
   await p.close();
 }
 
@@ -193,20 +215,143 @@ titulo('RAMO C · mentoria, com refresh no meio');
   const replay = await p.locator('#chat').innerText();
   checa(/Continuando de onde você parou/.test(replay), 'C: retoma depois do refresh');
   checa(/Renata Duarte Lima/.test(replay) && /Dermatologista/.test(replay), 'C: conversa remontada');
-  checa(await pill(p) === 'etapa 5/8', 'C: contador preservado');
-  await escolher(p, 'Estética corporal');
-  await chip(p, 'Escalar sem perder qualidade');
+  checa(await pill(p) === 'etapa 7/10', 'C: contador preservado');
+  await escolher(p, 'Injetáveis corporais');
+  await marcar(p, ['Escalar sem perder qualidade', 'Quero saber mais de harmonização facial']);
   await escolher(p, 'Mais de R$1.000.000');
   await p.locator('.wa-bubble').waitFor({ timeout: 30000 });
   const href = await p.locator('.wa-btn').getAttribute('href');
   const txt = await p.locator('#chat').innerText();
   await shot(p, 'g-ramoC.png');
   checa(/altíssima confiança/.test(txt), 'C: fecho da mentoria');
+  checa(/Escalar sem perder qualidade, Quero saber mais de harmonização facial/.test(txt), 'C: as duas dores escolhidas viram uma resposta só');
   checa(/eventos%20e%20a%20mentoria/.test(href), 'C: tema da mentoria no link');
   await p.reload();
   await p.locator('.wa-bubble').waitFor({ timeout: 30000 });
   checa(!(await p.locator('.chips.show').count()), 'C: concluído não repergunta nada');
   await p.close();
+}
+
+/* ------------------------------------------------------- "OUTRA..." -> QUAL? */
+titulo('"Outra formação" e "Outra área" pedem o detalhe');
+{
+  const p = await abrir({ backend: true });
+  const antes = leads.length;
+  await comum(p, 'Helena Prado', '11977776666');
+  await chip(p, 'Quero escalar minha clínica');
+  await escolher(p, 'Outra formação');
+  await p.locator('#chat .row.bot', { hasText: 'qual é a sua formação' }).waitFor({ timeout: 30000 });
+  checa(await p.locator('#inputWrap.show #input').count() === 1, 'C: escolher "Outra formação" abre campo de texto');
+  await p.reload();                                  // refresh no meio do follow-up
+  await p.locator('#inputWrap.show #input').waitFor({ timeout: 30000 });
+  checa(/qual é a sua formação/.test(await p.locator('#chat').innerText()), 'C: refresh volta pra pergunta do detalhe, não pro seletor');
+  await digitar(p, 'Fonoaudióloga');
+  await chip(p, 'Já tenho clínica em operação');
+  await escolher(p, 'Outro');
+  await p.locator('#chat .row.bot', { hasText: 'qual é a sua área' }).waitFor({ timeout: 30000 });
+  await digitar(p, 'Estética facial avançada');
+  await marcar(p, ['Quero saber mais de harmonização corporal']);
+  await escolher(p, 'De R$30.000 a R$70.000');
+  await p.locator('.wa-bubble').waitFor({ timeout: 30000 });
+  await shot(p, 'g-outra.png');
+  const card = await p.locator('.wa-bubble').innerText();
+  checa(/Fonoaudióloga/.test(card) && /Estética facial avançada/.test(card), 'C: o card mostra o que a pessoa escreveu, não "Outra..."');
+  const env = leads.slice(antes).pop();
+  checa(env.formacao === 'Outra formação' && env.formacao_outra === 'Fonoaudióloga', 'C: CRM recebe a opção e o detalhe da formação');
+  checa(env.nicho === 'Outro' && env.nicho_outra === 'Estética facial avançada', 'C: CRM recebe a opção e o detalhe da área');
+  checa(Array.isArray(env.desafios) && env.desafios[0] === 'Quero saber mais de harmonização corporal', 'C: CRM recebe os desafios como lista');
+  await p.close();
+
+  const b2 = await abrir();                           // no ramo B o detalhe vem antes da nutrição
+  await comum(b2, 'Paula Reis', '11966665555');
+  await chip(b2, 'Sou profissional e quero aprender');
+  await escolher(b2, 'Outra formação');
+  await b2.locator('#chat .row.bot', { hasText: 'qual é a sua formação' }).waitFor({ timeout: 30000 });
+  await digitar(b2, 'Farmacêutica');
+  await b2.locator('#chat .row.bot', { hasText: 'habilitação para aplicar' }).waitFor({ timeout: 30000 });
+  checa(true, 'B: pergunta o detalhe antes de seguir pra nutrição');
+  await b2.close();
+}
+
+/* ------------------------------------------- AQUECIMENTO: REGIÃO, E-MAIL, @ */
+titulo('Região pelo DDD, e-mail e preview do Instagram');
+{
+  const p = await abrir({ backend: true, cfg: { API_PROFILE: '/api/instagram-profile' } });
+  await digitar(p, 'Bianca Moreira');
+  await digitar(p, '21987654321');                  // DDD 21 → RJ
+  await p.locator('#chat .row.bot', { hasText: 'Rio de Janeiro' }).waitFor({ timeout: 30000 });
+  checa(true, 'DDD 21 abre a fala do Rio de Janeiro');
+  await digitar(p, 'bianca@gmail.con');             // erro de digitação no domínio
+  await p.locator('#chat .row.bot', { hasText: 'erro de digitação' }).waitFor({ timeout: 30000 });
+  await chip(p, 'Sim, é esse');
+  await digitar(p, 'clinica.bianca');
+  await p.locator('.pcard-bubble').waitFor({ timeout: 30000 });
+  const card = await p.locator('.pcard-bubble').innerText();
+  const foto = await p.evaluate(() => {
+    const el = document.querySelector('.ppic');
+    return getComputedStyle(el).backgroundImage;
+  });
+  await shot(p, 'g-perfil.png');
+  // o Intl separa número e "mil" com espaço estreito não-quebrável — \s* cobre isso
+  checa(/Clínica Teste/.test(card) && /12,4\s*mil/i.test(card), 'preview traz nome e seguidores do perfil');
+  checa(/gabriela\.jpg/.test(foto), 'preview mostra a foto do perfil');
+  await chip(p, 'Sou eu');
+  await p.locator('.chips.show .chip').first().waitFor({ timeout: 30000 });
+  const env = leads.filter((l) => l.instagram === 'clinica.bianca').pop();
+  checa(env && env.email === 'bianca@gmail.com', 'e-mail corrigido é o que vai pro CRM');
+  checa(env && env.uf === 'RJ' && env.ig_seguidores === 12400, 'UF e números do perfil no payload');
+  await p.close();
+
+  const semBackend = await abrir();                 // sem rota de perfil, o passo continua de pé
+  await digitar(semBackend, 'Marta Lopes');
+  await digitar(semBackend, '11912345678');
+  await digitar(semBackend, 'marta@gmail.com');
+  await digitar(semBackend, 'marta.estetica');
+  await semBackend.locator('.pcard-bubble').waitFor({ timeout: 30000 });
+  checa(/@marta\.estetica/.test(await semBackend.locator('.pcard-bubble').innerText()), 'sem back-end, o card mostra o @ informado');
+  await semBackend.close();
+}
+
+/* ------------------------------------------------------ AGENDA (CALENDLY) */
+titulo('Agenda automática no workshop e na mentoria');
+{
+  const p = await abrir({ backend: true, cfg: { CALENDLY: { workshop: 'https://calendly.com/teste/workshop', mentoria: 'https://calendly.com/teste/mentoria' } } });
+  await comum(p, 'Luiza Barros', '11955551111', { email: 'luiza@gmail.com' });
+  await chip(p, 'Quero escalar minha clínica');
+  await escolher(p, 'Dermatologista');
+  await chip(p, 'Já tenho clínica em operação');
+  await escolher(p, 'Injetáveis faciais');
+  await marcar(p, ['Escalar sem perder qualidade']);
+  await escolher(p, 'De R$150.000 a R$300.000');    // faixa prioritária
+  await p.locator('.ag-bubble').waitFor({ timeout: 30000 });
+  const link = await p.locator('.ag-links a').first().getAttribute('href');
+  const textoAg = await p.locator('#chat').innerText();
+  await shot(p, 'g-agenda.png');
+  checa(/calendly\.com\/teste\/mentoria/.test(link), 'mentoria abre a agenda da mentoria');
+  checa(/name=Luiza\+Barros|name=Luiza%20Barros/.test(link) && /email=luiza%40gmail\.com/.test(link), 'agenda já vai preenchida com nome e e-mail');
+  checa(/a1=%2B5511955551111/.test(link), 'WhatsApp vai na primeira pergunta do Calendly');
+  checa(/momento em que a mentoria muda o jogo/.test(textoAg), 'faturamento de 150k+ ganha o reconhecimento da Gabi');
+  const roteado = leads.filter((l) => l.status === 'roteado').pop();
+  checa(roteado.tag === 'mentoria-eventos-prioritario' && roteado.prioridade === 'alta', 'CRM recebe a marca de prioridade');
+  checa(/Prefiro falar no WhatsApp/.test(await p.locator('.ag-bubble').innerText()), 'o WhatsApp continua como alternativa');
+
+  // o Calendly avisa que o horário foi marcado
+  await p.evaluate(() => window.dispatchEvent(new MessageEvent('message', {
+    origin: 'https://calendly.com',
+    data: { event: 'calendly.event_scheduled', payload: { event: { uri: 'https://api.calendly.com/scheduled_events/ABC' }, invitee: { uri: 'https://api.calendly.com/invitees/XYZ' } } },
+  })));
+  await p.locator('#chat .row.bot', { hasText: 'Reservado' }).waitFor({ timeout: 30000 });
+  const agendado = leads.filter((l) => l.status === 'agendado').pop();
+  checa(!!agendado && agendado.agendado === true && /scheduled_events/.test(agendado.agenda_evento), 'agendamento vira status e evento no CRM');
+  await p.close();
+
+  const clinica = await abrir({ cfg: { CALENDLY: { workshop: 'https://calendly.com/teste/workshop', mentoria: 'https://calendly.com/teste/mentoria' } } });
+  await comum(clinica, 'Sara Nunes', '11944442222');
+  await chip(clinica, 'Quero me cuidar e me tratar na sua clínica');
+  await digitar(clinica, 'Santos');
+  await clinica.locator('.wa-bubble').waitFor({ timeout: 30000 });
+  checa(!(await clinica.locator('.ag-bubble').count()), 'clínica não abre agenda: vai direto pro WhatsApp da recepção');
+  await clinica.close();
 }
 
 /* ------------------------------------------------------------------ TEMA */
@@ -303,6 +448,12 @@ titulo('geral');
 {
   const p = await abrir();
   checa(/LGPD/.test(await p.locator('#lgpd').innerText()), 'linha de consentimento visível');
+  await p.locator('.avatar img').first().waitFor({ timeout: 15000 });
+  const foto = await p.evaluate(() => {
+    const img = document.querySelector('.avatar img');
+    return { src: img.getAttribute('src'), carregou: img.complete && img.naturalWidth > 0, largura: img.naturalWidth };
+  });
+  checa(foto.src === 'gabriela.jpg' && foto.carregou, `avatar usa a foto da Gabi (${foto.src}, ${foto.largura}px)`);
   checa(/canal oficial/i.test(await p.locator('.brand-sub').innerText()), 'cabeçalho deixa claro que é canal oficial');
   const proibidas = /rapidinho|perguntinha|cantinho|de pertinho|prometo que é rápido|é só um minuto|ao vivo|agora mesmo respondendo/i;
   checa(!proibidas.test(await p.content()), 'copy sem diminutivo, sem minimizar tempo e sem sugerir resposta ao vivo');

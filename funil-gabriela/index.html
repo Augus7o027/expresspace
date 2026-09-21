@@ -150,7 +150,7 @@
     .brand-badge { background: var(--header-badge-bg); border: 1px solid var(--header-hairline); border-radius: 10px; padding: 7px 11px; display: flex; align-items: center; flex-shrink: 0; }
     .brand-badge img { height: 18px; width: auto; max-width: 104px; object-fit: contain; display: block; }
     .brand-txt { min-width: 0; }
-    .brand-nome { display: block; font-family: var(--serif); font-size: 17px; font-weight: 700; line-height: 1.12; color: var(--header-texto); letter-spacing: .01em; }
+    .brand-nome { display: block; font-family: var(--serif); font-size: 17px; font-weight: 700; line-height: 1.12; color: var(--header-texto); letter-spacing: .01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .brand-sub { display: block; font-size: 10.5px; font-weight: 600; letter-spacing: .13em; text-transform: uppercase; color: var(--header-texto-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .step-pill {
       background: transparent; border: 1px solid var(--header-hairline-forte); color: var(--header-texto);
@@ -196,6 +196,46 @@
     .typing i:nth-child(2) { animation-delay: .18s; }
     .typing i:nth-child(3) { animation-delay: .36s; }
     @keyframes dotPulse { 30% { opacity: 1; transform: translateY(-4px); } }
+
+    /* ===== CARD DO PERFIL DO INSTAGRAM ===== */
+    .pcard-bubble { max-width: 88% !important; background: var(--card-bg) !important; border: 1px solid var(--borda-forte) !important; box-shadow: var(--sombra); padding: 16px !important; }
+    .pcard { display: flex; gap: 14px; align-items: center; }
+    .ppic {
+      width: 62px; height: 62px; border-radius: 50%; flex-shrink: 0;
+      background: var(--superficie) center/cover no-repeat;
+      box-shadow: 0 0 0 2px var(--carmim);
+    }
+    .pname { font-weight: 700; color: var(--texto); font-size: 15.5px; display: flex; align-items: center; gap: 6px; }
+    .pverif { display: inline-flex; align-items: center; justify-content: center; width: 15px; height: 15px; border-radius: 50%; background: #3897f0; color: #fff; font-size: 9px; font-weight: 800; }
+    .puser { color: var(--texto-muted); font-size: 13px; font-weight: 600; margin-top: 2px; }
+    .pstats { display: flex; gap: 14px; margin-top: 8px; font-size: 12.5px; color: var(--texto-muted); }
+    .pstats b { color: var(--texto); font-size: 14px; }
+    .pcat { display: inline-block; margin-top: 8px; padding: 3px 10px; border-radius: 99px; background: var(--superficie-2); font-size: 11px; color: var(--texto-dim); font-weight: 700; }
+
+    /* ===== ESPERA COM O QUE ESTÁ ACONTECENDO ===== */
+    .loader-card { min-width: min(290px, 72vw); background: var(--card-bg) !important; border: 1px solid var(--borda) !important; box-shadow: var(--sombra); }
+    .loader-title { font-weight: 700; color: var(--texto); font-size: 14px; }
+    .loader-steps { margin-top: 12px; display: flex; flex-direction: column; gap: 9px; }
+    .lstep { display: flex; gap: 10px; align-items: center; font-size: 13.5px; color: var(--texto-muted); transition: color .3s; }
+    .lstep .ic { width: 18px; height: 18px; flex-shrink: 0; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 800; }
+    .lstep.doing { color: var(--texto); font-weight: 600; }
+    .lstep.doing .ic::after { content: ''; width: 11px; height: 11px; border-radius: 50%; border: 2px solid var(--borda); border-top-color: var(--carmim-claro); animation: girando .7s linear infinite; }
+    .lstep.ok { color: var(--texto-dim); }
+    .lstep.ok .ic { background: var(--carmim); color: var(--creme); }
+    @keyframes girando { to { transform: rotate(360deg); } }
+    .loader-bar { margin-top: 14px; height: 4px; border-radius: 3px; background: var(--superficie-2); overflow: hidden; }
+    .loader-bar i { display: block; height: 100%; width: 5%; background: linear-gradient(90deg, var(--carmim), var(--carmim-claro)); transition: width .9s cubic-bezier(.22,1,.36,1); }
+
+    /* ===== AGENDA (Calendly embutido) ===== */
+    .ag-bubble { max-width: 94% !important; background: var(--card-bg) !important; border: 1px solid var(--borda-forte) !important; box-shadow: var(--sombra); padding: 18px !important; }
+    .ag-embed { margin-top: 14px; border-radius: 12px; overflow: hidden; background: #fffbf9; min-height: 640px; }
+    .ag-embed .calendly-inline-widget { min-height: 640px; }
+    .ag-links { display: flex; flex-direction: column; gap: 9px; margin-top: 13px; text-align: center; }
+    .ag-links a { font-size: 13px; color: var(--texto-dim); text-decoration: underline; text-underline-offset: 3px; }
+    .ag-links a:focus-visible { outline: 2px solid var(--foco); outline-offset: 2px; border-radius: 4px; }
+    .ag-ok { margin-top: 14px; padding: 14px; border-radius: 12px; background: var(--superficie-2); border: 1px solid var(--borda-forte); text-align: center; }
+    .ag-ok b { display: block; font-family: var(--serif); font-size: 20px; color: var(--texto); }
+    .ag-ok span { font-size: 13.5px; color: var(--texto-dim); }
 
     /* ===== CARD DE HANDOFF ===== */
     .wa-bubble { max-width: 88% !important; background: var(--card-bg) !important; border: 1px solid var(--borda-forte) !important; box-shadow: var(--sombra); padding: 22px !important; }
@@ -247,6 +287,11 @@
     .chip:hover { border-color: var(--borda-forte); color: var(--texto); background: var(--superficie-2); }
     .chip:active { transform: scale(.97); }
     .chip.ghost { background: transparent; border-style: dashed; font-weight: 500; color: var(--texto-muted); }
+    .chip.on { border-color: var(--foco); background: var(--superficie-2); color: var(--texto); }
+    .chip.on::before { content: '\2713\00a0'; font-weight: 700; }
+    .chip.confirmar { background: var(--cta-bg); color: var(--cta-texto); border-color: transparent; font-weight: 700; }
+    .chip.confirmar:disabled { opacity: .5; cursor: default; }
+    .chip.confirmar:hover:not(:disabled) { border-color: transparent; color: var(--cta-texto); background: var(--cta-bg); }
     .input-hint { font-size: 12.5px; color: var(--erro); margin: 8px 0 0 4px; min-height: 16px; }
     /* quem pede menos movimento no sistema não leva animação nenhuma */
     @media (prefers-reduced-motion: reduce) {
@@ -275,7 +320,7 @@
           <svg class="ic ic-sol" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.4v2.2M12 19.4v2.2M4.2 4.2l1.6 1.6M18.2 18.2l1.6 1.6M2.4 12h2.2M19.4 12h2.2M4.2 19.8l1.6-1.6M18.2 5.8l1.6-1.6"/></svg>
           <svg class="ic ic-lua" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.5 14.3A8.6 8.6 0 019.7 3.5a8.6 8.6 0 1010.8 10.8z"/></svg>
         </button>
-        <div class="step-pill" id="stepPill">Etapa 0/8</div>
+        <div class="step-pill" id="stepPill">Etapa 0/10</div>
       </div>
     </div>
     <div class="progress-line"><i id="progressFill"></i></div>
@@ -301,7 +346,7 @@
       </div>
       <div class="chips" id="chips"></div>
       <p class="input-hint" id="hint"></p>
-      <p class="lgpd" id="lgpd">Ao continuar, você concorda em ser contatada por WhatsApp sobre o que conversamos aqui. Seus dados estão protegidos (LGPD).</p>
+      <p class="lgpd" id="lgpd">Ao continuar, você concorda em ser contatada por WhatsApp e e-mail sobre o que conversamos aqui. Seus dados estão protegidos (LGPD).</p>
     </div>
   </div>
 
@@ -329,11 +374,21 @@ const CONFIG = {
     mentoria: { numero: '5511999999999', titulo: 'Meu time da mentoria',  sub: 'Pessoa de altíssima confiança que cuida disso por mim.',     botao: 'Falar com meu time',     tema: 'os eventos e a mentoria' },
   },
 
+  /* Agenda do Calendly — só workshop e mentoria. A clínica continua indo direto
+     pro WhatsApp da recepção. Link vazio = cai no card de WhatsApp daquele destino. */
+  CALENDLY: {
+    workshop: '',   // ex.: 'https://calendly.com/sua-conta/workshop-injetaveis'
+    mentoria: '',   // ex.: 'https://calendly.com/sua-conta/mentoria'
+  },
+  WHATSAPP_ALTERNATIVO: true,   // deixa o link de WhatsApp embaixo da agenda
+
   /* ===== BACK-END (opcional) =====
      Vazio = MODO AUTÔNOMO: nenhuma chamada de rede acontece e o funil roda
      inteiro no navegador. Preencha o que estiver no ar. */
   API_SAVE: '',        // ex.: '/api/lead' — salvamento incremental (parcial/completo/roteado/nutrir)
   API_FB_EVENT: '',    // ex.: '/api/fb-event' — Conversions API, deduplicada com o Pixel
+  API_PROFILE: '',     // ex.: '/api/instagram-profile' — leitura do perfil (start + poll)
+  API_PROXY_IMG: '',   // ex.: '/api/proxy-image' — proxy da foto do Instagram (o CDN bloqueia hotlink)
 };
 /* Dá pra sobrescrever qualquer chave sem editar este arquivo: defina
    window.FUNIL_CONFIG = { API_SAVE: '...' } antes deste script (útil pra ter
@@ -355,10 +410,75 @@ const INTERESSES = {
 const FORMACOES_APTAS = ['Dermatologista', 'Médica(o)', 'Dentista', 'Enfermeira(o)', 'Biomédica(o)', 'Esteticista com pós em injetáveis'];
 const FORMACOES_INAPTAS = ['Esteticista sem pós em injetáveis', 'Outra formação'];
 const FORMACOES = [...FORMACOES_APTAS, ...FORMACOES_INAPTAS];
-const AREAS = ['Harmonização facial', 'Estética corporal', 'Dermatologia clínica', 'Odontologia estética', 'Enfermagem estética', 'Biomedicina estética', 'Saúde capilar', 'Estética íntima', 'Outra área'];
+const AREAS = ['Injetáveis faciais', 'Injetáveis corporais', 'Procedimento de nariz', 'Outro'];
 const DESAFIOS_B = ['Segurança na técnica', 'Resultados que não se repetem', 'Poucos pacientes para aplicar', 'Precificar os procedimentos', 'Ainda não aplico e quero começar'];
-const DESAFIOS_C = ['Atrair pacientes com constância', 'Time e processos', 'Precificação e margem', 'Agenda cheia e lucro baixo', 'Escalar sem perder qualidade'];
+const DESAFIOS_C = ['Atrair pacientes com constância', 'Time e processos', 'Precificação e margem',
+  'Agenda cheia e lucro baixo', 'Escalar sem perder qualidade',
+  'Quero saber mais de harmonização facial', 'Quero saber mais de harmonização corporal'];
 const FATURAMENTOS = ['Até R$30.000', 'De R$30.000 a R$70.000', 'De R$70.000 a R$150.000', 'De R$150.000 a R$300.000', 'De R$300.000 a R$700.000', 'De R$700.000 a R$1.000.000', 'Mais de R$1.000.000'];
+/* de R$150 mil por mês pra cima o lead é prioritário: entra com tag própria no
+   CRM e a Gabi reconhece o momento antes de passar pro time. */
+const FATURAMENTO_PRIORITARIO = FATURAMENTOS.slice(3);
+
+/* ================================================================
+   DDD → ESTADO, e o que a Gabi fala sobre cada mercado
+   ================================================================ */
+const DDD_UF = {
+  11:'SP',12:'SP',13:'SP',14:'SP',15:'SP',16:'SP',17:'SP',18:'SP',19:'SP',
+  21:'RJ',22:'RJ',24:'RJ',27:'ES',28:'ES',
+  31:'MG',32:'MG',33:'MG',34:'MG',35:'MG',37:'MG',38:'MG',
+  41:'PR',42:'PR',43:'PR',44:'PR',45:'PR',46:'PR',
+  47:'SC',48:'SC',49:'SC',
+  51:'RS',53:'RS',54:'RS',55:'RS',
+  61:'DF',62:'GO',64:'GO',63:'TO',65:'MT',66:'MT',67:'MS',68:'AC',69:'RO',
+  71:'BA',73:'BA',74:'BA',75:'BA',77:'BA',79:'SE',
+  81:'PE',87:'PE',82:'AL',83:'PB',84:'RN',85:'CE',88:'CE',86:'PI',89:'PI',
+  91:'PA',93:'PA',94:'PA',92:'AM',97:'AM',95:'RR',96:'AP',98:'MA',99:'MA',
+};
+const MSG_UF = {
+  SP: 'São Paulo — o mercado de estética mais exigente do país. A paciente pesquisa antes de escolher, e quem tem posicionamento claro é quem ela escolhe.',
+  RJ: 'Rio de Janeiro — cidade que valoriza resultado natural e bem feito. Indicação ali corre rápido.',
+  MG: 'Minas Gerais — paciente fiel como poucos. Quem constrói confiança atende a mesma família por anos.',
+  ES: 'Espírito Santo — mercado em expansão e ainda com pouca clínica organizada. Quem estrutura agora sai na frente.',
+  RS: 'Rio Grande do Sul — público criterioso, que pergunta e compara. Técnica consistente vira autoridade ali.',
+  SC: 'Santa Catarina — um dos públicos com maior poder de compra do país. Ticket alto ali é regra, não exceção.',
+  PR: 'Paraná — paciente pragmática, que escolhe por segurança. Protocolo bem explicado fecha.',
+  BA: 'Bahia — mercado grande e com muito espaço para quem entrega qualidade de verdade.',
+  PE: 'Pernambuco — Recife virou polo de estética no Nordeste. Quem tem método cresce rápido ali.',
+  CE: 'Ceará — Fortaleza consome estética o ano inteiro. Constância ali vira agenda cheia.',
+  AL: 'Alagoas — mercado local aquecido e turismo forte. Autoridade regional se constrói rápido.',
+  MA: 'Maranhão — mercado em plena formação. Quem chega com processo definido pega a onda no começo.',
+  PB: 'Paraíba — concorrência ainda baixa e paciente disposta. Janela boa para crescer.',
+  RN: 'Rio Grande do Norte — Natal tem público que indica muito. Uma paciente satisfeita traz outras três.',
+  SE: 'Sergipe — mercado compacto, onde reputação se espalha em semanas.',
+  PI: 'Piauí — estética crescendo acima da média nacional. Quem estrutura agora colhe primeiro.',
+  AM: 'Amazonas — Manaus tem mercado consumidor enorme e pouca oferta qualificada.',
+  PA: 'Pará — Belém valoriza quem cuida de perto. Relação próxima ali vira fidelidade.',
+  AP: 'Amapá — mercado pouco explorado. Ser referência ali é questão de chegar com método.',
+  RR: 'Roraima — concorrência mínima. Estrutura bem feita já coloca você na frente.',
+  RO: 'Rondônia — comércio e agro fortes, paciente com poder de compra e pouca opção boa.',
+  AC: 'Acre — mercado pequeno e leal. Quem faz bem feito ali domina.',
+  TO: 'Tocantins — economia jovem e em movimento. Clínica bem posicionada agora vale muito em dois anos.',
+  DF: 'Brasília — renda alta e paciente que paga por especialista. Ticket alto ali é natural.',
+  GO: 'Goiás — Goiânia é uma das capitais que mais consomem estética no Brasil. Mercado faminto por referência.',
+  MT: 'Mato Grosso — capital do agro, com poder de compra alto e pouca oferta premium.',
+  MS: 'Mato Grosso do Sul — mercado regional fiel. Clínica consistente fecha o ano lotada.',
+};
+const MSG_UF_FORA = 'Recebido. 💛 Cuidar bem de paciente não tem fronteira.';
+
+/* erro de digitação comum no domínio do e-mail */
+const DOMINIOS_TROCADOS = {
+  'gmail.con':'gmail.com','gmail.co':'gmail.com','gmal.com':'gmail.com','gamil.com':'gmail.com',
+  'gmai.com':'gmail.com','gmail.cm':'gmail.com','hotmal.com':'hotmail.com','hotmai.com':'hotmail.com',
+  'hotmail.con':'hotmail.com','hotmial.com':'hotmail.com','outlok.com':'outlook.com',
+  'outlook.con':'outlook.com','yaho.com':'yahoo.com','yahoo.con':'yahoo.com','icloud.con':'icloud.com',
+  'iclod.com':'icloud.com','uol.com':'uol.com.br','bol.com':'bol.com.br',
+};
+function sugerirEmail(email) {
+  const [u, dominio] = email.toLowerCase().split('@');
+  if (!dominio || !DOMINIOS_TROCADOS[dominio]) return null;
+  return u + '@' + DOMINIOS_TROCADOS[dominio];
+}
 
 /* ================================================================
    ESTADO + PERSISTÊNCIA
@@ -366,7 +486,7 @@ const FATURAMENTOS = ['Até R$30.000', 'De R$30.000 a R$70.000', 'De R$70.000 a 
    igual e a pessoa continua exatamente de onde parou.
    ================================================================ */
 const SKEY = 'gabi_funil_v1';
-let state = { etapa: 'nome', passo: 0, total: 8, data: {}, transcript: [], ref: null, done: false };
+let state = { etapa: 'nome', passo: 0, total: 10, data: {}, transcript: [], ref: null, done: false };
 try {
   const salvo = JSON.parse(localStorage.getItem(SKEY) || 'null');
   if (salvo && salvo.ref) state = Object.assign(state, salvo);
@@ -435,6 +555,88 @@ async function gabi(html, { delay = 900, classe = '' } = {}) {
   gravar('bot', html, classe);
 }
 function pessoa(texto) { const h = esc(texto); addRow('user', h); gravar('user', h); }
+
+/* Espera com o que está acontecendo na tela: os passos avançam sozinhos e o
+   último segura até a resposta chegar. Não entra no transcript — é efêmero. */
+function mostrarEspera(titulo, passos, intervalo = 2200) {
+  const row = document.createElement('div');
+  row.className = `row bot${lastSide === 'bot' ? ' cont' : ''}`;
+  row.innerHTML = avatarHtml() +
+    `<div class="bubble loader-card"><div class="loader-title">${titulo}</div>` +
+    `<div class="loader-steps">${passos.map((t, i) => `<div class="lstep${i === 0 ? ' doing' : ''}"><span class="ic"></span><span>${t}</span></div>`).join('')}</div>` +
+    `<div class="loader-bar"><i></i></div></div>`;
+  chat.appendChild(row); lastSide = 'bot'; scrollDown();
+  const barra = row.querySelector('.loader-bar i');
+  const els = [...row.querySelectorAll('.lstep')];
+  let cur = 0;
+  const largura = () => { barra.style.width = Math.min(12 + ((cur + 0.5) / passos.length) * 80, 92) + '%'; };
+  requestAnimationFrame(largura);
+  const timer = setInterval(() => {
+    if (cur >= passos.length - 1) return;
+    els[cur].classList.remove('doing'); els[cur].classList.add('ok');
+    els[cur].querySelector('.ic').textContent = '\u2713';
+    cur++; els[cur].classList.add('doing'); largura(); scrollDown();
+  }, intervalo);
+  return {
+    async fim() {
+      clearInterval(timer);
+      els.forEach((e) => { e.classList.remove('doing'); e.classList.add('ok'); e.querySelector('.ic').textContent = '\u2713'; });
+      barra.style.width = '100%';
+      await sleep(500);
+      row.style.transition = 'opacity .35s, transform .35s';
+      row.style.opacity = '0'; row.style.transform = 'translateY(-8px)';
+      await sleep(340); row.remove(); lastSide = null;
+    },
+  };
+}
+
+/* Leitura do perfil: mesma conversa de start+poll do outro funil, pra reaproveitar
+   o mesmo back-end. Sem rota configurada, o card sai com o @ que a pessoa digitou. */
+const fotoProxy = (u) => !u ? '' : (CONFIG.API_PROXY_IMG ? `${CONFIG.API_PROXY_IMG}?url=${encodeURIComponent(u)}` : u);
+async function postJSON(url, payload, timeoutMs = 9000) {
+  if (!url) return null;
+  try {
+    const ctl = new AbortController();
+    const timer = setTimeout(() => ctl.abort(), timeoutMs);
+    const r = await fetch(url, { method: 'POST', signal: ctl.signal, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+    clearTimeout(timer);
+    if (r.ok) return await r.json();
+  } catch (e) {}
+  return null;
+}
+async function lerPerfil(handle) {
+  const inicio = await postJSON(CONFIG.API_PROFILE, { action: 'start', username: handle });
+  if (!inicio) return null;
+  if (inicio.status === 'ok' && inicio.profile) return inicio;      // back-end síncrono
+  if (inicio.status !== 'started') return inicio;
+  const t0 = Date.now();
+  while (Date.now() - t0 < 45000) {
+    await sleep(2500);
+    const res = await postJSON(CONFIG.API_PROFILE, { action: 'poll', runId: inicio.runId, datasetId: inicio.datasetId });
+    if (res && res.status && res.status !== 'running') return res;
+  }
+  return null;
+}
+const fmtNum = (n) => n == null ? '\u2014' : new Intl.NumberFormat('pt-BR', { notation: 'compact', maximumFractionDigits: 1 }).format(n);
+function cardPerfil(p) {
+  const foto = p && p.profilePicUrl ? fotoProxy(p.profilePicUrl) : CONFIG.AVATAR_FALLBACK;
+  const arroba = esc(state.data.instagram || (p && p.username) || '');
+  if (!p) {
+    return `<div class="pcard">
+      <div class="ppic" style="background-image:url('${esc(foto)}')"></div>
+      <div class="pinfo"><div class="pname">@${arroba}</div><div class="puser">perfil que você informou</div></div>
+    </div>`;
+  }
+  return `<div class="pcard">
+    <div class="ppic" style="background-image:url('${esc(foto)}')"></div>
+    <div class="pinfo">
+      <div class="pname">${esc(p.fullName || '@' + arroba)}${p.verified ? ' <span class="pverif">\u2713</span>' : ''}</div>
+      <div class="puser">@${arroba}</div>
+      <div class="pstats"><span><b>${fmtNum(p.followersCount)}</b> seguidores</span><span><b>${fmtNum(p.postsCount)}</b> posts</span></div>
+      ${p.businessCategoryName ? `<div class="pcat">${esc(p.businessCategoryName)}</div>` : ''}
+    </div>
+  </div>`;
+}
 
 function setProgress(passo, total) {
   state.passo = passo; if (total) state.total = total;
@@ -513,6 +715,43 @@ function askChips(options, onPick) {
   chipsEl.classList.add('show');
   scrollDown();
 }
+/* Seleção múltipla: a pessoa marca quantas quiser e confirma. A marcação
+   não é só cor — o chip ligado ganha um ✓, pra quem não distingue matiz. */
+function askMulti(options, onOk) {
+  hideDock(); ensureDockLast();
+  labelEl.textContent = 'Pode marcar mais de uma'; labelEl.classList.add('show');
+  chipsEl.textContent = '';
+  const escolhidas = new Set();
+  const confirmar = document.createElement('button');
+  confirmar.type = 'button';
+  confirmar.className = 'chip confirmar';
+  const atualizar = () => {
+    confirmar.disabled = escolhidas.size === 0;
+    confirmar.textContent = escolhidas.size ? `Confirmar (${escolhidas.size})` : 'Marque o que faz sentido';
+  };
+  options.forEach((opt) => {
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'chip'; b.textContent = opt;
+    b.setAttribute('aria-pressed', 'false');
+    b.onclick = () => {
+      const ligado = escolhidas.has(opt);
+      if (ligado) escolhidas.delete(opt); else escolhidas.add(opt);
+      b.classList.toggle('on', !ligado);
+      b.setAttribute('aria-pressed', String(!ligado));
+      atualizar();
+    };
+    chipsEl.appendChild(b);
+  });
+  atualizar();
+  confirmar.onclick = async () => {
+    if (!escolhidas.size) return;
+    hideDock();
+    await onOk(options.filter((o) => escolhidas.has(o)));   // mantém a ordem da lista
+  };
+  chipsEl.appendChild(confirmar);
+  chipsEl.classList.add('show');
+  scrollDown();
+}
 function askSelect({ label, placeholder, options, onOk }) {
   hideDock(); ensureDockLast();
   labelEl.textContent = label; labelEl.classList.add('show');
@@ -565,6 +804,22 @@ const vCidade = (v) => {
   if (t.length < 2) return { ok: false, erro: '' };
   return { ok: true, valor: t };
 };
+const vEmail = (v) => {
+  const t = v.trim().toLowerCase();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(t)) return { ok: false, erro: '' };
+  return { ok: true, valor: t };
+};
+const vInsta = (v) => {
+  const t = v.trim().replace(/^@/, '').replace(/^https?:\/\/(www\.)?instagram\.com\//i, '').replace(/[\/?].*$/, '').toLowerCase();
+  if (!/^[\w.]{2,30}$/.test(t)) return { ok: false, erro: t.length > 1 ? 'Só letras, números, ponto e underline' : '' };
+  return { ok: true, valor: t };
+};
+const vLivre = (v) => {
+  const t = v.trim().replace(/\s+/g, ' ');
+  if (t.length < 2) return { ok: false, erro: '' };
+  if (t.length > 60) return { ok: false, erro: 'Pode resumir em poucas palavras?' };
+  return { ok: true, valor: t };
+};
 const primeiroNome = () => esc((state.data.nome || '').split(' ')[0]);
 
 /* ================================================================
@@ -577,12 +832,22 @@ function salvar(status) {
   const u = d.utm || {};
   const payload = {
     lead_ref: state.ref, status,
-    nome: d.nome || '', telefone: d.telefone || '',
+    nome: d.nome || '', telefone: d.telefone || '', email: d.email || '',
+    instagram: d.instagram || '', uf: d.uf || '', prioridade: d.prioridade || '',
+    ig_nome: (d.profile && d.profile.fullName) || '',
+    ig_bio: (d.profile && d.profile.biography) || '',
+    ig_seguidores: (d.profile && d.profile.followersCount) ?? null,
+    ig_posts: (d.profile && d.profile.postsCount) ?? null,
+    ig_verificado: (d.profile && typeof d.profile.verified === 'boolean') ? d.profile.verified : null,
+    ig_categoria: (d.profile && d.profile.businessCategoryName) || '',
     interesse: d.interesse || '', interesse_texto: d.interesseTexto || '',
-    formacao: d.formacao || '', pode_aplicar: d.podeAplicar ?? null,
-    ja_atua: d.jaAtua || '', nicho: d.nicho || '', desafio: d.desafio || '',
+    formacao: d.formacao || '', formacao_outra: d.formacaoOutra || '',
+    pode_aplicar: d.podeAplicar ?? null,
+    ja_atua: d.jaAtua || '', nicho: d.nicho || '', nicho_outra: d.nichoOutra || '',
+    desafio: d.desafio || '', desafios: d.desafios || (d.desafio ? [d.desafio] : []),
     faixa_faturamento: d.faturamento || '', momento: d.momento || '', cidade: d.cidade || '',
     destino: d.destino || '', tag: d.tag || '',
+    agendado: d.agendado === true, agenda_evento: d.agendaEvento || '', agenda_convite: d.agendaConvite || '',
     utm_source: u.source || '', utm_medium: u.medium || '', utm_campaign: u.campaign || '',
     utm_content: u.content || '', utm_term: u.term || '', fbclid: u.fbclid || '',
     referrer: d.referrer || '', enviado_em: new Date().toISOString(),
@@ -598,24 +863,28 @@ function salvar(status) {
 
 /* Evento Lead na CLASSIFICAÇÃO (destino definido), nunca em nutrir/abandono.
    Mesmo eventID no Pixel e na CAPI → o Meta deduplica. */
-function dispararLead() {
+function dispararEvento(nomeEvento, flag) {
   const d = state.data;
-  if (!d.destino || d.destino === 'nutrir' || d.leadEnviado) return;
-  d.leadEnviado = true; persist();
-  const eventId = `lead_${state.ref}_${Date.now()}`;
+  if (!d.destino || d.destino === 'nutrir' || d[flag]) return;
+  d[flag] = true; persist();
+  const eventId = `${nomeEvento.toLowerCase()}_${state.ref}_${Date.now()}`;
   const custom = { content_name: d.tag || d.destino, currency: 'BRL' };
-  try { if (window.fbq) fbq('track', 'Lead', custom, { eventID: eventId }); } catch (e) {}
+  try { if (window.fbq) fbq('track', nomeEvento, custom, { eventID: eventId }); } catch (e) {}
   if (!CONFIG.API_FB_EVENT) return;
   const cookie = (n) => (document.cookie.match('(^|;)\\s*' + n + '=([^;]+)') || [])[2] || '';
   fetch(CONFIG.API_FB_EVENT, {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, keepalive: true,
     body: JSON.stringify({
-      event_name: 'Lead', event_id: eventId, content_name: custom.content_name,
-      nome: d.nome || '', phone: d.telefone || '', destino: d.destino,
+      event_name: nomeEvento, event_id: eventId, content_name: custom.content_name,
+      nome: d.nome || '', phone: d.telefone || '', email: d.email || '', destino: d.destino,
       fbp: cookie('_fbp'), fbc: cookie('_fbc'), event_source_url: location.href, currency: 'BRL',
     }),
   }).catch(() => {});
 }
+/* Lead na classificação (destino definido) e Schedule quando o horário é marcado.
+   Cada um tem sua flag: não duplicam nem se atrapalham. */
+function dispararLead() { dispararEvento('Lead', 'leadEnviado'); }
+function dispararAgendamento() { dispararEvento('Schedule', 'scheduleEnviado'); }
 
 /* ================================================================
    FLUXO
@@ -648,12 +917,88 @@ async function etapaWhats(replay) {
     label: 'Seu WhatsApp', placeholder: '(11) 99999-9999', type: 'tel',
     mask: maskFone, validate: vFone, ddiSelect: true,
     onOk: async (fone) => {
-      pessoa(foneDDI === '55' ? maskFoneBR(fone) : '+' + foneDDI + ' ' + fone);
+      const br = foneDDI === '55';
+      pessoa(br ? maskFoneBR(fone) : '+' + foneDDI + ' ' + fone);
       state.data.telefone = '+' + foneDDI + fone;      // E.164
-      state.etapa = 'interesse'; setProgress(2);
+      state.data.paisDDI = foneDDI;
+      state.data.uf = br ? (DDD_UF[+fone.slice(0, 2)] || '') : '';
+      state.etapa = 'email'; setProgress(2);
+      salvar('parcial');
+      await gabi(br ? (MSG_UF[state.data.uf] || MSG_UF_FORA) : MSG_UF_FORA, { delay: 1000 });
+      await etapaEmail();
+    },
+  });
+}
+
+async function etapaEmail(replay) {
+  if (!replay) await gabi('E qual o seu melhor e-mail?', { delay: 700 });
+  askText({
+    label: 'Seu e-mail', placeholder: 'voce@email.com', type: 'email', validate: vEmail,
+    onOk: async (email) => {
+      pessoa(email);
+      const sugestao = sugerirEmail(email);
+      if (sugestao && sugestao !== email) {          // erro de digitação no domínio
+        state.data.emailDigitado = email; state.data.emailSugerido = sugestao;
+        state.etapa = 'email_confirma'; persist();
+        await confirmarEmail();
+        return;
+      }
+      await guardarEmail(email);
+    },
+  });
+}
+async function confirmarEmail(replay) {
+  if (!replay) await gabi(`Esse e-mail parece ter um erro de digitação. Você quis dizer <b>${esc(state.data.emailSugerido || '')}</b>?`);
+  askChips(['Sim, é esse', 'Não, manter como digitei'], async (opt) => {
+    pessoa(opt);
+    await guardarEmail(opt.startsWith('Sim') ? state.data.emailSugerido : state.data.emailDigitado);
+  });
+}
+async function guardarEmail(email) {
+  state.data.email = email; state.etapa = 'instagram'; setProgress(3);
+  salvar('parcial');
+  await etapaInstagram();
+}
+
+async function etapaInstagram(replay) {
+  if (!replay) await gabi('Agora me passa o <b>@</b> do seu perfil no Instagram. Quero dar uma olhada antes da gente seguir. 👀', { delay: 800 });
+  askText({
+    label: 'Seu @ do Instagram', placeholder: 'seuperfil', prefix: '@', validate: vInsta,
+    onOk: async (handle) => {
+      pessoa('@' + handle);
+      state.data.instagram = handle; persist();
+      await buscarPerfil(handle);
+    },
+  });
+}
+async function buscarPerfil(handle) {
+  const espera = mostrarEspera(`Abrindo o <b>@${esc(handle)}</b>`,
+    ['Procurando o perfil', 'Lendo a bio e os números', 'Organizando o que achei'], 1700);
+  const res = CONFIG.API_PROFILE ? await lerPerfil(handle) : null;
+  await espera.fim();
+  state.data.profile = (res && res.status === 'ok' && res.profile) ? res.profile : null;
+  state.etapa = 'instagram_confirma'; persist();
+  salvar('parcial');
+  await confirmarPerfil();
+}
+async function confirmarPerfil(replay) {
+  const p = state.data.profile;
+  if (!replay) {
+    const html = cardPerfil(p);
+    addRow('bot', html, 'pcard-bubble'); gravar('bot', html, 'pcard-bubble');
+    await gabi(p ? 'Achei. É você?' : 'É esse o seu perfil?', { delay: 700 });
+  }
+  askChips(['Sou eu ✅', 'Não é esse perfil'], async (opt) => {
+    pessoa(opt);
+    if (opt.startsWith('Sou')) {
+      state.etapa = 'interesse'; setProgress(4);
       salvar('parcial');
       await etapaInteresse();
-    },
+      return;
+    }
+    state.data.profile = null; state.etapa = 'instagram'; persist();
+    await gabi('Sem problema. Me passa o @ certo:');
+    await etapaInstagram(true);
   });
 }
 
@@ -664,7 +1009,7 @@ async function etapaInteresse(replay) {
     const ramo = opt === INTERESSES.A ? 'A' : opt === INTERESSES.B ? 'B' : 'C';
     state.data.interesse = ramo;
     state.data.interesseTexto = opt;
-    setProgress(3, ramo === 'A' ? 4 : 8);
+    setProgress(5, ramo === 'A' ? 6 : 10);
     salvar('parcial');
     if (ramo === 'A') { state.etapa = 'a_cidade'; await etapaCidade(); }
     else if (ramo === 'B') { state.etapa = 'b_formacao'; await etapaFormacaoB(); }
@@ -677,7 +1022,7 @@ async function etapaCidade(replay) {
   if (!replay) await gabi('De qual cidade você fala comigo?');
   const seguir = async (cidade) => {
     state.data.cidade = cidade || '';
-    setProgress(4, 4);
+    setProgress(6, 6);
     salvar('completo');
     await fecharA();
   };
@@ -692,6 +1037,24 @@ async function fecharA() {
   await rotear('clinica', 'clinica-paciente');
 }
 
+/* Quando a escolha é "Outra...", a resposta sozinha não diz nada pro closer:
+   a Gabi pergunta qual antes de seguir. Cada follow-up tem etapa própria, então
+   refresh no meio dele volta pra pergunta certa. */
+const ehOutra = (v) => /^outr[oa]/i.test(v || '');
+const perguntaOutra = ({ pergunta, label, placeholder, campo, proxima, seguir }) => async (replay) => {
+  if (!replay) await gabi(pergunta, { delay: 700 });
+  askText({
+    label, placeholder, validate: vLivre,
+    onOk: async (texto) => {
+      pessoa(texto);
+      state.data[campo] = texto;
+      state.etapa = proxima;
+      salvar('parcial');
+      await seguir();
+    },
+  });
+};
+
 /* ---------- Ramo B · injetáveis ---------- */
 async function etapaFormacaoB(replay) {
   if (!replay) await gabi('Qual a sua formação?');
@@ -700,9 +1063,11 @@ async function etapaFormacaoB(replay) {
     onOk: async (f) => {
       pessoa(f);
       state.data.formacao = f;
+      state.data.formacaoOutra = '';
       state.data.podeAplicar = FORMACOES_APTAS.includes(f);
-      setProgress(4, 8);
+      setProgress(6, 10);
       salvar('parcial');
+      if (ehOutra(f)) { state.etapa = 'b_formacao_outra'; await etapaFormacaoOutraB(); return; }
       if (!state.data.podeAplicar) { state.etapa = 'b_nutrir'; await etapaNutrir(); return; }
       state.etapa = 'b_atua'; await etapaAtuaB();
     },
@@ -712,7 +1077,7 @@ async function etapaAtuaB(replay) {
   if (!replay) await gabi('Você já aplica hoje, ou quer começar?');
   askChips(['Já aplico hoje', 'Quero começar agora'], async (opt) => {
     pessoa(opt);
-    state.data.jaAtua = opt; state.etapa = 'b_nicho'; setProgress(5, 8);
+    state.data.jaAtua = opt; state.etapa = 'b_nicho'; setProgress(7, 10);
     salvar('parcial');
     await etapaNichoB();
   });
@@ -723,9 +1088,10 @@ async function etapaNichoB(replay) {
     label: 'Sua área', placeholder: 'Selecione sua área', options: AREAS,
     onOk: async (a) => {
       pessoa(a);
-      state.data.nicho = a; state.etapa = 'b_desafio'; setProgress(6, 8);
+      state.data.nicho = a; state.data.nichoOutra = ''; setProgress(8, 10);
       salvar('parcial');
-      await etapaDesafioB();
+      if (ehOutra(a)) { state.etapa = 'b_nicho_outra'; await etapaNichoOutraB(); return; }
+      state.etapa = 'b_desafio'; await etapaDesafioB();
     },
   });
 }
@@ -733,12 +1099,15 @@ async function etapaDesafioB(replay) {
   if (!replay) await gabi('Qual o seu maior desafio hoje com procedimentos?');
   askChips(DESAFIOS_B, async (opt) => {
     pessoa(opt);
-    state.data.desafio = opt; state.etapa = 'b_faturamento'; setProgress(7, 8);
+    state.data.desafio = opt; state.etapa = 'b_faturamento'; setProgress(9, 10);
     salvar('parcial');
     await etapaFaturamento('B');
   });
 }
 async function fecharB() {
+  if (state.data.prioridade === 'alta') {
+    await gabi(`Com esse faturamento, cada ajuste de técnica se paga rápido no seu caso, <b>${primeiroNome()}</b>.`, { delay: 1100 });
+  }
   await gabi(`Você tem exatamente o perfil que eu quero no meu Workshop, <b>${primeiroNome()}</b>. 🔑 Vou te apresentar a alguém do meu time, que vai te contar tudo.`, { delay: 1300 });
   await rotear('workshop', 'workshop-injetaveis');
 }
@@ -753,7 +1122,7 @@ async function etapaNutrir(replay) {
     const aceitou = opt.startsWith('Pode sim');
     state.data.destino = 'nutrir';
     state.data.tag = aceitou ? 'nutrir-aceitou' : 'nutrir-recusou';
-    state.done = true; setProgress(8, 8);
+    state.done = true; setProgress(10, 10);
     salvar('nutrir');                       // sem evento de conversão, por decisão de rastreio
     lgpdEl.style.display = 'none';
     await gabi(aceitou
@@ -771,10 +1140,12 @@ async function etapaFormacaoC(replay) {
     onOk: async (f) => {
       pessoa(f);
       state.data.formacao = f;
+      state.data.formacaoOutra = '';
       state.data.podeAplicar = FORMACOES_APTAS.includes(f);
-      state.etapa = 'c_momento'; setProgress(4, 8);
+      setProgress(6, 10);
       salvar('parcial');
-      await etapaMomentoC();
+      if (ehOutra(f)) { state.etapa = 'c_formacao_outra'; await etapaFormacaoOutraC(); return; }
+      state.etapa = 'c_momento'; await etapaMomentoC();
     },
   });
 }
@@ -782,7 +1153,7 @@ async function etapaMomentoC(replay) {
   if (!replay) await gabi('Você já tem clínica em operação, ou está construindo?');
   askChips(['Já tenho clínica em operação', 'Estou construindo agora'], async (opt) => {
     pessoa(opt);
-    state.data.momento = opt; state.etapa = 'c_nicho'; setProgress(5, 8);
+    state.data.momento = opt; state.etapa = 'c_nicho'; setProgress(7, 10);
     salvar('parcial');
     await etapaNichoC();
   });
@@ -793,22 +1164,28 @@ async function etapaNichoC(replay) {
     label: 'Sua área', placeholder: 'Selecione sua área', options: AREAS,
     onOk: async (a) => {
       pessoa(a);
-      state.data.nicho = a; state.etapa = 'c_desafio'; setProgress(6, 8);
+      state.data.nicho = a; state.data.nichoOutra = ''; setProgress(8, 10);
       salvar('parcial');
-      await etapaDesafioC();
+      if (ehOutra(a)) { state.etapa = 'c_nicho_outra'; await etapaNichoOutraC(); return; }
+      state.etapa = 'c_desafio'; await etapaDesafioC();
     },
   });
 }
 async function etapaDesafioC(replay) {
-  if (!replay) await gabi('Qual o seu maior desafio hoje na gestão ou no crescimento da clínica?');
-  askChips(DESAFIOS_C, async (opt) => {
-    pessoa(opt);
-    state.data.desafio = opt; state.etapa = 'c_faturamento'; setProgress(7, 8);
+  if (!replay) await gabi('Qual o seu maior desafio hoje na gestão ou no crescimento da clínica? Pode marcar mais de uma.');
+  askMulti(DESAFIOS_C, async (lista) => {
+    pessoa(lista.join(', '));
+    state.data.desafios = lista;
+    state.data.desafio = lista.join('; ');
+    state.etapa = 'c_faturamento'; setProgress(9, 10);
     salvar('parcial');
     await etapaFaturamento('C');
   });
 }
 async function fecharC() {
+  if (state.data.prioridade === 'alta') {
+    await gabi(`Com esse faturamento, você está exatamente no momento em que a mentoria muda o jogo, <b>${primeiroNome()}</b>.`, { delay: 1100 });
+  }
   await gabi(`Adorei te conhecer, <b>${primeiroNome()}</b>. Pelo seu momento, faz muito sentido a gente conversar mais de perto. 💎 Vou te apresentar a alguém de altíssima confiança do meu time, que vai cuidar de você por mim.`, { delay: 1400 });
   await rotear('mentoria', 'mentoria-eventos');
 }
@@ -820,7 +1197,9 @@ async function etapaFaturamento(ramo, replay) {
     label: 'Faturamento mensal', placeholder: 'Selecione a faixa', options: FATURAMENTOS,
     onOk: async (f) => {
       pessoa(f);
-      state.data.faturamento = f; setProgress(8, 8);
+      state.data.faturamento = f;
+      state.data.prioridade = FATURAMENTO_PRIORITARIO.includes(f) ? 'alta' : 'padrao';
+      setProgress(10, 10);
       salvar('completo');
       if (ramo === 'B') { state.etapa = 'b_fechar'; await fecharB(); }
       else { state.etapa = 'c_fechar'; await fecharC(); }
@@ -841,8 +1220,10 @@ function cardHandoff(chaveDestino) {
   const dest = CONFIG.WHATSAPP[chaveDestino];
   const d = state.data;
   const linhas = [
-    ['Nome', d.nome], ['WhatsApp', d.telefone], ['Interesse', INTERESSE_CURTO[d.interesse] || d.interesseTexto],
-    ['Formação', d.formacao], ['Área', d.nicho], ['Faturamento', d.faturamento], ['Cidade', d.cidade],
+    ['Nome', d.nome], ['WhatsApp', d.telefone], ['Instagram', d.instagram ? '@' + d.instagram : ''],
+    ['Interesse', INTERESSE_CURTO[d.interesse] || d.interesseTexto],
+    ['Formação', d.formacaoOutra || d.formacao], ['Área', d.nichoOutra || d.nicho],
+    ['Faturamento', d.faturamento], ['Cidade', d.cidade],
   ].filter(([, v]) => v);
   return `
     <div class="wa-kicker">Próximo passo</div>
@@ -857,27 +1238,124 @@ function cardHandoff(chaveDestino) {
 }
 async function rotear(chaveDestino, tag) {
   state.data.destino = chaveDestino;
-  state.data.tag = tag;
+  state.data.tag = state.data.prioridade === 'alta' ? tag + '-prioritario' : tag;
   state.done = true;
   lgpdEl.style.display = 'none';
   salvar('roteado');
   dispararLead();                       // classificação: é aqui que o evento Lead dispara
   hideDock();
   await sleep(700);
+  const agenda = (CONFIG.CALENDLY || {})[chaveDestino];
+  if (agenda) { await montarAgenda(chaveDestino, agenda); persist(); return; }
   addRow('bot', cardHandoff(chaveDestino), 'wa-bubble');
   gravar('bot', cardHandoff(chaveDestino), 'wa-bubble');
   persist();
 }
 
 /* ================================================================
+   AGENDA — Calendly embutido no chat (workshop e mentoria).
+   O horário é marcado aí mesmo; a confirmação volta por postMessage e vira
+   status 'agendado' no CRM + evento Schedule. O link de WhatsApp fica embaixo
+   pra quem prefere falar antes, e a agenda também abre em outra aba se o
+   widget não carregar (bloqueador, rede ruim).
+   ================================================================ */
+function linkCalendly(base) {
+  const d = state.data, u = d.utm || {};
+  try {
+    const url = new URL(base);
+    const p = url.searchParams;
+    if (d.nome) p.set('name', d.nome);
+    if (d.email) p.set('email', d.email);
+    if (d.telefone) p.set('a1', d.telefone);          // 1ª pergunta do Calendly: WhatsApp
+    p.set('hide_gdpr_banner', '1');
+    p.set('background_color', 'fffbf9');
+    p.set('text_color', '2b0d0f');
+    p.set('primary_color', 'a81419');
+    if (u.source) p.set('utm_source', u.source);
+    if (u.medium) p.set('utm_medium', u.medium);
+    if (u.campaign) p.set('utm_campaign', u.campaign);
+    return url.toString();
+  } catch (e) { return base; }
+}
+function carregarScript(src) {
+  return new Promise((ok, erro) => {
+    if (document.querySelector(`script[src="${src}"]`)) return ok();
+    const s = document.createElement('script');
+    s.src = src; s.async = true;
+    s.onload = () => ok(); s.onerror = () => erro(new Error('script'));
+    document.head.appendChild(s);
+  });
+}
+async function montarAgenda(chaveDestino, base) {
+  const dest = CONFIG.WHATSAPP[chaveDestino];
+  const url = linkCalendly(base);
+  await gabi('Escolhe o melhor horário aqui embaixo que eu já reservo. 💛', { delay: 900 });
+  const html = `
+    <div class="wa-kicker">Próximo passo</div>
+    <div class="wa-title">Escolha o melhor horário</div>
+    <div class="wa-sub">${esc(dest.sub)}</div>
+    <div class="ag-embed" data-agenda="${esc(url)}"></div>
+    <div class="ag-links">
+      <a href="${esc(url)}" target="_blank" rel="noopener">Abrir a agenda em outra aba</a>
+      ${CONFIG.WHATSAPP_ALTERNATIVO ? `<a href="${esc(linkWhats(dest))}" target="_blank" rel="noopener">Prefiro falar no WhatsApp antes</a>` : ''}
+    </div>`;
+  const row = addRow('bot', html, 'wa-bubble ag-bubble');
+  gravar('bot', html, 'wa-bubble ag-bubble');
+  ligarAgenda(row.querySelector('.ag-embed'));
+}
+/* monta o widget no contêiner; se o script não vier, o link de outra aba resolve */
+async function ligarAgenda(caixa) {
+  if (!caixa || caixa.dataset.pronto) return;
+  caixa.dataset.pronto = '1';
+  try {
+    await carregarScript('https://assets.calendly.com/assets/external/widget.js');
+    if (!window.Calendly) throw new Error('sem Calendly');
+    window.Calendly.initInlineWidget({ url: caixa.dataset.agenda, parentElement: caixa });
+  } catch (e) {
+    caixa.remove();                                   // sem widget, fica só o link
+  }
+  scrollDown();
+}
+/* confirmação do Calendly: só aceita mensagem vinda do domínio deles */
+window.addEventListener('message', async (e) => {
+  try {
+    if (!/(^|\.)calendly\.com$/.test(new URL(e.origin).hostname)) return;
+  } catch (err) { return; }
+  const msg = e.data;
+  if (!msg || msg.event !== 'calendly.event_scheduled' || state.data.agendado) return;
+  state.data.agendado = true;
+  const payload = msg.payload || {};
+  state.data.agendaEvento = (payload.event && payload.event.uri) || '';
+  state.data.agendaConvite = (payload.invitee && payload.invitee.uri) || '';
+  persist();
+  salvar('agendado');
+  dispararAgendamento();
+  const html = `<div class="ag-ok"><b>Horário reservado</b><span>A confirmação com o link chega no seu e-mail e no WhatsApp.</span></div>`;
+  addRow('bot', html, 'wa-bubble'); gravar('bot', html, 'wa-bubble');
+  await gabi(`Reservado, <b>${primeiroNome()}</b>. Até lá. 💛`, { delay: 800 });
+});
+
+/* ================================================================
    BOOT — remonta a conversa salva e volta pra pergunta pendente
    ================================================================ */
+const PERGUNTA_FORMACAO = { pergunta: 'Me conta qual é a sua formação.', label: 'Sua formação', placeholder: 'Escreva sua formação', campo: 'formacaoOutra' };
+const PERGUNTA_AREA = { pergunta: 'Me conta qual é a sua área.', label: 'Sua área', placeholder: 'Escreva sua área', campo: 'nichoOutra' };
+const etapaFormacaoOutraB = perguntaOutra({ ...PERGUNTA_FORMACAO, proxima: 'b_nutrir', seguir: () => etapaNutrir() });
+const etapaFormacaoOutraC = perguntaOutra({ ...PERGUNTA_FORMACAO, proxima: 'c_momento', seguir: () => etapaMomentoC() });
+const etapaNichoOutraB = perguntaOutra({ ...PERGUNTA_AREA, proxima: 'b_desafio', seguir: () => etapaDesafioB() });
+const etapaNichoOutraC = perguntaOutra({ ...PERGUNTA_AREA, proxima: 'c_desafio', seguir: () => etapaDesafioC() });
+
 const ETAPAS = {
-  nome: etapaNome, whats: etapaWhats, interesse: etapaInteresse,
+  nome: etapaNome, whats: etapaWhats,
+  email: etapaEmail, email_confirma: confirmarEmail,
+  instagram: etapaInstagram, instagram_confirma: confirmarPerfil,
+  interesse: etapaInteresse,
   a_cidade: etapaCidade,
-  b_formacao: etapaFormacaoB, b_atua: etapaAtuaB, b_nicho: etapaNichoB,
+  b_formacao: etapaFormacaoB, b_formacao_outra: etapaFormacaoOutraB,
+  b_atua: etapaAtuaB, b_nicho: etapaNichoB, b_nicho_outra: etapaNichoOutraB,
   b_desafio: etapaDesafioB, b_faturamento: (r) => etapaFaturamento('B', r), b_nutrir: etapaNutrir,
-  c_formacao: etapaFormacaoC, c_momento: etapaMomentoC, c_nicho: etapaNichoC,
+  c_formacao: etapaFormacaoC, c_formacao_outra: etapaFormacaoOutraC,
+  c_momento: etapaMomentoC, c_nicho: etapaNichoC, c_nicho_outra: etapaNichoOutraC,
   c_desafio: etapaDesafioC, c_faturamento: (r) => etapaFaturamento('C', r),
 };
 
@@ -922,7 +1400,11 @@ async function boot() {
   if (state.transcript.length) {
     state.transcript.forEach((m) => addRow(m.s, m.h, m.c || ''));
     setProgress(state.passo, state.total);
-    if (state.done) { hideDock(); lgpdEl.style.display = 'none'; return; }
+    if (state.done) {
+      hideDock(); lgpdEl.style.display = 'none';
+      chat.querySelectorAll('.ag-embed').forEach(ligarAgenda);   // agenda volta funcionando
+      return;
+    }
     await gabi('Continuando de onde você parou.', { delay: 600 });
     const etapa = ETAPAS[state.etapa] || etapaNome;
     await etapa(true);
