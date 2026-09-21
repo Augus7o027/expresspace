@@ -1,0 +1,797 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#0f0c0c">
+  <title>Fale comigo · Dra. Gabriela</title>
+  <meta name="description" content="Canal oficial da Dra. Gabriela. Responda algumas perguntas e eu te direciono ao lugar certo.">
+  <meta name="robots" content="noindex">
+  <link rel="icon" href="marca.svg">
+
+  <!-- Meta Pixel — opcional. Coloque o ID da conta pra ativar; vazio = nenhum
+       script de rastreio carrega e a página segue funcionando igual. -->
+  <script>
+    window.META_PIXEL_ID = '';            // ex.: '1234567890123456'
+    if (window.META_PIXEL_ID) {
+      !function(f,b,e,v,n,t,s)
+      {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+      n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+      if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
+      n.queue=[];t=b.createElement(e);t.async=!0;
+      t.src=v;s=b.getElementsByTagName(e)[0];
+      s.parentNode.insertBefore(t,s)}(window, document,'script',
+      'https://connect.facebook.net/en_US/fbevents.js');
+      fbq('init', window.META_PIXEL_ID);
+      fbq('track', 'PageView');
+    }
+  </script>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Open+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      /* Identidade Gestão de Clínicas · Método ASK: carmim, creme e preto */
+      --carmim: #a81419;
+      --carmim-claro: #c2181e;
+      --carmim-escuro: #6d0c10;
+      --creme: #f6e7d2;
+      --creme-dim: rgba(246, 231, 210, .72);
+      --creme-muted: rgba(246, 231, 210, .46);
+      --preto: #0f0c0c;
+      --preto-2: #1a1514;
+      --preto-3: #221b1a;
+      --borda: rgba(246, 231, 210, .12);
+      --borda-forte: rgba(246, 231, 210, .28);
+      --gradient: linear-gradient(135deg, var(--carmim-claro) 0%, var(--carmim-escuro) 100%);
+      --gradient-header: radial-gradient(120% 140% at 50% 0%, #b3161c 0%, #8d1014 55%, #6d0c10 100%);
+      --sombra: 0 2px 6px rgba(0,0,0,.35), 0 18px 40px rgba(0,0,0,.40);
+      --radius: 16px;
+      --serif: 'Playfair Display', Georgia, serif;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    html, body { height: 100%; }
+    body {
+      font-family: 'Open Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--preto); color: var(--creme);
+      display: flex; flex-direction: column; overflow: hidden;
+    }
+    /* fio geométrico do material impresso, discreto atrás da conversa */
+    .malha {
+      position: fixed; inset: 0; pointer-events: none; z-index: 0; opacity: .5;
+      background:
+        radial-gradient(60% 40% at 50% -5%, rgba(168,20,25,.34), transparent 70%),
+        url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='420' height='420' viewBox='0 0 420 420'%3E%3Cg fill='none' stroke='%23f6e7d2' stroke-opacity='.16' stroke-width='1'%3E%3Cpath d='M-20 60 L120 8 L250 78 L150 170 Z'/%3E%3Cpath d='M120 8 L150 170 L-20 60'/%3E%3Cpath d='M250 78 L410 30 L470 150 L330 210 Z'/%3E%3Cpath d='M410 30 L330 210'/%3E%3Cpath d='M-30 330 L90 270 L170 380 L40 440 Z'/%3E%3Cpath d='M90 270 L40 440'/%3E%3Cpath d='M300 330 L430 290 L470 400'/%3E%3C/g%3E%3C/svg%3E") no-repeat -40px -20px / 560px auto;
+    }
+
+    /* ===== HEADER ===== */
+    header { background: var(--gradient-header); flex-shrink: 0; z-index: 10; position: relative; animation: headerIn .6s cubic-bezier(.22,1,.36,1) both; }
+    @keyframes headerIn { from { transform: translateY(-100%); } to { transform: translateY(0); } }
+    .topbar { max-width: 720px; margin: 0 auto; padding: 12px 18px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .brand { display: flex; align-items: center; gap: 11px; min-width: 0; }
+    .brand-badge { background: rgba(15,12,12,.34); border: 1px solid rgba(246,231,210,.22); border-radius: 10px; padding: 7px 11px; display: flex; align-items: center; flex-shrink: 0; }
+    .brand-badge img { height: 18px; width: auto; max-width: 104px; object-fit: contain; display: block; }
+    .brand-txt { min-width: 0; }
+    .brand-nome { display: block; font-family: var(--serif); font-size: 17px; font-weight: 700; line-height: 1.12; color: var(--creme); letter-spacing: .01em; }
+    .brand-sub { display: block; font-size: 10.5px; font-weight: 600; letter-spacing: .13em; text-transform: uppercase; color: rgba(246,231,210,.62); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .step-pill {
+      background: transparent; border: 1px solid rgba(246,231,210,.55); color: var(--creme);
+      font-size: 10.5px; font-weight: 700; letter-spacing: .16em; text-transform: uppercase;
+      padding: 6px 11px; border-radius: 99px; flex-shrink: 0; white-space: nowrap;
+    }
+    .step-pill.bump { animation: pillBump .4s ease; }
+    @keyframes pillBump { 50% { transform: scale(1.14); } }
+    .progress-line { height: 2px; background: rgba(15,12,12,.34); }
+    .progress-line i { display: block; height: 100%; width: 0%; background: var(--creme); transition: width .6s cubic-bezier(.22,1,.36,1); }
+
+    /* ===== CHAT ===== */
+    main { flex: 1; overflow-y: auto; scroll-behavior: smooth; position: relative; z-index: 1; }
+    .chat { max-width: 720px; margin: 0 auto; padding: 26px 18px 24px; display: flex; flex-direction: column; gap: 14px; }
+    .row { display: flex; gap: 10px; align-items: flex-end; animation: msgIn .45s cubic-bezier(.22,1,.36,1) both; }
+    @keyframes msgIn { from { opacity: 0; transform: translateY(16px) scale(.97); } to { opacity: 1; transform: none; } }
+    .row.user { justify-content: flex-end; }
+    .avatar { width: 38px; height: 38px; border-radius: 50%; flex-shrink: 0; background: var(--preto-2); border: 1px solid var(--borda-forte); overflow: hidden; display: flex; }
+    .avatar img { width: 100%; height: 100%; object-fit: cover; }
+    .row.cont .avatar { visibility: hidden; }
+    .bubble { max-width: 82%; padding: 13px 17px; border-radius: var(--radius); font-size: 15px; line-height: 1.6; word-break: break-word; }
+    .row.bot .bubble { background: var(--preto-2); border: 1px solid var(--borda); border-bottom-left-radius: 5px; color: var(--creme-dim); }
+    .row.bot .bubble b, .row.bot .bubble strong { color: var(--creme); font-weight: 700; }
+    .row.user .bubble { background: var(--gradient); color: var(--creme); font-weight: 600; border-bottom-right-radius: 5px; box-shadow: 0 6px 20px rgba(168,20,25,.34); }
+    .typing { display: inline-flex; gap: 5px; padding: 17px; align-items: center; }
+    .typing i { width: 7px; height: 7px; border-radius: 50%; background: var(--creme); opacity: .28; animation: dotPulse 1.1s infinite; }
+    .typing i:nth-child(2) { animation-delay: .18s; }
+    .typing i:nth-child(3) { animation-delay: .36s; }
+    @keyframes dotPulse { 30% { opacity: 1; transform: translateY(-4px) } }
+
+    /* ===== CARD DE HANDOFF ===== */
+    .wa-bubble { max-width: 88% !important; background: linear-gradient(160deg, #1d1716 0%, #141010 100%) !important; border: 1px solid var(--borda-forte) !important; box-shadow: var(--sombra); padding: 22px !important; }
+    .wa-kicker { font-size: 10px; letter-spacing: .24em; text-transform: uppercase; font-weight: 700; color: rgba(246,231,210,.6); }
+    .wa-title { font-family: var(--serif); font-size: 26px; font-weight: 700; color: var(--creme); margin-top: 8px; line-height: 1.14; }
+    .wa-sub { font-size: 14px; color: var(--creme-dim); margin-top: 8px; line-height: 1.55; }
+    .wa-list { margin-top: 16px; border-top: 1px solid var(--borda); padding-top: 13px; display: flex; flex-direction: column; gap: 8px; }
+    .wa-item { display: flex; justify-content: space-between; gap: 12px; font-size: 13px; }
+    .wa-item span:first-child { color: var(--creme-muted); flex-shrink: 0; letter-spacing: .04em; }
+    .wa-item span:last-child { color: var(--creme); font-weight: 600; text-align: right; }
+    .wa-btn {
+      display: flex; align-items: center; justify-content: center; gap: 10px;
+      width: 100%; padding: 17px; margin-top: 18px; border: none; border-radius: 12px; cursor: pointer;
+      font-family: inherit; font-size: 15.5px; font-weight: 700; letter-spacing: .01em;
+      color: #14100f; text-decoration: none; background: var(--creme);
+      box-shadow: 0 10px 28px rgba(246,231,210,.16); transition: transform .15s, box-shadow .2s;
+    }
+    .wa-btn:active { transform: scale(.97); }
+    .wa-foot { font-size: 11.5px; color: var(--creme-muted); margin-top: 11px; text-align: center; }
+
+    /* ===== DOCK ===== */
+    .dock { width: 100%; padding: 2px 0 6px; }
+    .field-label { font-size: 10px; letter-spacing: .24em; font-weight: 700; color: var(--creme-muted); text-transform: uppercase; margin: 0 0 9px 4px; display: none; }
+    .field-label.show { display: block; animation: msgIn .3s both; }
+    .input-wrap, .select-wrap { display: none; gap: 9px; align-items: center; }
+    .input-wrap.show, .select-wrap.show { display: flex; animation: msgIn .35s both; }
+    .input-wrap { background: var(--preto-2); border: 1px solid var(--borda); border-radius: 13px; padding: 5px 5px 5px 15px; transition: border-color .2s; }
+    .input-wrap:focus-within { border-color: var(--borda-forte); }
+    .prefix { display: none; font-size: 15px; font-weight: 600; color: var(--creme-muted); flex-shrink: 0; }
+    .prefix.show { display: block; }
+    .ddi-sel { border: none; background: transparent; font-family: inherit; font-size: 14.5px; font-weight: 600; color: var(--creme-dim); padding: 4px 2px; outline: none; }
+    .ddi-sel option { background: var(--preto-2); color: var(--creme); }
+    #input { flex: 1; min-width: 0; border: none; outline: none; background: transparent; font-family: inherit; font-size: 15.5px; color: var(--creme); padding: 11px 6px; }
+    #input::placeholder { color: var(--creme-muted); }
+    .send-btn { width: 44px; height: 44px; flex-shrink: 0; border: none; border-radius: 11px; background: var(--preto-3); color: var(--creme-muted); cursor: pointer; display: flex; align-items: center; justify-content: center; transition: background .2s, color .2s, transform .15s; }
+    .send-btn.ready { background: var(--creme); color: #14100f; }
+    .send-btn:active { transform: scale(.92); }
+    .select-shell { flex: 1; position: relative; background: var(--preto-2); border: 1px solid var(--borda); border-radius: 13px; }
+    .select-shell::after { content: '▾'; position: absolute; right: 15px; top: 50%; transform: translateY(-50%); color: var(--creme-muted); pointer-events: none; font-size: 13px; }
+    #selectEl { width: 100%; appearance: none; border: none; outline: none; background: transparent; font-family: inherit; font-size: 15px; font-weight: 500; color: var(--creme); padding: 15px 34px 15px 15px; cursor: pointer; }
+    #selectEl option { background: var(--preto-2); color: var(--creme); }
+    .chips { display: none; flex-wrap: wrap; gap: 9px; }
+    .chips.show { display: flex; animation: msgIn .35s both; }
+    .chip {
+      background: var(--preto-2); border: 1px solid var(--borda); border-radius: 12px;
+      padding: 13px 17px; font-family: inherit; font-size: 14.5px; font-weight: 600; color: var(--creme-dim);
+      cursor: pointer; text-align: left; transition: border-color .18s, color .18s, background .18s, transform .12s;
+    }
+    .chip:hover { border-color: var(--borda-forte); color: var(--creme); background: var(--preto-3); }
+    .chip:active { transform: scale(.97); }
+    .chip.ghost { background: transparent; border-style: dashed; font-weight: 500; color: var(--creme-muted); }
+    .input-hint { font-size: 12.5px; color: #ff9a86; margin: 8px 0 0 4px; min-height: 16px; }
+    .lgpd { font-size: 11px; line-height: 1.55; color: var(--creme-muted); margin-top: 13px; text-align: center; }
+  </style>
+</head>
+<body>
+  <div class="malha" aria-hidden="true"></div>
+
+  <header>
+    <div class="topbar">
+      <div class="brand">
+        <span class="brand-badge"><img src="logo.png" alt="Dra. Gabriela" onerror="this.onerror=null;this.src='logo.svg'"></span>
+        <span class="brand-txt">
+          <span class="brand-nome">Dra. Gabriela</span>
+          <span class="brand-sub">Canal oficial</span>
+        </span>
+      </div>
+      <div class="step-pill" id="stepPill">Etapa 0/8</div>
+    </div>
+    <div class="progress-line"><i id="progressFill"></i></div>
+  </header>
+
+  <main id="main"><div class="chat" id="chat">
+
+  <div class="dock" id="dock">
+    <div class="dock-inner">
+      <p class="field-label" id="fieldLabel"></p>
+      <div class="input-wrap" id="inputWrap">
+        <span class="prefix" id="prefix"></span>
+        <input type="text" id="input" autocomplete="off">
+        <button class="send-btn" id="sendBtn" aria-label="Enviar">
+          <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+        </button>
+      </div>
+      <div class="select-wrap" id="selectWrap">
+        <div class="select-shell"><select id="selectEl" required></select></div>
+        <button class="send-btn" id="selectBtn" aria-label="Confirmar">
+          <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+        </button>
+      </div>
+      <div class="chips" id="chips"></div>
+      <p class="input-hint" id="hint"></p>
+      <p class="lgpd" id="lgpd">Ao continuar, você concorda em ser contatada por WhatsApp sobre o que conversamos aqui. Seus dados estão protegidos (LGPD).</p>
+    </div>
+  </div>
+
+  </div></main>
+
+<script>
+/* ================================================================
+   SEGURANÇA: todo dado digitado pela pessoa passa por esc() antes de
+   entrar em qualquer template. Os templates são estáticos deste arquivo.
+   ================================================================ */
+const esc = (s) => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+
+/* ================================================================
+   CONFIG — ajuste aqui antes de publicar
+   ================================================================ */
+const CONFIG = {
+  AVATAR_URL: 'gabriela.jpg',            // foto da Dra. Gabriela (cai no avatar.svg se não existir)
+  AVATAR_FALLBACK: 'avatar.svg',
+
+  /* Os 3 destinos do roteamento (DDI+DDD+número, só dígitos).
+     Confirme que cada um tem alguém respondendo rápido. */
+  WHATSAPP: {
+    clinica:  { numero: '5511999999999', titulo: 'Minha recepção',        sub: 'Quem cuida da sua agenda e do seu atendimento na clínica.', botao: 'Falar com a recepção',   tema: 'me tratar na sua clínica' },
+    workshop: { numero: '5511999999999', titulo: 'Meu time do Workshop',  sub: 'Vai te contar tudo sobre as turmas, o conteúdo e as datas.', botao: 'Falar sobre o Workshop', tema: 'o Workshop de injetáveis' },
+    mentoria: { numero: '5511999999999', titulo: 'Meu time da mentoria',  sub: 'Pessoa de altíssima confiança que cuida disso por mim.',     botao: 'Falar com meu time',     tema: 'os eventos e a mentoria' },
+  },
+
+  /* ===== BACK-END (opcional) =====
+     Vazio = MODO AUTÔNOMO: nenhuma chamada de rede acontece e o funil roda
+     inteiro no navegador. Preencha o que estiver no ar. */
+  API_SAVE: '',        // ex.: '/api/lead' — salvamento incremental (parcial/completo/roteado/nutrir)
+  API_FB_EVENT: '',    // ex.: '/api/fb-event' — Conversions API, deduplicada com o Pixel
+};
+/* Dá pra sobrescrever qualquer chave sem editar este arquivo: defina
+   window.FUNIL_CONFIG = { API_SAVE: '...' } antes deste script (útil pra ter
+   teste e produção com os mesmos arquivos). A mescla é rasa: pra trocar um
+   número, passe o objeto WHATSAPP inteiro. */
+if (window.FUNIL_CONFIG) Object.assign(CONFIG, window.FUNIL_CONFIG);
+window.CONFIG = CONFIG;
+
+/* ================================================================
+   OPÇÕES DAS ETAPAS
+   ================================================================ */
+const INTERESSE_CURTO = { A: 'Tratamento na clínica', B: 'Workshop de injetáveis', C: 'Eventos e mentoria' };
+const INTERESSES = {
+  A: 'Quero me cuidar e me tratar na sua clínica',
+  B: 'Sou profissional e quero aprender ou aprimorar minhas técnicas de injetáveis',
+  C: 'Quero escalar minha clínica e conhecer seus eventos e mentoria',
+};
+/* Formação: as 6 primeiras podem aplicar injetável; as 2 últimas, não. */
+const FORMACOES_APTAS = ['Dermatologista', 'Médica(o)', 'Dentista', 'Enfermeira(o)', 'Biomédica(o)', 'Esteticista com pós em injetáveis'];
+const FORMACOES_INAPTAS = ['Esteticista sem pós em injetáveis', 'Outra formação'];
+const FORMACOES = [...FORMACOES_APTAS, ...FORMACOES_INAPTAS];
+const AREAS = ['Harmonização facial', 'Estética corporal', 'Dermatologia clínica', 'Odontologia estética', 'Enfermagem estética', 'Biomedicina estética', 'Saúde capilar', 'Estética íntima', 'Outra área'];
+const DESAFIOS_B = ['Segurança na técnica', 'Resultados que não se repetem', 'Poucos pacientes para aplicar', 'Precificar os procedimentos', 'Ainda não aplico e quero começar'];
+const DESAFIOS_C = ['Atrair pacientes com constância', 'Time e processos', 'Precificação e margem', 'Agenda cheia e lucro baixo', 'Escalar sem perder qualidade'];
+const FATURAMENTOS = ['Até R$30.000', 'De R$30.000 a R$70.000', 'De R$70.000 a R$150.000', 'De R$150.000 a R$300.000', 'De R$300.000 a R$700.000', 'De R$700.000 a R$1.000.000', 'Mais de R$1.000.000'];
+
+/* ================================================================
+   ESTADO + PERSISTÊNCIA
+   O transcript guarda a conversa inteira: no refresh ela é remontada
+   igual e a pessoa continua exatamente de onde parou.
+   ================================================================ */
+const SKEY = 'gabi_funil_v1';
+let state = { etapa: 'nome', passo: 0, total: 8, data: {}, transcript: [], ref: null, done: false };
+try {
+  const salvo = JSON.parse(localStorage.getItem(SKEY) || 'null');
+  if (salvo && salvo.ref) state = Object.assign(state, salvo);
+} catch (e) {}
+if (!state.ref) state.ref = 'gb_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 9);
+function persist() { try { localStorage.setItem(SKEY, JSON.stringify(state)); } catch (e) {} }
+
+/* UTMs e click-id da URL de entrada — preserva a primeira atribuição */
+(function capturarUTMs() {
+  try {
+    const p = new URLSearchParams(location.search);
+    const get = (k) => (p.get(k) || '').slice(0, 200);
+    const u = { source: get('utm_source'), medium: get('utm_medium'), campaign: get('utm_campaign'), content: get('utm_content'), term: get('utm_term'), fbclid: get('fbclid') };
+    state.data.utm = state.data.utm || {};
+    let mudou = false;
+    for (const k of Object.keys(u)) if (u[k] && !state.data.utm[k]) { state.data.utm[k] = u[k]; mudou = true; }
+    if (!state.data.referrer && document.referrer) { state.data.referrer = document.referrer.slice(0, 300); mudou = true; }
+    if (mudou) persist();
+  } catch (e) {}
+})();
+
+/* ================================================================
+   UI DO CHAT
+   ================================================================ */
+const $ = (id) => document.getElementById(id);
+const chat = $('chat'), main = $('main'), input = $('input'), sendBtn = $('sendBtn');
+const chipsEl = $('chips'), wrapEl = $('inputWrap'), labelEl = $('fieldLabel');
+const prefixEl = $('prefix'), hintEl = $('hint'), lgpdEl = $('lgpd');
+const selWrap = $('selectWrap'), selEl = $('selectEl'), selBtn = $('selectBtn'), dockEl = $('dock');
+const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+const scrollDown = () => main.scrollTo({ top: main.scrollHeight, behavior: 'smooth' });
+
+let lastSide = null;
+let avatarSrc = CONFIG.AVATAR_URL || CONFIG.AVATAR_FALLBACK;
+const avatarHtml = () => `<div class="avatar"><img src="${avatarSrc}" alt="" onerror="this.onerror=null;avatarSrc='${CONFIG.AVATAR_FALLBACK}';this.src=avatarSrc"></div>`;
+
+/* html é sempre template estático deste arquivo, com valores já escapados */
+function addRow(side, html, extraClass = '') {
+  const row = document.createElement('div');
+  row.className = `row ${side}${side === lastSide && side === 'bot' ? ' cont' : ''}`;
+  row.innerHTML = side === 'bot'
+    ? `${avatarHtml()}<div class="bubble ${extraClass}">${html}</div>`
+    : `<div class="bubble">${html}</div>`;
+  chat.appendChild(row);
+  lastSide = side;
+  scrollDown();
+  return row;
+}
+function gravar(side, html, extraClass = '') {
+  state.transcript.push({ s: side, h: html, c: extraClass });
+  if (state.transcript.length > 60) state.transcript.shift();
+  persist();
+}
+function showTyping() {
+  const t = document.createElement('div');
+  t.className = `row bot${lastSide === 'bot' ? ' cont' : ''}`;
+  t.innerHTML = `${avatarHtml()}<div class="bubble typing"><i></i><i></i><i></i></div>`;
+  chat.appendChild(t); scrollDown();
+  return t;
+}
+async function gabi(html, { delay = 900, classe = '' } = {}) {
+  const t = showTyping();
+  await sleep(delay);
+  t.remove();
+  addRow('bot', html, classe);
+  gravar('bot', html, classe);
+}
+function pessoa(texto) { const h = esc(texto); addRow('user', h); gravar('user', h); }
+
+function setProgress(passo, total) {
+  state.passo = passo; if (total) state.total = total;
+  const pill = $('stepPill');
+  pill.textContent = `Etapa ${state.passo}/${state.total}`;
+  pill.classList.remove('bump'); void pill.offsetWidth; pill.classList.add('bump');
+  $('progressFill').style.width = Math.min(state.passo / state.total * 100, 100) + '%';
+  persist();
+}
+
+/* ================================================================
+   DOCK — o campo aparece inline, logo abaixo da pergunta
+   ================================================================ */
+let onSubmit = null;
+function ensureDockLast() { chat.appendChild(dockEl); }
+function hideDock() {
+  wrapEl.classList.remove('show'); labelEl.classList.remove('show');
+  chipsEl.classList.remove('show'); selWrap.classList.remove('show');
+  hintEl.textContent = '';
+}
+function askText({ label, placeholder, prefix = '', type = 'text', mask = null, validate, onOk, ddiSelect = false, extraChip = null }) {
+  hideDock(); ensureDockLast();
+  labelEl.textContent = label; labelEl.classList.add('show');
+  wrapEl.classList.add('show');
+  if (ddiSelect) {
+    foneDDI = '55';
+    prefixEl.innerHTML = '<select id="ddiSel" class="ddi-sel" aria-label="País"></select>';
+    const sel = prefixEl.querySelector('#ddiSel');
+    sel.innerHTML = PAISES.map((p) => `<option value="${p.ddi}">${p.f} +${p.ddi}</option>`).join('');
+    sel.value = '55';
+    prefixEl.classList.add('show');
+    sel.onchange = () => {
+      foneDDI = sel.value;
+      input.value = mask ? mask(input.value) : input.value;
+      input.placeholder = foneDDI === '55' ? '(11) 99999-9999' : 'só os números';
+      hintEl.textContent = '';
+      sendBtn.classList.toggle('ready', validate(input.value).ok);
+      input.focus({ preventScroll: true });
+    };
+  } else {
+    prefixEl.textContent = prefix; prefixEl.classList.toggle('show', !!prefix);
+  }
+  input.value = ''; input.placeholder = placeholder;
+  input.type = type; input.inputMode = type === 'tel' ? 'tel' : 'text';
+  sendBtn.classList.remove('ready');
+  input.oninput = () => {
+    if (mask) input.value = mask(input.value);
+    hintEl.textContent = '';
+    sendBtn.classList.toggle('ready', validate(input.value).ok);
+  };
+  onSubmit = async () => {
+    const v = validate(input.value);
+    if (!v.ok) { hintEl.textContent = v.erro || ''; return; }
+    hideDock(); onSubmit = null;
+    await onOk(v.valor);
+  };
+  chipsEl.textContent = '';
+  if (extraChip) {
+    const b = document.createElement('button');
+    b.className = 'chip ghost'; b.textContent = extraChip.texto;
+    b.onclick = async () => { hideDock(); onSubmit = null; await extraChip.onPick(); };
+    chipsEl.appendChild(b);
+    chipsEl.classList.add('show');
+  }
+  setTimeout(() => input.focus({ preventScroll: true }), 350);
+}
+function askChips(options, onPick) {
+  hideDock(); ensureDockLast();
+  chipsEl.textContent = '';
+  options.forEach((opt) => {
+    const b = document.createElement('button');
+    b.className = 'chip'; b.textContent = opt;
+    b.onclick = async () => { hideDock(); await onPick(opt); };
+    chipsEl.appendChild(b);
+  });
+  chipsEl.classList.add('show');
+  scrollDown();
+}
+function askSelect({ label, placeholder, options, onOk }) {
+  hideDock(); ensureDockLast();
+  labelEl.textContent = label; labelEl.classList.add('show');
+  selEl.innerHTML = `<option value="" disabled selected hidden>${placeholder}</option>` + options.map(o => `<option>${o}</option>`).join('');
+  selWrap.classList.add('show');
+  selBtn.classList.remove('ready');
+  selEl.onchange = () => selBtn.classList.toggle('ready', !!selEl.value);
+  selBtn.onclick = async () => { if (!selEl.value) return; const v = selEl.value; hideDock(); await onOk(v); };
+  scrollDown();
+}
+
+/* ================================================================
+   TELEFONE — Brasil estrito, demais países validação leve (E.164)
+   ================================================================ */
+const DDDS = new Set([11,12,13,14,15,16,17,18,19,21,22,24,27,28,31,32,33,34,35,37,38,41,42,43,44,45,46,47,48,49,51,53,54,55,61,62,63,64,65,66,67,68,69,71,73,74,75,77,79,81,82,83,84,85,86,87,88,89,91,92,93,94,95,96,97,98,99]);
+const PAISES = [
+  { f: '🇧🇷', ddi: '55' }, { f: '🇵🇹', ddi: '351' }, { f: '🇺🇸', ddi: '1' }, { f: '🇪🇸', ddi: '34' },
+  { f: '🇦🇷', ddi: '54' }, { f: '🇲🇽', ddi: '52' }, { f: '🇨🇱', ddi: '56' }, { f: '🇨🇴', ddi: '57' },
+  { f: '🇵🇾', ddi: '595' }, { f: '🇺🇾', ddi: '598' }, { f: '🇬🇧', ddi: '44' }, { f: '🇮🇹', ddi: '39' },
+  { f: '🇫🇷', ddi: '33' }, { f: '🇩🇪', ddi: '49' }, { f: '🇨🇭', ddi: '41' }, { f: '🇦🇪', ddi: '971' },
+  { f: '🇦🇴', ddi: '244' }, { f: '🇲🇿', ddi: '258' },
+];
+let foneDDI = '55';
+const maskFoneBR = (v) => {
+  const d = v.replace(/\D/g, '').slice(0, 11);
+  if (d.length <= 2) return d.length ? `(${d}` : '';
+  if (d.length <= 7) return `(${d.slice(0,2)}) ${d.slice(2)}`;
+  return `(${d.slice(0,2)}) ${d.slice(2,7)}-${d.slice(7)}`;
+};
+const maskFone = (v) => (foneDDI === '55' ? maskFoneBR(v) : v.replace(/\D/g, '').slice(0, 15));
+const vFone = (v) => {
+  const d = v.replace(/\D/g, '');
+  if (foneDDI !== '55') {
+    if (d.length < 6 || d.length > 14) return { ok: false, erro: d.length > 3 ? 'Esse número parece incompleto' : '' };
+    return { ok: true, valor: d };
+  }
+  if (d.length !== 11) return { ok: false, erro: d.length > 2 && !DDDS.has(+d.slice(0,2)) ? 'Esse DDD não existe no Brasil' : '' };
+  if (!DDDS.has(+d.slice(0, 2))) return { ok: false, erro: 'Esse DDD não existe no Brasil' };
+  if (d[2] !== '9') return { ok: false, erro: 'No celular, vem o 9 depois do DDD' };
+  return { ok: true, valor: d };
+};
+const vNome = (v) => {
+  const t = v.trim().replace(/\s+/g, ' ');
+  if (t.length < 2) return { ok: false, erro: '' };
+  if (!/^[\p{L}' .-]+$/u.test(t)) return { ok: false, erro: 'Escreva só o seu nome' };
+  return { ok: true, valor: t };
+};
+const vCidade = (v) => {
+  const t = v.trim().replace(/\s+/g, ' ');
+  if (t.length < 2) return { ok: false, erro: '' };
+  return { ok: true, valor: t };
+};
+const primeiroNome = () => esc((state.data.nome || '').split(' ')[0]);
+
+/* ================================================================
+   SALVAMENTO INCREMENTAL — quem abandona no meio já é lead com telefone
+   ================================================================ */
+function salvar(status) {
+  state.data.status = status; persist();
+  if (!CONFIG.API_SAVE) return;                   // modo autônomo: nada sai do navegador
+  const d = state.data;
+  const u = d.utm || {};
+  const payload = {
+    lead_ref: state.ref, status,
+    nome: d.nome || '', telefone: d.telefone || '',
+    interesse: d.interesse || '', interesse_texto: d.interesseTexto || '',
+    formacao: d.formacao || '', pode_aplicar: d.podeAplicar ?? null,
+    ja_atua: d.jaAtua || '', nicho: d.nicho || '', desafio: d.desafio || '',
+    faixa_faturamento: d.faturamento || '', momento: d.momento || '', cidade: d.cidade || '',
+    destino: d.destino || '', tag: d.tag || '',
+    utm_source: u.source || '', utm_medium: u.medium || '', utm_campaign: u.campaign || '',
+    utm_content: u.content || '', utm_term: u.term || '', fbclid: u.fbclid || '',
+    referrer: d.referrer || '', enviado_em: new Date().toISOString(),
+  };
+  try {
+    const blob = new Blob([JSON.stringify(payload)], { type: 'application/json' });
+    // sendBeacon sobrevive ao fechamento da aba — é o que salva o abandono
+    if (navigator.sendBeacon && navigator.sendBeacon(CONFIG.API_SAVE, blob)) return;
+  } catch (e) {}
+  fetch(CONFIG.API_SAVE, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload), keepalive: true })
+    .catch((e) => console.warn('[lead] salvar falhou (fluxo segue):', e.message));
+}
+
+/* Evento Lead na CLASSIFICAÇÃO (destino definido), nunca em nutrir/abandono.
+   Mesmo eventID no Pixel e na CAPI → o Meta deduplica. */
+function dispararLead() {
+  const d = state.data;
+  if (!d.destino || d.destino === 'nutrir' || d.leadEnviado) return;
+  d.leadEnviado = true; persist();
+  const eventId = `lead_${state.ref}_${Date.now()}`;
+  const custom = { content_name: d.tag || d.destino, currency: 'BRL' };
+  try { if (window.fbq) fbq('track', 'Lead', custom, { eventID: eventId }); } catch (e) {}
+  if (!CONFIG.API_FB_EVENT) return;
+  const cookie = (n) => (document.cookie.match('(^|;)\\s*' + n + '=([^;]+)') || [])[2] || '';
+  fetch(CONFIG.API_FB_EVENT, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, keepalive: true,
+    body: JSON.stringify({
+      event_name: 'Lead', event_id: eventId, content_name: custom.content_name,
+      nome: d.nome || '', phone: d.telefone || '', destino: d.destino,
+      fbp: cookie('_fbp'), fbc: cookie('_fbc'), event_source_url: location.href, currency: 'BRL',
+    }),
+  }).catch(() => {});
+}
+
+/* ================================================================
+   FLUXO
+   comuns: 1 nome · 2 whatsapp · 3 interesse
+   A (paciente): 4 cidade                            → recepção da clínica
+   B (injetáveis): 4 formação · 5 atua · 6 área · 7 desafio · 8 faturamento → workshop
+   C (mentoria):   4 formação · 5 momento · 6 área · 7 desafio · 8 faturamento → mentoria
+   ================================================================ */
+async function etapaNome(replay) {
+  if (!replay) {
+    await gabi('Que alegria ter você aqui. 💛', { delay: 900 });
+    await gabi('Sou eu, a Gabi. Este é o meu canal, e preparei ele para te receber com o mesmo cuidado que eu teria pessoalmente.');
+    await gabi('Vou te fazer algumas perguntas para te direcionar ao lugar certo.');
+    await gabi('Para começar, como você se chama?', { delay: 700 });
+  }
+  askText({
+    label: 'Seu nome', placeholder: 'Digite seu nome', validate: vNome,
+    onOk: async (nome) => {
+      pessoa(nome);
+      state.data.nome = nome; state.etapa = 'whats'; setProgress(1);
+      salvar('parcial');
+      await etapaWhats();
+    },
+  });
+}
+
+async function etapaWhats(replay) {
+  if (!replay) await gabi(`Prazer, <b>${primeiroNome()}</b>. Qual o seu melhor WhatsApp? É por ele que a gente continua a conversa.`);
+  askText({
+    label: 'Seu WhatsApp', placeholder: '(11) 99999-9999', type: 'tel',
+    mask: maskFone, validate: vFone, ddiSelect: true,
+    onOk: async (fone) => {
+      pessoa(foneDDI === '55' ? maskFoneBR(fone) : '+' + foneDDI + ' ' + fone);
+      state.data.telefone = '+' + foneDDI + fone;      // E.164
+      state.etapa = 'interesse'; setProgress(2);
+      salvar('parcial');
+      await etapaInteresse();
+    },
+  });
+}
+
+async function etapaInteresse(replay) {
+  if (!replay) await gabi('Me conta o que te traz até mim:', { delay: 800 });
+  askChips([INTERESSES.A, INTERESSES.B, INTERESSES.C], async (opt) => {
+    pessoa(opt);
+    const ramo = opt === INTERESSES.A ? 'A' : opt === INTERESSES.B ? 'B' : 'C';
+    state.data.interesse = ramo;
+    state.data.interesseTexto = opt;
+    setProgress(3, ramo === 'A' ? 4 : 8);
+    salvar('parcial');
+    if (ramo === 'A') { state.etapa = 'a_cidade'; await etapaCidade(); }
+    else if (ramo === 'B') { state.etapa = 'b_formacao'; await etapaFormacaoB(); }
+    else { state.etapa = 'c_formacao'; await etapaFormacaoC(); }
+  });
+}
+
+/* ---------- Ramo A · paciente ---------- */
+async function etapaCidade(replay) {
+  if (!replay) await gabi('De qual cidade você fala comigo?');
+  const seguir = async (cidade) => {
+    state.data.cidade = cidade || '';
+    setProgress(4, 4);
+    salvar('completo');
+    await fecharA();
+  };
+  askText({
+    label: 'Sua cidade', placeholder: 'Digite sua cidade', validate: vCidade,
+    onOk: async (cidade) => { pessoa(cidade); await seguir(cidade); },
+    extraChip: { texto: 'Prefiro não dizer agora', onPick: async () => { pessoa('Prefiro não dizer agora'); await seguir(''); } },
+  });
+}
+async function fecharA() {
+  await gabi(`Perfeito, <b>${primeiroNome()}</b>. Vou te apresentar à minha recepção, que cuida de cada detalhe do seu atendimento com o mesmo cuidado que eu teria. É só tocar no botão. 💛`, { delay: 1300 });
+  await rotear('clinica', 'clinica-paciente');
+}
+
+/* ---------- Ramo B · injetáveis ---------- */
+async function etapaFormacaoB(replay) {
+  if (!replay) await gabi('Qual a sua formação?');
+  askSelect({
+    label: 'Sua formação', placeholder: 'Selecione sua formação', options: FORMACOES,
+    onOk: async (f) => {
+      pessoa(f);
+      state.data.formacao = f;
+      state.data.podeAplicar = FORMACOES_APTAS.includes(f);
+      setProgress(4, 8);
+      salvar('parcial');
+      if (!state.data.podeAplicar) { state.etapa = 'b_nutrir'; await etapaNutrir(); return; }
+      state.etapa = 'b_atua'; await etapaAtuaB();
+    },
+  });
+}
+async function etapaAtuaB(replay) {
+  if (!replay) await gabi('Você já aplica hoje, ou quer começar?');
+  askChips(['Já aplico hoje', 'Quero começar agora'], async (opt) => {
+    pessoa(opt);
+    state.data.jaAtua = opt; state.etapa = 'b_nicho'; setProgress(5, 8);
+    salvar('parcial');
+    await etapaNichoB();
+  });
+}
+async function etapaNichoB(replay) {
+  if (!replay) await gabi('Qual a sua área de atuação principal?');
+  askSelect({
+    label: 'Sua área', placeholder: 'Selecione sua área', options: AREAS,
+    onOk: async (a) => {
+      pessoa(a);
+      state.data.nicho = a; state.etapa = 'b_desafio'; setProgress(6, 8);
+      salvar('parcial');
+      await etapaDesafioB();
+    },
+  });
+}
+async function etapaDesafioB(replay) {
+  if (!replay) await gabi('Qual o seu maior desafio hoje com procedimentos?');
+  askChips(DESAFIOS_B, async (opt) => {
+    pessoa(opt);
+    state.data.desafio = opt; state.etapa = 'b_faturamento'; setProgress(7, 8);
+    salvar('parcial');
+    await etapaFaturamento('B');
+  });
+}
+async function fecharB() {
+  await gabi(`Você tem exatamente o perfil que eu quero no meu Workshop, <b>${primeiroNome()}</b>. 🔑 Vou te apresentar a alguém do meu time, que vai te contar tudo.`, { delay: 1300 });
+  await rotear('workshop', 'workshop-injetaveis');
+}
+/* Não elegível: nunca rejeição seca — vira lead de nutrição, sem evento de conversão */
+async function etapaNutrir(replay) {
+  if (!replay) {
+    await gabi('O meu Workshop é mão na massa em injetáveis, e para isso é preciso ter habilitação para aplicar.', { delay: 1100 });
+    await gabi('Mas não quero te perder de vista: posso te enviar meus conteúdos e novidades? 💛');
+  }
+  askChips(['Pode sim, quero receber 💛', 'Agora não'], async (opt) => {
+    pessoa(opt);
+    const aceitou = opt.startsWith('Pode sim');
+    state.data.destino = 'nutrir';
+    state.data.tag = aceitou ? 'nutrir-aceitou' : 'nutrir-recusou';
+    state.done = true; setProgress(8, 8);
+    salvar('nutrir');                       // sem evento de conversão, por decisão de rastreio
+    lgpdEl.style.display = 'none';
+    await gabi(aceitou
+      ? `Fico feliz, <b>${primeiroNome()}</b>. Vou te mandar o que preparo de melhor por aqui e pelo WhatsApp. Quando você estiver habilitada, a porta do Workshop está aberta. 💛`
+      : `Tudo bem, <b>${primeiroNome()}</b>. Obrigada por conversar comigo. Quando fizer sentido, você sabe onde me encontrar. 💛`, { delay: 1100 });
+    persist();
+  });
+}
+
+/* ---------- Ramo C · eventos e mentoria ---------- */
+async function etapaFormacaoC(replay) {
+  if (!replay) await gabi('Qual a sua formação?');
+  askSelect({
+    label: 'Sua formação', placeholder: 'Selecione sua formação', options: FORMACOES,
+    onOk: async (f) => {
+      pessoa(f);
+      state.data.formacao = f;
+      state.data.podeAplicar = FORMACOES_APTAS.includes(f);
+      state.etapa = 'c_momento'; setProgress(4, 8);
+      salvar('parcial');
+      await etapaMomentoC();
+    },
+  });
+}
+async function etapaMomentoC(replay) {
+  if (!replay) await gabi('Você já tem clínica em operação, ou está construindo?');
+  askChips(['Já tenho clínica em operação', 'Estou construindo agora'], async (opt) => {
+    pessoa(opt);
+    state.data.momento = opt; state.etapa = 'c_nicho'; setProgress(5, 8);
+    salvar('parcial');
+    await etapaNichoC();
+  });
+}
+async function etapaNichoC(replay) {
+  if (!replay) await gabi('Qual a sua área de atuação?');
+  askSelect({
+    label: 'Sua área', placeholder: 'Selecione sua área', options: AREAS,
+    onOk: async (a) => {
+      pessoa(a);
+      state.data.nicho = a; state.etapa = 'c_desafio'; setProgress(6, 8);
+      salvar('parcial');
+      await etapaDesafioC();
+    },
+  });
+}
+async function etapaDesafioC(replay) {
+  if (!replay) await gabi('Qual o seu maior desafio hoje na gestão ou no crescimento da clínica?');
+  askChips(DESAFIOS_C, async (opt) => {
+    pessoa(opt);
+    state.data.desafio = opt; state.etapa = 'c_faturamento'; setProgress(7, 8);
+    salvar('parcial');
+    await etapaFaturamento('C');
+  });
+}
+async function fecharC() {
+  await gabi(`Adorei te conhecer, <b>${primeiroNome()}</b>. Pelo seu momento, faz muito sentido a gente conversar mais de perto. 💎 Vou te apresentar a alguém de altíssima confiança do meu time, que vai cuidar de você por mim.`, { delay: 1400 });
+  await rotear('mentoria', 'mentoria-eventos');
+}
+
+/* ---------- Faturamento: só B e C, sempre por último ---------- */
+async function etapaFaturamento(ramo, replay) {
+  if (!replay) await gabi('Uma última pergunta, para eu te direcionar com precisão: qual a média de faturamento da sua clínica por mês?');
+  askSelect({
+    label: 'Faturamento mensal', placeholder: 'Selecione a faixa', options: FATURAMENTOS,
+    onOk: async (f) => {
+      pessoa(f);
+      state.data.faturamento = f; setProgress(8, 8);
+      salvar('completo');
+      if (ramo === 'B') { state.etapa = 'b_fechar'; await fecharB(); }
+      else { state.etapa = 'c_fechar'; await fecharC(); }
+    },
+  });
+}
+
+/* ================================================================
+   HANDOFF — a classificação acontece aqui: define destino, dispara o
+   evento Lead e entrega o botão do WhatsApp certo com tudo preenchido.
+   ================================================================ */
+function linkWhats(dest) {
+  const d = state.data;
+  const msg = `Oi! Vim pelo canal da Dra. Gabriela. Meu nome é ${d.nome || ''} e tenho interesse em ${dest.tema}.`;
+  return `https://wa.me/${dest.numero}?text=${encodeURIComponent(msg)}`;
+}
+function cardHandoff(chaveDestino) {
+  const dest = CONFIG.WHATSAPP[chaveDestino];
+  const d = state.data;
+  const linhas = [
+    ['Nome', d.nome], ['WhatsApp', d.telefone], ['Interesse', INTERESSE_CURTO[d.interesse] || d.interesseTexto],
+    ['Formação', d.formacao], ['Área', d.nicho], ['Faturamento', d.faturamento], ['Cidade', d.cidade],
+  ].filter(([, v]) => v);
+  return `
+    <div class="wa-kicker">Próximo passo</div>
+    <div class="wa-title">${esc(dest.titulo)}</div>
+    <div class="wa-sub">${esc(dest.sub)}</div>
+    <div class="wa-list">${linhas.map(([k, v]) => `<div class="wa-item"><span>${esc(k)}</span><span>${esc(v)}</span></div>`).join('')}</div>
+    <a class="wa-btn" href="${esc(linkWhats(dest))}" target="_blank" rel="noopener">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M17.5 14.4c-.3-.2-1.7-.9-2-1-.3-.1-.5-.2-.7.1s-.8 1-.9 1.2c-.2.2-.3.2-.6.1-.3-.2-1.3-.5-2.4-1.5-.9-.8-1.5-1.8-1.7-2.1-.2-.3 0-.5.1-.6l.5-.6c.1-.2.2-.3.3-.5 0-.2 0-.4-.1-.5l-.9-2.2c-.2-.6-.5-.5-.7-.5h-.6c-.2 0-.5.1-.8.4-.3.3-1 1-1 2.5s1.1 2.9 1.2 3.1c.2.2 2.1 3.2 5.1 4.4.7.3 1.3.5 1.7.6.7.2 1.4.2 1.9.1.6-.1 1.7-.7 2-1.4.2-.7.2-1.3.2-1.4-.1-.1-.3-.2-.6-.3zM12 2a10 10 0 00-8.6 15L2 22l5.2-1.4A10 10 0 1012 2z"/></svg>
+      ${esc(dest.botao)}
+    </a>
+    <div class="wa-foot">Já mandei suas respostas junto — não precisa repetir nada.</div>`;
+}
+async function rotear(chaveDestino, tag) {
+  state.data.destino = chaveDestino;
+  state.data.tag = tag;
+  state.done = true;
+  lgpdEl.style.display = 'none';
+  salvar('roteado');
+  dispararLead();                       // classificação: é aqui que o evento Lead dispara
+  hideDock();
+  await sleep(700);
+  addRow('bot', cardHandoff(chaveDestino), 'wa-bubble');
+  gravar('bot', cardHandoff(chaveDestino), 'wa-bubble');
+  persist();
+}
+
+/* ================================================================
+   BOOT — remonta a conversa salva e volta pra pergunta pendente
+   ================================================================ */
+const ETAPAS = {
+  nome: etapaNome, whats: etapaWhats, interesse: etapaInteresse,
+  a_cidade: etapaCidade,
+  b_formacao: etapaFormacaoB, b_atua: etapaAtuaB, b_nicho: etapaNichoB,
+  b_desafio: etapaDesafioB, b_faturamento: (r) => etapaFaturamento('B', r), b_nutrir: etapaNutrir,
+  c_formacao: etapaFormacaoC, c_momento: etapaMomentoC, c_nicho: etapaNichoC,
+  c_desafio: etapaDesafioC, c_faturamento: (r) => etapaFaturamento('C', r),
+};
+
+async function boot() {
+  sendBtn.onclick = () => onSubmit && onSubmit();
+  input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); onSubmit && onSubmit(); } });
+
+  if (state.transcript.length) {
+    state.transcript.forEach((m) => addRow(m.s, m.h, m.c || ''));
+    setProgress(state.passo, state.total);
+    if (state.done) { hideDock(); lgpdEl.style.display = 'none'; return; }
+    await gabi('Continuando de onde você parou.', { delay: 600 });
+    const etapa = ETAPAS[state.etapa] || etapaNome;
+    await etapa(true);
+    return;
+  }
+  await sleep(400);
+  await etapaNome();
+}
+boot();
+</script>
+</body>
+</html>
